@@ -160,15 +160,19 @@ with col2:
                     {"role": "user", "content": judge_prompt}])
                 result = response.choices[0].message.content.strip()
 
+                # 【修改点】无论对错，先+1
+                st.session_state.trial_count += 1
+
                 is_correct = "正确" in result
                 if is_correct:
                     st.success("✅ 正确")
                     save_to_logs(f"【答案提交】{student_answer}", "正确")
                 else:
                     st.error("❌ 错误")
-                    st.session_state.trial_count += 1
                     save_to_logs(f"【答案提交】{student_answer}", "错误")
-                    render_metrics()
+
+                # 【修改点】无论对错，都刷新顶部数据
+                render_metrics()
 
             except Exception as e:
                 st.error(f"故障：{e}")
