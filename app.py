@@ -139,6 +139,9 @@ with col1:
                 if new_q_id:
                     st.session_state.current_q_id = new_q_id
                     st.toast(f"题目已入库，ID: {new_q_id}", icon="💾")
+
+                # 【修改点1】 提交新题目时，顺便把答案框清空
+                st.session_state.answer_input = ""
                 st.rerun()
     else:
         if st.button("🔓 修改/重置当前题目"):
@@ -146,11 +149,16 @@ with col1:
             st.session_state.messages = []
             st.session_state.trial_count = 0
             st.session_state.current_q_id = None
+
+            # 【修改点2】 重置题目时，必须清空答案框
+            st.session_state.answer_input = ""
             st.rerun()
 
 with col2:
     st.header("📝 答案输入")
-    student_answer = st.text_area("请写下你的计算过程或答案：", value="", height=150)
+    # 【修改点3】 加上 key="answer_input"，把这个框纳管起来
+    student_answer = st.text_area("请写下你的计算过程或答案：", height=150, key="answer_input")
+
     if st.button("🚀 提交并判断对错"):
         if problem_is_locked and student_answer:
             judge_prompt = f"题目：{st.session_state.submitted_problem}\n学生答案：{student_answer}\n判断对错。只能输出'正确'或'错误'。"
@@ -160,7 +168,6 @@ with col2:
                     {"role": "user", "content": judge_prompt}])
                 result = response.choices[0].message.content.strip()
 
-                # 【修改点】无论对错，先+1
                 st.session_state.trial_count += 1
 
                 is_correct = "正确" in result
@@ -171,7 +178,6 @@ with col2:
                     st.error("❌ 错误")
                     save_to_logs(f"【答案提交】{student_answer}", "错误")
 
-                # 【修改点】无论对错，都刷新顶部数据
                 render_metrics()
 
             except Exception as e:
