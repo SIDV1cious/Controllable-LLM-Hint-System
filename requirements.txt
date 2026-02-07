@@ -3,3 +3,4 @@ openai
 sqlalchemy
 pymysql
 python-dotenv
+pytz
