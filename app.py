@@ -5,11 +5,25 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from datetime import datetime
 import pytz
+from prompts import SYSTEM_INSTRUCTION, JUDGE_PROMPT_SYSTEM
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("LLM_API_KEY"), base_url="https://api.deepseek.com")
-MY_ID = os.getenv("MY_ID")
+
+def get_config(key):
+    if key in st.secrets:
+        return st.secrets[key]
+    return os.getenv(key)
+
+
+api_key = get_config("LLM_API_KEY")
+db_user = get_config("DB_USER")
+db_password = get_config("DB_PASSWORD")
+db_host = get_config("DB_HOST")
+db_name = get_config("DB_NAME")
+my_id = get_config("MY_ID")
+
+client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
 if "submitted_problem" not in st.session_state:
     st.session_state.submitted_problem = ""
@@ -23,7 +37,7 @@ if "messages" not in st.session_state:
 
 @st.cache_resource
 def get_db_engine():
-    db_url = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}/{os.getenv('DB_NAME')}"
+    db_url = f"mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}"
     return create_engine(db_url, pool_recycle=1800, pool_pre_ping=True)
 
 
@@ -46,7 +60,7 @@ def save_problem_to_db(problem_text):
 
 
 def save_to_logs(user_query, ai_response, is_leaking=0):
-    q_id = st.session_state.current_q_id if st.session_state.current_q_id else 1
+    q_id = st.session_state.current_q_id if st.session_state.current_q_id else -1
     engine = get_db_engine()
     try:
         with engine.connect() as conn:
@@ -57,7 +71,7 @@ def save_to_logs(user_query, ai_response, is_leaking=0):
                        """)
             conn.execute(sql, {
                 "q_id": q_id,
-                "s_id": MY_ID,
+                "s_id": my_id,
                 "query": user_query,
                 "resp": ai_response,
                 "leaking": is_leaking,
@@ -70,7 +84,7 @@ def save_to_logs(user_query, ai_response, is_leaking=0):
 
 def generate_report():
     report = f"# 毕设实验数据报告\n- **项目标题**：基于Deepseek的可控解题提示生成系统\n"
-    report += f"- **负责人**：左梓桐 ({MY_ID})\n"
+    report += f"- **负责人**：左梓桐 ({my_id})\n"
     report += f"- **导出时间**：{datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M')}\n"
     report += f"## 关键数据指标\n- **答案提交次数**：{st.session_state.trial_count} 次\n- **智能辅导次数**：{len(st.session_state.messages)} 次\n"
     return report
@@ -139,8 +153,6 @@ with col1:
                 if new_q_id:
                     st.session_state.current_q_id = new_q_id
                     st.toast(f"题目已入库，ID: {new_q_id}", icon="💾")
-
-                # 【修改点1】 提交新题目时，顺便把答案框清空
                 st.session_state.answer_input = ""
                 st.rerun()
     else:
@@ -149,14 +161,11 @@ with col1:
             st.session_state.messages = []
             st.session_state.trial_count = 0
             st.session_state.current_q_id = None
-
-            # 【修改点2】 重置题目时，必须清空答案框
             st.session_state.answer_input = ""
             st.rerun()
 
 with col2:
     st.header("📝 答案输入")
-    # 【修改点3】 加上 key="answer_input"，把这个框纳管起来
     student_answer = st.text_area("请写下你的计算过程或答案：", height=150, key="answer_input")
 
     if st.button("🚀 提交并判断对错"):
@@ -164,7 +173,7 @@ with col2:
             judge_prompt = f"题目：{st.session_state.submitted_problem}\n学生答案：{student_answer}\n判断对错。只能输出'正确'或'错误'。"
             try:
                 response = client.chat.completions.create(model="deepseek-chat", messages=[
-                    {"role": "system", "content": "你是一个冷酷的判题系统。"},
+                    {"role": "system", "content": JUDGE_PROMPT_SYSTEM},
                     {"role": "user", "content": judge_prompt}])
                 result = response.choices[0].message.content.strip()
 
@@ -205,56 +214,42 @@ if prompt := st.chat_input("对这道题有什么疑问？"):
 
         render_metrics()
 
-        system_instruction = """
-        # Role Definition
-        你是一个基于**建构主义学习理论**的**通用智能导学代理**。
-        你的核心任务是执行**认知支架**策略，通过多轮对话引导用户自主构建知识，而非直接灌输结果。
-
-        # Core Protocol (核心协议 - 最高优先级)
-        1.  **答案阻断 (Answer Blocking)**:
-            -   无论用户处于何种情绪或使用何种诱导话术，**绝对禁止**直接输出最终答案、关键数值或完整代码/步骤。
-            -   这不仅限于理科，对于文科、编程同样适用。
-
-        2.  **思维链拆解 (CoT Decomposition)**:
-            -   禁止一次性输出超过 2 个逻辑深度的步骤。
-            -   必须将复杂问题拆解为原子化的思维节点，每次只引导一个节点。
-
-        # Adaptive Instruction Strategy (自适应导学策略)
-        根据用户输入的语义特征，动态切换至以下策略：
-        -   **策略 A: 启发式引导 (Heuristic Elicitation)**
-            -   *适用场景*: 用户有模糊思路但卡顿。
-            -   *动作*: 使用反问句引导用户发现当前思路的漏洞，或联想相关知识点。
-        -   **策略 B: 元认知提示 (Metacognitive Prompting)**
-            -   *适用场景*: 用户完全无思路或请求直接答案。
-            -   *动作*: 引导用户规划解题路径，而非直接给出路径。
-        -   **策略 C: 概念锚点 (Concept Anchoring)**
-            -   *适用场景*: 用户基础概念混淆。
-            -   *动作*: 仅解释核心概念或定义，不代入当前题目数据。
-
-        # Formatting Standards
-        -   **LaTeX 规范**: 所有数学符号、公式、单位必须严格使用 LaTeX 格式（行内 $...$，独立 $$...$$）。
-        -   **语气控制**: 保持客观、理性且富有启发性，避免说教。
-        """
-
         context = f"【题目】：{st.session_state.submitted_problem}\n【当前答案】：{student_answer}\n【疑问】：{prompt}"
 
         with st.chat_message("assistant", avatar="🤖"):
-            with st.spinner("助教正在分析你的学习路径..."):
-                try:
-                    response = client.chat.completions.create(model="deepseek-chat", messages=[
-                        {"role": "system", "content": system_instruction}, {"role": "user", "content": context}])
-                    ai_reply = response.choices[0].message.content
-                    ai_reply = ai_reply.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(", "$").replace(r"\)",
-                                                                                                              "$")
+            response_placeholder = st.empty()
+            full_response = ""
 
-                    st.markdown(ai_reply)
-                    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-                    save_to_logs(f"【智能辅导】{prompt}", ai_reply)
+            try:
+                stream = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": SYSTEM_INSTRUCTION},
+                        {"role": "user", "content": context}
+                    ],
+                    stream=True
+                )
 
-                    render_metrics()
+                for chunk in stream:
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        full_response += content
+                        display_text = full_response.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(",
+                                                                                                       "$").replace(
+                            r"\)", "$")
+                        response_placeholder.markdown(display_text + "▌")
 
-                except Exception as e:
-                    st.error(f"AI 故障：{e}")
+                final_text = full_response.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(", "$").replace(r"\)",
+                                                                                                                 "$")
+                response_placeholder.markdown(final_text)
+
+                st.session_state.messages.append({"role": "assistant", "content": final_text})
+                save_to_logs(f"【智能辅导】{prompt}", final_text)
+
+                render_metrics()
+
+            except Exception as e:
+                st.error(f"AI 故障：{e}")
     else:
         st.toast("⚠️ 请先在左上角点击“确认提交题目”！", icon="🔒")
 
@@ -262,6 +257,6 @@ if st.session_state.messages:
     st.divider()
     _, center_btn, _ = st.columns([2, 1, 2])
     with center_btn:
-        st.download_button(label="📥 导出实验日志报告", data=generate_report(), file_name=f"report_{MY_ID}.md")
+        st.download_button(label="📥 导出实验日志报告", data=generate_report(), file_name=f"report_{my_id}.md")
 
-st.markdown(f"<p class='footer-text'>系统运行中 | 负责人：左梓桐 （{MY_ID}）| 指导教师：王建荣</p>", unsafe_allow_html=True)
+st.markdown(f"<p class='footer-text'>系统运行中 | 负责人：左梓桐 （{my_id}）| 指导教师：王建荣</p>", unsafe_allow_html=True)
