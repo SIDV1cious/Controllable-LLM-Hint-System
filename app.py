@@ -83,10 +83,11 @@ def save_to_logs(user_query, ai_response, is_leaking=0):
 
 
 def generate_report():
+    ai_reply_count = len([m for m in st.session_state.messages if m["role"] == "assistant"])
     report = f"# 毕设实验数据报告\n- **项目标题**：基于Deepseek的可控解题提示生成系统\n"
     report += f"- **负责人**：左梓桐 ({my_id})\n"
     report += f"- **导出时间**：{datetime.now(pytz.timezone('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M')}\n"
-    report += f"## 关键数据指标\n- **答案提交次数**：{st.session_state.trial_count} 次\n- **智能辅导次数**：{len(st.session_state.messages)} 次\n"
+    report += f"## 关键数据指标\n- **答案提交次数**：{st.session_state.trial_count} 次\n- **智能辅导次数**：{ai_reply_count} 次\n"
     return report
 
 
@@ -131,7 +132,8 @@ def render_metrics():
     with metrics_placeholder.container():
         _, m_col1, m_col2, _ = st.columns([1, 1, 1, 1])
         m_col1.metric("答案提交次数", st.session_state.trial_count)
-        m_col2.metric("智能辅导次数", len(st.session_state.messages))
+        ai_reply_count = len([m for m in st.session_state.messages if m["role"] == "assistant"])
+        m_col2.metric("智能辅导次数", ai_reply_count)
         st.divider()
 
 
