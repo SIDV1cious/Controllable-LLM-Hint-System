@@ -2,7 +2,8 @@ import streamlit as st
 import os
 import random
 import time
-from sqlalchemy import create_engine, text
+from typing import List, Dict, Optional, Any
+from sqlalchemy import create_engine, text, Engine
 from openai import OpenAI
 from dotenv import load_dotenv
 from datetime import datetime
@@ -10,256 +11,391 @@ import pytz
 from prompts import SYSTEM_INSTRUCTION, JUDGE_PROMPT_SYSTEM
 from questions import QUESTION_BANK
 
+# 加载环境变量
 load_dotenv()
 
-api_key = st.secrets.get("LLM_API_KEY") or os.getenv("LLM_API_KEY")
-db_user = st.secrets.get("DB_USER") or os.getenv("DB_USER")
-db_pwd = st.secrets.get("DB_PASSWORD") or os.getenv("DB_PASSWORD")
-db_host = st.secrets.get("DB_HOST") or os.getenv("DB_HOST")
-db_name = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
-my_id = st.secrets.get("MY_ID") or os.getenv("MY_ID")
 
-client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-
-if "page_mode" not in st.session_state:
-    st.session_state.page_mode = "home"
-if "quiz_queue" not in st.session_state:
-    st.session_state.quiz_queue = []
-if "idx" not in st.session_state:
-    st.session_state.idx = 0
-if "answers" not in st.session_state:
-    st.session_state.answers = {}
-if "results" not in st.session_state:
-    st.session_state.results = []
-if "review_idx" not in st.session_state:
-    st.session_state.review_idx = None
-if "chats" not in st.session_state:
-    st.session_state.chats = {}
-if "session_cnt" not in st.session_state:
-    st.session_state.session_cnt = 0
+# --- 配置管理 (Configuration) ---
+class AppConfig:
+    """应用配置类，负责加载系统环境变量与密钥"""
+    LLM_API_KEY = st.secrets.get("LLM_API_KEY") or os.getenv("LLM_API_KEY")
+    DB_USER = st.secrets.get("DB_USER") or os.getenv("DB_USER")
+    DB_PASSWORD = st.secrets.get("DB_PASSWORD") or os.getenv("DB_PASSWORD")
+    DB_HOST = st.secrets.get("DB_HOST") or os.getenv("DB_HOST")
+    DB_NAME = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
+    STUDENT_ID = st.secrets.get("MY_ID") or os.getenv("MY_ID")
+    BASE_URL = "https://api.deepseek.com"
 
 
+# 初始化 OpenAI 客户端
+client = OpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
+
+
+# --- 会话状态管理 (Session State Management) ---
+def init_session_state():
+    """初始化 Streamlit 会话状态变量"""
+    default_states = {
+        "page_mode": "home",  # 当前页面模式: home, quiz, results
+        "quiz_queue": [],  # 当前轮次的题目队列
+        "current_question_index": 0,  # 当前题目索引
+        "user_answers": {},  # 用户作答记录 {index: answer_text}
+        "assessment_results": [],  # 判题结果列表
+        "review_question_index": None,  # 结果页当前回顾的题目索引
+        "chat_histories": {},  # 题目对应的 AI 对话历史
+        "session_count": 0  # 实验轮次计数
+    }
+
+    for key, value in default_states.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+init_session_state()
+
+
+# --- 数据库服务 (Database Service) ---
 @st.cache_resource
-def get_conn():
-    url = f"mysql+pymysql://{db_user}:{db_pwd}@{db_host}/{db_name}"
-    return create_engine(url, pool_recycle=1800, pool_pre_ping=True)
+def get_database_engine() -> Engine:
+    """获取数据库连接引擎（单例模式，带连接池配置）"""
+    connection_url = (
+        f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}"
+        f"@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
+    )
+    return create_engine(
+        connection_url,
+        pool_recycle=1800,
+        pool_pre_ping=True
+    )
 
 
-def log_data(qid, query, response, leaking=0):
+def log_interaction(question_id: int, query: str, response: str, is_leaking: int = 0) -> None:
+    """
+    记录用户交互日志到数据库。
+
+    Args:
+        question_id: 题目ID
+        query: 用户输入（答案或提问）
+        response: 系统/AI 响应
+        is_leaking: 是否涉及答案泄露（0/1）
+    """
     try:
-        engine = get_conn()
-        with engine.connect() as conn:
-            t = datetime.now(pytz.timezone('Asia/Shanghai'))
-            s = text(
-                "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, created_at) VALUES (:qid, :sid, :q, :r, :l, :t)")
-            conn.execute(s, {"qid": qid, "sid": my_id, "q": query, "r": response, "l": leaking, "t": t})
-            conn.commit()
+        engine = get_database_engine()
+        with engine.connect() as connection:
+            timestamp = datetime.now(pytz.timezone('Asia/Shanghai'))
+            insert_sql = text("""
+                INSERT INTO interaction_logs 
+                (question_id, student_id, user_query, ai_response, is_leaking_answer, created_at) 
+                VALUES (:qid, :sid, :qry, :rsp, :leak, :time)
+            """)
+            connection.execute(insert_sql, {
+                "qid": question_id,
+                "sid": AppConfig.STUDENT_ID,
+                "qry": query,
+                "rsp": response,
+                "leak": is_leaking,
+                "time": timestamp
+            })
+            connection.commit()
     except Exception as e:
-        print(e)
+        # 在实际生产环境中应使用 logging 模块
+        print(f"[Error] Database logging failed: {e}")
 
 
-def start():
+# --- 核心业务逻辑 (Core Business Logic) ---
+
+def start_experiment_session():
+    """启动新一轮实验：重置状态并随机抽取题目"""
+    # 随机抽样5道题，模拟真实测试环境
     if len(QUESTION_BANK) >= 5:
-        q_list = random.sample(QUESTION_BANK, 5)
+        selected_questions = random.sample(QUESTION_BANK, 5)
     else:
-        q_list = QUESTION_BANK
+        selected_questions = QUESTION_BANK
 
-    st.session_state.quiz_queue = q_list
-    st.session_state.idx = 0
-    st.session_state.answers = {i: "" for i in range(len(q_list))}
-    st.session_state.results = []
-    st.session_state.chats = {}
+    # 重置会话状态
+    st.session_state.quiz_queue = selected_questions
+    st.session_state.current_question_index = 0
+    st.session_state.user_answers = {i: "" for i in range(len(selected_questions))}
+    st.session_state.assessment_results = []
+    st.session_state.chat_histories = {}
     st.session_state.page_mode = "quiz"
     st.rerun()
 
 
-def submit():
-    res = []
-    bar = st.progress(0, text="正在分析答案...")
-    total = len(st.session_state.quiz_queue)
+def submit_and_assess():
+    """提交答案并执行批量判题逻辑"""
+    assessment_results = []
+    progress_bar = st.progress(0, text="正在进行智能判卷分析...")
+    total_questions = len(st.session_state.quiz_queue)
 
-    for i, q in enumerate(st.session_state.quiz_queue):
-        ans = st.session_state.answers.get(i, "未作答")
-        prompt = f"题目：{q['content']}\n学生答案：{ans}\n判断对错。只能输出'正确'或'错误'。"
+    for index, question in enumerate(st.session_state.quiz_queue):
+        user_answer = st.session_state.user_answers.get(index, "未作答")
+
+        # 构建判题 Prompt，强制要求结构化输出以确保解析准确性
+        judge_prompt = (
+            f"题目：{question['content']}\n"
+            f"学生答案：{user_answer}\n"
+            f"任务：判断学生答案是否在数学上正确。\n"
+            f"输出约束：若正确仅输出 'PASS'，若错误仅输出 'FAIL'。禁止输出其他字符。"
+        )
+
+        is_correct = False
         try:
-            resp = client.chat.completions.create(model="deepseek-chat", messages=[
-                {"role": "system", "content": JUDGE_PROMPT_SYSTEM},
-                {"role": "user", "content": prompt}])
-            txt = resp.choices[0].message.content.strip()
-            ok = "正确" in txt
-        except:
-            ok = False
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": JUDGE_PROMPT_SYSTEM},
+                    {"role": "user", "content": judge_prompt}
+                ]
+            )
+            result_text = response.choices[0].message.content.strip()
 
-        res.append({"q": q, "ans": ans, "ok": ok})
-        log_data(q["id"], f"【答案提交】{ans}", "正确" if ok else "错误")
-        bar.progress((i + 1) / total)
+            # 严格匹配逻辑，防止模型幻觉导致的误判
+            if "PASS" in result_text and "FAIL" not in result_text:
+                is_correct = True
+        except Exception as e:
+            st.error(f"判题服务异常: {e}")
+            is_correct = False
 
-    time.sleep(0.5)
-    st.session_state.results = res
-    st.session_state.session_cnt += 1
+        assessment_results.append({
+            "question_data": question,
+            "user_answer": user_answer,
+            "is_correct": is_correct
+        })
+
+        # 异步记录日志
+        log_interaction(
+            question["id"],
+            f"【答案提交】{user_answer}",
+            "正确" if is_correct else "错误"
+        )
+        progress_bar.progress((index + 1) / total_questions)
+
+    time.sleep(0.5)  # 优化用户体验的缓冲
+    st.session_state.assessment_results = assessment_results
+    st.session_state.session_count += 1
     st.session_state.page_mode = "results"
     st.rerun()
 
 
-st.set_page_config(page_title="可控解题提示生成系统", layout="wide")
+# --- 界面渲染 (UI Rendering) ---
+st.set_page_config(
+    page_title="可控解题提示生成系统",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
+# ================= 视图 1: 系统首页 (Home View) =================
 if st.session_state.page_mode == "home":
     st.markdown("<br><br><br>", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align: center;'>🧩 基于Deepseek的可控解题提示生成系统</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center; color: grey;'>Intelligent Tutoring & Hint Generation System</h3>",
-                unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🧩 基于 DeepSeek 的可控解题提示生成系统</h1>", unsafe_allow_html=True)
+    st.markdown(
+        "<h3 style='text-align: center; color: grey; font-weight: 300;'>Intelligent Tutoring & Hint Generation System</h3>",
+        unsafe_allow_html=True
+    )
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns([1, 1, 1])
-    with c2:
-        if st.button("🚀 开始做题", type="primary", use_container_width=True):
-            start()
+    col_spacer_left, col_button, col_spacer_right = st.columns([1, 1, 1])
+    with col_button:
+        if st.button("🚀 进入实验", type="primary", use_container_width=True):
+            start_experiment_session()
 
     st.markdown("<br><br><br><br>", unsafe_allow_html=True)
-    st.markdown(
-        f"<div style='text-align: center; color: grey;'>当前用户：{my_id} | 实验轮次：{st.session_state.session_cnt}</div>",
-        unsafe_allow_html=True)
+    footer_html = (
+        f"<div style='text-align: center; color: #888; font-size: 0.9em;'>"
+        f"当前用户 ID：{AppConfig.STUDENT_ID} | 已完成实验轮次：{st.session_state.session_count}"
+        f"</div>"
+    )
+    st.markdown(footer_html, unsafe_allow_html=True)
 
+# ================= 视图 2: 答题界面 (Quiz View) =================
 elif st.session_state.page_mode == "quiz":
-    idx = st.session_state.idx
-    total = len(st.session_state.quiz_queue)
-    curr = st.session_state.quiz_queue[idx]
+    current_idx = st.session_state.current_question_index
+    total_questions = len(st.session_state.quiz_queue)
+    current_question = st.session_state.quiz_queue[current_idx]
 
-    st.progress((idx + 1) / total, text=f"当前进度：第 {idx + 1} / {total} 题")
-    st.markdown(f"### 第 {idx + 1} 题")
+    # 进度指示器
+    st.progress(
+        (current_idx + 1) / total_questions,
+        text=f"实验进度：第 {current_idx + 1} / {total_questions} 题"
+    )
 
+    st.markdown(f"### 第 {current_idx + 1} 题")
+
+    # 题目展示区
     st.markdown(
-        f"<div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 5px solid #007bff; margin-bottom: 20px; font-size: 1.1em;'>{curr['content']}</div>",
-        unsafe_allow_html=True)
+        f"""
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 5px solid #007bff; margin-bottom: 20px; font-size: 1.1em;">
+            {current_question['content']}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     st.write("✍️ **解题区域：**")
-    old_ans = st.session_state.answers.get(idx, "")
-    val = st.text_area("请输入你的解题步骤或答案...", value=old_ans, height=200, key=f"area_{idx}")
+    previous_answer = st.session_state.user_answers.get(current_idx, "")
+    user_input = st.text_area(
+        "请输入您的解题步骤或最终答案...",
+        value=previous_answer,
+        height=200,
+        key=f"input_area_{current_idx}"
+    )
 
-    c_prev, c_next = st.columns([1, 1])
-    st.session_state.answers[idx] = val
+    # 实时保存当前输入
+    st.session_state.user_answers[current_idx] = user_input
 
-    with c_prev:
-        if idx > 0:
+    col_nav_prev, col_nav_next = st.columns([1, 1])
+
+    with col_nav_prev:
+        if current_idx > 0:
             if st.button("⬅️ 上一题"):
-                st.session_state.idx -= 1
+                st.session_state.current_question_index -= 1
                 st.rerun()
 
-    with c_next:
-        if idx < total - 1:
+    with col_nav_next:
+        if current_idx < total_questions - 1:
             if st.button("下一题 ➡️", type="primary"):
-                st.session_state.idx += 1
+                st.session_state.current_question_index += 1
                 st.rerun()
         else:
-            if st.button("✅ 提交答案", type="primary"):
-                miss = []
-                for i in range(total):
-                    a = st.session_state.answers.get(i, "")
-                    if not a or not a.strip():
-                        miss.append(str(i + 1))
+            # 提交前的完整性检查
+            if st.button("✅ 提交实验结果", type="primary"):
+                missing_items = []
+                for i in range(total_questions):
+                    ans = st.session_state.user_answers.get(i, "")
+                    if not ans or not ans.strip():
+                        missing_items.append(str(i + 1))
 
-                if miss:
-                    # Modified here as requested
-                    st.warning(f"⚠️ 无法提交！第 {'、'.join(miss)} 题尚未作答。")
+                if missing_items:
+                    st.warning(f"⚠️ 数据完整性校验失败：第 {'、'.join(missing_items)} 题尚未作答。")
                 else:
-                    submit()
+                    submit_and_assess()
 
+# ================= 视图 3: 结果与辅导界面 (Results & Tutoring View) =================
 elif st.session_state.page_mode == "results":
     st.title("📊 答题结果与智能辅导")
 
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        st.caption("请点击下方题目查看判题结果。若回答错误，系统将基于 DeepSeek 提供智能辅导。")
-    with c2:
+    col_info, col_action = st.columns([3, 1])
+    with col_info:
+        st.caption("请点击左侧列表查看判题详情。针对错误回答，系统将激活“可控提示生成”模块进行干预。")
+    with col_action:
         if st.button("🔄 开启新一轮实验"):
-            start()
+            start_experiment_session()
 
     st.divider()
 
-    left, right = st.columns([1, 1])
+    layout_col_list, layout_col_chat = st.columns([1, 1])
 
-    with left:
+    # 左侧：题目列表
+    with layout_col_list:
         st.subheader("📑 题目列表")
-        for i, item in enumerate(st.session_state.results):
-            icon = "✅ 正确" if item['ok'] else "❌ 错误"
-            b_type = "primary" if st.session_state.review_idx == i else "secondary"
+        for i, item in enumerate(st.session_state.assessment_results):
+            status_icon = "✅ 正确" if item['is_correct'] else "❌ 错误"
+            # 高亮当前选中的题目
+            button_type = "primary" if st.session_state.review_question_index == i else "secondary"
 
-            if st.button(f"第 {i + 1} 题   |   {icon}", key=f"btn_{i}", type=b_type, use_container_width=True):
-                st.session_state.review_idx = i
+            if st.button(
+                    f"第 {i + 1} 题   |   {status_icon}",
+                    key=f"nav_btn_{i}",
+                    type=button_type,
+                    use_container_width=True
+            ):
+                st.session_state.review_question_index = i
                 st.rerun()
 
-    with right:
-        if st.session_state.review_idx is not None:
-            ridx = st.session_state.review_idx
-            data = st.session_state.results[ridx]
-            qid = data['q']['id']
+    # 右侧：详情与辅导交互
+    with layout_col_chat:
+        if st.session_state.review_question_index is not None:
+            review_idx = st.session_state.review_question_index
+            result_data = st.session_state.assessment_results[review_idx]
+            question_id = result_data['question_data']['id']
 
-            st.markdown(f"#### 第 {ridx + 1} 题详情")
-            st.info(data['q']['content'])
+            st.markdown(f"#### 第 {review_idx + 1} 题详情")
+            st.info(result_data['question_data']['content'])
 
-            st.write("**你的作答：**")
-            if data['ok']:
-                st.success(data['ans'])
+            st.write("**您的作答：**")
+            if result_data['is_correct']:
+                st.success(result_data['user_answer'])
             else:
-                st.error(data['ans'])
+                st.error(result_data['user_answer'])
 
             st.divider()
             st.subheader("🤖 解题辅导 (Problem Solving Assistant)")
 
-            if qid not in st.session_state.chats:
-                st.session_state.chats[qid] = []
-                if not data['ok']:
-                    st.session_state.chats[qid].append({"role": "assistant",
-                                                        "content": "检测到答案存在偏差。我是你的智能解题辅导助手，请告诉我你的思路卡在哪里？"})
+            # 初始化对话历史
+            if question_id not in st.session_state.chat_histories:
+                st.session_state.chat_histories[question_id] = []
+                # 仅对错题触发主动干预
+                if not result_data['is_correct']:
+                    st.session_state.chat_histories[question_id].append({
+                        "role": "assistant",
+                        "content": "检测到答案存在偏差。我是你的智能解题辅导助手，请告诉我你的思路卡在哪里？"
+                    })
 
-            hist = st.session_state.chats[qid]
-            for m in hist:
-                role = "🧑‍🎓" if m["role"] == "user" else "🤖"
-                with st.chat_message(m["role"], avatar=role):
-                    st.markdown(m["content"])
+            # 渲染历史消息
+            chat_history = st.session_state.chat_histories[question_id]
+            for message in chat_history:
+                avatar = "🧑‍🎓" if message["role"] == "user" else "🤖"
+                with st.chat_message(message["role"], avatar=avatar):
+                    st.markdown(message["content"])
 
-            if user_in := st.chat_input(f"请求第 {ridx + 1} 题的解题辅导..."):
-                hist.append({"role": "user", "content": user_in})
-                st.session_state.chats[qid] = hist
+            # 辅导交互逻辑
+            if user_query := st.chat_input(f"请求第 {review_idx + 1} 题的解题辅导..."):
+                chat_history.append({"role": "user", "content": user_query})
+                st.session_state.chat_histories[question_id] = chat_history
                 st.rerun()
 
-            if hist and hist[-1]["role"] == "user":
+            # 处理 AI 响应
+            if chat_history and chat_history[-1]["role"] == "user":
                 with st.chat_message("assistant", avatar="🤖"):
-                    holder = st.empty()
-                    full = ""
-                    ctx = f"【题目】：{data['q']['content']}\n【学生答案】：{data['ans']}\n【判题结果】：{'正确' if data['ok'] else '错误'}\n【学生请求】：{hist[-1]['content']}"
+                    response_container = st.empty()
+                    full_response = ""
+
+                    # 构建上下文 Context
+                    context_payload = (
+                        f"【题目】：{result_data['question_data']['content']}\n"
+                        f"【学生答案】：{result_data['user_answer']}\n"
+                        f"【判题结果】：{'正确' if result_data['is_correct'] else '错误'}\n"
+                        f"【学生请求】：{chat_history[-1]['content']}"
+                    )
 
                     try:
-                        chunks = client.chat.completions.create(
+                        stream_response = client.chat.completions.create(
                             model="deepseek-chat",
                             messages=[
                                 {"role": "system", "content": SYSTEM_INSTRUCTION},
-                                {"role": "user", "content": ctx}
+                                {"role": "user", "content": context_payload}
                             ],
                             stream=True
                         )
-                        for chunk in chunks:
-                            c = chunk.choices[0].delta.content
-                            if c:
-                                full += c
-                                holder.markdown(
-                                    full.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(", "$").replace(r"\)",
-                                                                                                               "$") + "▌")
 
-                        final = full.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(", "$").replace(r"\)", "$")
-                        holder.markdown(final)
+                        for chunk in stream_response:
+                            delta_content = chunk.choices[0].delta.content
+                            if delta_content:
+                                full_response += delta_content
+                                # 实时渲染 Markdown，处理 LaTeX 公式
+                                render_text = full_response.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(",
+                                                                                                              "$").replace(
+                                    r"\)", "$")
+                                response_container.markdown(render_text + "▌")
 
-                        hist.append({"role": "assistant", "content": final})
-                        st.session_state.chats[qid] = hist
-                        log_data(qid, f"【辅导请求】{user_in}", final)
+                        final_text = full_response.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(",
+                                                                                                     "$").replace(r"\)",
+                                                                                                                  "$")
+                        response_container.markdown(final_text)
+
+                        chat_history.append({"role": "assistant", "content": final_text})
+                        st.session_state.chat_histories[question_id] = chat_history
+                        log_interaction(question_id, f"【辅导请求】{user_query}", final_text)
 
                     except Exception as e:
-                        st.error(f"Error: {e}")
+                        st.error(f"辅导生成模块响应中断: {e}")
 
         else:
             st.info("👈 请点击左侧题目，启动辅助解题功能。")
 
 st.markdown("---")
 st.markdown(
-    f"<div style='text-align: center; color: grey;'>© 2026 基于Deepseek的可控解题提示生成系统 | 负责人：{my_id}</div>",
-    unsafe_allow_html=True)
+    f"<div style='text-align: center; color: grey; font-size: 0.8em;'>"
+    f"© 2026 基于 DeepSeek 的可控解题提示生成系统 | 负责人：{AppConfig.STUDENT_ID}</div>",
+    unsafe_allow_html=True
+)
