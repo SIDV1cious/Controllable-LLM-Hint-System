@@ -45,7 +45,7 @@ if "review_q_index" not in st.session_state:
     st.session_state.review_q_index = None
 if "chat_histories" not in st.session_state:
     st.session_state.chat_histories = {}
-if "total_sessions" not in st.session_state:  # 改名：从 exam 改为 session
+if "total_sessions" not in st.session_state:
     st.session_state.total_sessions = 0
 
 
@@ -79,7 +79,6 @@ def save_to_logs(q_id, user_query, ai_response, is_leaking=0):
 
 
 def start_new_session():
-    # 随机抽取题目进行实验
     if len(QUESTION_BANK) >= 5:
         selected_questions = random.sample(QUESTION_BANK, 5)
     else:
@@ -134,28 +133,22 @@ st.set_page_config(page_title="可控解题提示生成系统", layout="wide")
 
 # ================= 1. 首页 (System Entry) =================
 if st.session_state.page_mode == "home":
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    # 【修改点】系统标题更正
+    # 增加顶部留白，让标题垂直居中一点
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+
     st.title("🧩 基于Deepseek的可控解题提示生成系统")
     st.markdown("### Intelligent Tutoring & Hint Generation System")
 
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        st.info(f"""
-        **系统说明：**
-        本系统旨在研究大语言模型在教育场景下的**认知支架**作用。
-        1. 系统将加载 **5道实验题目**。
-        2. 用户完成作答并提交。
-        3. 系统将自动诊断正误，并针对错误点生成**启发式提示**（而非直接答案）。
-        """)
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
-    with col2:
-        st.write("准备好开始实验了吗？")
-        # 【修改点】按钮文案
-        if st.button("🚀 进入解题实验", type="primary", use_container_width=True):
+    # 【修改点】极简模式：只保留一个居中的大按钮
+    _, col_btn, _ = st.columns([1, 1, 1])  # 使用列布局来居中
+    with col_btn:
+        if st.button("🚀 开始做题", type="primary", use_container_width=True):
             start_new_session()
 
-    st.markdown("---")
+    # 底部简单的状态栏
+    st.markdown("<br><br><br><br>", unsafe_allow_html=True)
     st.caption(f"当前用户：{my_id} | 实验轮次：{st.session_state.total_sessions}")
 
 # ================= 2. 解题进行中 (Problem Solving) =================
@@ -193,7 +186,6 @@ elif st.session_state.page_mode == "quiz":
                 st.session_state.current_q_index += 1
                 st.rerun()
         else:
-            # 【修改点】提交按钮文案
             if st.button("✅ 提交答案", type="primary"):
                 if not val.strip():
                     st.warning("最后一题尚未作答。")
@@ -202,10 +194,8 @@ elif st.session_state.page_mode == "quiz":
 
 # ================= 3. 诊断与提示生成 (Diagnosis & Hints) =================
 elif st.session_state.page_mode == "results":
-    # 【修改点】去掉总分，改为诊断报告标题
     st.title("📊 解题诊断与提示生成报告")
 
-    # 简单的操作栏
     col_info, col_act = st.columns([3, 1])
     with col_info:
         st.caption("请点击下方题目查看判题结果。若回答错误，系统将基于 DeepSeek 生成引导性提示。")
@@ -222,13 +212,11 @@ elif st.session_state.page_mode == "results":
 
         for i, res in enumerate(st.session_state.exam_results):
             q_id = res['question']['id']
-            # 图标：只显示对错，不显示分数
             status_icon = "✅ 正确" if res['is_correct'] else "❌ 错误"
             btn_type = "secondary"
             if st.session_state.review_q_index == i:
                 btn_type = "primary"
 
-            # 【修改点】列表按钮显示
             if st.button(f"第 {i + 1} 题   |   {status_icon}",
                          key=f"review_btn_{i}",
                          type=btn_type,
@@ -248,7 +236,6 @@ elif st.session_state.page_mode == "results":
             st.markdown(f"#### 第 {idx + 1} 题详情")
             st.info(q_content)
 
-            # 显示用户答案
             st.write("**你的作答：**")
             if is_correct:
                 st.success(user_ans)
@@ -256,14 +243,11 @@ elif st.session_state.page_mode == "results":
                 st.error(user_ans)
 
             st.divider()
-
-            # 【修改点】区域标题改为“提示生成系统”
             st.subheader("🤖 可控提示生成 (Hint Generation)")
 
             if q_id not in st.session_state.chat_histories:
                 st.session_state.chat_histories[q_id] = []
                 if not is_correct:
-                    # 初始提示
                     first_msg = "检测到答案存在偏差。我是你的智能导学助手，请告诉我你的思路卡在哪里？"
                     st.session_state.chat_histories[q_id].append({"role": "assistant", "content": first_msg})
 
@@ -282,7 +266,6 @@ elif st.session_state.page_mode == "results":
                 with st.chat_message("assistant", avatar="🤖"):
                     response_placeholder = st.empty()
                     full_response = ""
-                    # Context 强调“提示生成”而非“讲评”
                     context = f"【题目】：{q_content}\n【学生答案】：{user_ans}\n【判题结果】：{'正确' if is_correct else '错误'}\n【学生请求】：{current_chat[-1]['content']}"
 
                     try:
@@ -319,5 +302,4 @@ elif st.session_state.page_mode == "results":
             st.info("👈 请点击左侧题目，启动提示生成模块。")
 
 st.markdown("---")
-# 【修改点】底部版权
 st.caption(f"© 2026 基于Deepseek的可控解题提示生成系统 | 负责人：{my_id}")
