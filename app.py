@@ -159,7 +159,8 @@ elif st.session_state.page_mode == "quiz":
                         miss.append(str(i + 1))
 
                 if miss:
-                    st.warning(f"⚠️ 无法提交！以下题目尚未作答：第 {'、'.join(miss)} 题。")
+                    # Modified here as requested
+                    st.warning(f"⚠️ 无法提交！第 {'、'.join(miss)} 题尚未作答。")
                 else:
                     submit()
 
