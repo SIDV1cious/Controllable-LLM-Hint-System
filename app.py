@@ -133,23 +133,27 @@ st.set_page_config(page_title="可控解题提示生成系统", layout="wide")
 
 # ================= 1. 首页 (System Entry) =================
 if st.session_state.page_mode == "home":
-    # 增加顶部留白，让标题垂直居中一点
+    # 顶部留白
     st.markdown("<br><br><br>", unsafe_allow_html=True)
 
-    st.title("🧩 基于Deepseek的可控解题提示生成系统")
-    st.markdown("### Intelligent Tutoring & Hint Generation System")
+    # 【修改点】使用 HTML 实现标题居中
+    st.markdown("<h1 style='text-align: center;'>🧩 基于Deepseek的可控解题提示生成系统</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: grey;'>Intelligent Tutoring & Hint Generation System</h3>",
+                unsafe_allow_html=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # 【修改点】极简模式：只保留一个居中的大按钮
-    _, col_btn, _ = st.columns([1, 1, 1])  # 使用列布局来居中
+    # 按钮居中
+    _, col_btn, _ = st.columns([1, 1, 1])
     with col_btn:
         if st.button("🚀 开始做题", type="primary", use_container_width=True):
             start_new_session()
 
-    # 底部简单的状态栏
+    # 底部状态栏
     st.markdown("<br><br><br><br>", unsafe_allow_html=True)
-    st.caption(f"当前用户：{my_id} | 实验轮次：{st.session_state.total_sessions}")
+    st.markdown(
+        f"<div style='text-align: center; color: grey;'>当前用户：{my_id} | 实验轮次：{st.session_state.total_sessions}</div>",
+        unsafe_allow_html=True)
 
 # ================= 2. 解题进行中 (Problem Solving) =================
 elif st.session_state.page_mode == "quiz":
@@ -302,4 +306,6 @@ elif st.session_state.page_mode == "results":
             st.info("👈 请点击左侧题目，启动提示生成模块。")
 
 st.markdown("---")
-st.caption(f"© 2026 基于Deepseek的可控解题提示生成系统 | 负责人：{my_id}")
+st.markdown(
+    f"<div style='text-align: center; color: grey;'>© 2026 基于Deepseek的可控解题提示生成系统 | 负责人：{my_id}</div>",
+    unsafe_allow_html=True)
