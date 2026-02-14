@@ -396,6 +396,6 @@ elif st.session_state.page_mode == "results":
 st.markdown("---")
 st.markdown(
     f"<div style='text-align: center; color: grey; font-size: 0.8em;'>"
-    f"© 2026 基于 DeepSeek 的可控解题提示生成系统 | 负责人：{AppConfig.STUDENT_ID}</div>",
+    f"© 基于 DeepSeek 的可控解题提示生成系统 | 负责人：左梓桐{AppConfig.STUDENT_ID}</div>",
     unsafe_allow_html=True
 )
