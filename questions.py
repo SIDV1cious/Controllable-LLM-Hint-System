@@ -1,0 +1,64 @@
+# questions.py
+# 这是一个纯数据文件，存放了50道数学题目
+
+QUESTION_BANK = [
+    # --- 1-10: 基础微积分 ---
+    {"id": 1, "category": "题目1", "content": "求函数 f(x) = x³ - 3x + 1 的极大值点。"},
+    {"id": 2, "category": "题目2", "content": "计算不定积分 ∫ x * e^x dx。"},
+    {"id": 3, "category": "题目3", "content": "求极限 lim (x→0) (sin(x) / x)。"},
+    {"id": 4, "category": "题目4", "content": "已知 y = ln(tan(x))，求 dy/dx。"},
+    {"id": 5, "category": "题目5", "content": "计算定积分 ∫(0 to π) sin(x) dx。"},
+    {"id": 6, "category": "题目6", "content": "求曲线 y = x² 在 x = 1 处的切线方程。"},
+    {"id": 7, "category": "题目7", "content": "判定级数 ∑(1/n) (n=1 to ∞) 的敛散性。"},
+    {"id": 8, "category": "题目8", "content": "求函数 f(x, y) = x² + y² 的梯度向量 grad(f)。"},
+    {"id": 9, "category": "题目9", "content": "计算二重积分 ∬ (x + y) dxdy，区域 D 为 0≤x≤1, 0≤y≤1。"},
+    {"id": 10, "category": "题目10", "content": "求微分方程 y' + y = 0 的通解。"},
+
+    # --- 11-20: 进阶微积分 ---
+    {"id": 11, "category": "题目11", "content": "求函数 f(x) = |x| 在 x=0 处是否可导？"},
+    {"id": 12, "category": "题目12", "content": "利用洛必达法则计算 lim (x→∞) (ln(x) / x)。"},
+    {"id": 13, "category": "题目13", "content": "展开函数 f(x) = e^x 的麦克劳林级数（前三项）。"},
+    {"id": 14, "category": "题目14", "content": "求圆 x² + y² = 4 围成的面积。"},
+    {"id": 15, "category": "题目15", "content": "计算曲线 y=x² 从 x=0 到 x=1 的弧长积分表达式。"},
+    {"id": 16, "category": "题目16", "content": "求 z = x² - y² 在点 (0,0) 处的曲面形状（极大/极小/鞍点）。"},
+    {"id": 17, "category": "题目17", "content": "计算向量场 F = (y, -x) 的散度 (Divergence)。"},
+    {"id": 18, "category": "题目18", "content": "计算向量场 F = (y, -x, 0) 的旋度 (Curl)。"},
+    {"id": 19, "category": "题目19", "content": "求微分方程 y'' + y = 0 的通解。"},
+    {"id": 20, "category": "题目20", "content": "简述拉格朗日中值定理的几何意义。"},
+
+    # --- 21-30: 线性代数 ---
+    {"id": 21, "category": "题目21", "content": "计算行列式 |A|，其中 A = [[1, 2], [3, 4]]。"},
+    {"id": 22, "category": "题目22", "content": "求矩阵 A = [[1, 1], [0, 1]] 的逆矩阵。"},
+    {"id": 23, "category": "题目23", "content": "求矩阵 A = [[2, 0], [0, 3]] 的特征值。"},
+    {"id": 24, "category": "题目24", "content": "若向量组 a1, a2, a3 线性无关，则 a1+a2, a2, a3 是否线性无关？"},
+    {"id": 25, "category": "题目25", "content": "求向量 a=(1, 2, 3) 和 b=(4, 5, 6) 的点积 (Dot Product)。"},
+    {"id": 26, "category": "题目26", "content": "求向量 a=(1, 0, 0) 和 b=(0, 1, 0) 的叉积 (Cross Product)。"},
+    {"id": 27, "category": "题目27", "content": "什么是矩阵的秩 (Rank)？"},
+    {"id": 28, "category": "题目28", "content": "判断矩阵 A = [[1, 2], [2, 1]] 是否是实对称矩阵。"},
+    {"id": 29, "category": "题目29", "content": "若 A 是正交矩阵，A 的转置和 A 的逆有什么关系？"},
+    {"id": 30, "category": "题目30", "content": "解线性方程组：x + y = 3, x - y = 1。"},
+
+    # --- 31-40: 概率论与统计 ---
+    {"id": 31, "category": "题目31", "content": "投掷一枚均匀硬币 3 次，恰好出现 2 次正面的概率是多少？"},
+    {"id": 32, "category": "题目32", "content": "设 X 服从正态分布 N(0, 1)，则 P(X=0) 是多少？"},
+    {"id": 33, "category": "题目33", "content": "已知 P(A)=0.5, P(B)=0.4, A和B独立，求 P(A∩B)。"},
+    {"id": 34, "category": "题目34", "content": "一盒中有3红2白球，不放回取2次，求第二次取到红球的概率。"},
+    {"id": 35, "category": "题目35", "content": "计算数据集 {1, 2, 3, 4, 5} 的方差。"},
+    {"id": 36, "category": "题目36", "content": "什么是数学期望 E(X)？"},
+    {"id": 37, "category": "题目37", "content": "泊松分布通常用来描述什么样的随机现象？"},
+    {"id": 38, "category": "题目38", "content": "简述大数定律 (Law of Large Numbers) 的含义。"},
+    {"id": 39, "category": "题目39", "content": "若 X, Y 独立，则 E(XY) 等于什么？"},
+    {"id": 40, "category": "题目40", "content": "贝叶斯公式 P(A|B) = ?"},
+
+    # --- 41-50: 数论与杂项 ---
+    {"id": 41, "category": "题目41", "content": "判断 97 是否为质数。"},
+    {"id": 42, "category": "题目42", "content": "求 12 和 18 的最大公约数 (GCD)。"},
+    {"id": 43, "category": "题目43", "content": "计算 1 + 2 + ... + 100 的值（高斯求和）。"},
+    {"id": 44, "category": "题目44", "content": "勾股定理公式是什么？"},
+    {"id": 45, "category": "题目45", "content": "复数 z = 1 + i 的模长 |z| 是多少？"},
+    {"id": 46, "category": "题目46", "content": "欧拉公式 e^(ix) = ?"},
+    {"id": 47, "category": "题目47", "content": "证明：根号 2 是无理数（简述思路）。"},
+    {"id": 48, "category": "题目48", "content": "什么是鸽巢原理 (Pigeonhole Principle)？"},
+    {"id": 49, "category": "题目49", "content": "斐波那契数列的第 1, 2, 3, 4, 5 项分别是多少？(F1=1, F2=1)"},
+    {"id": 50, "category": "题目50", "content": "逻辑题：若“P则Q”为真，那么“非Q则非P”是否为真？"}
+]
