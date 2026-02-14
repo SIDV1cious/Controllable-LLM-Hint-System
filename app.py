@@ -133,23 +133,19 @@ st.set_page_config(page_title="可控解题提示生成系统", layout="wide")
 
 # ================= 1. 首页 (System Entry) =================
 if st.session_state.page_mode == "home":
-    # 顶部留白
     st.markdown("<br><br><br>", unsafe_allow_html=True)
 
-    # 【修改点】使用 HTML 实现标题居中
     st.markdown("<h1 style='text-align: center;'>🧩 基于Deepseek的可控解题提示生成系统</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: grey;'>Intelligent Tutoring & Hint Generation System</h3>",
                 unsafe_allow_html=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # 按钮居中
     _, col_btn, _ = st.columns([1, 1, 1])
     with col_btn:
         if st.button("🚀 开始做题", type="primary", use_container_width=True):
             start_new_session()
 
-    # 底部状态栏
     st.markdown("<br><br><br><br>", unsafe_allow_html=True)
     st.markdown(
         f"<div style='text-align: center; color: grey;'>当前用户：{my_id} | 实验轮次：{st.session_state.total_sessions}</div>",
@@ -175,8 +171,10 @@ elif st.session_state.page_mode == "quiz":
     prev_ans = st.session_state.user_answers.get(current_idx, "")
     val = st.text_area("请输入你的解题步骤或答案...", value=prev_ans, height=200, key=f"q_area_{current_idx}")
 
-    col_prev, col_next = st.columns([1, 1])
+    # 无论如何，先把当前输入框的内容存进去，防止最后一道题没存上
     st.session_state.user_answers[current_idx] = val
+
+    col_prev, col_next = st.columns([1, 1])
 
     with col_prev:
         if current_idx > 0:
@@ -190,9 +188,19 @@ elif st.session_state.page_mode == "quiz":
                 st.session_state.current_q_index += 1
                 st.rerun()
         else:
+            # 【修改点】精确的漏题检测逻辑
             if st.button("✅ 提交答案", type="primary"):
-                if not val.strip():
-                    st.warning("最后一题尚未作答。")
+                # 1. 遍历检查所有题目
+                missing_indices = []
+                for i in range(total_q):
+                    ans = st.session_state.user_answers.get(i, "")
+                    if not ans or not ans.strip():
+                        missing_indices.append(str(i + 1))  # 记录人类可读的题号(1, 2, 3...)
+
+                # 2. 根据检查结果决定动作
+                if missing_indices:
+                    missing_str = "、".join(missing_indices)
+                    st.warning(f"⚠️ 无法提交！以下题目尚未作答：第 {missing_str} 题。")
                 else:
                     submit_answers()
 
