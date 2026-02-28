@@ -258,7 +258,7 @@ elif st.session_state.page_mode == "quiz":
                 st.rerun()
         else:
             # 提交前的完整性检查
-            if st.button("✅ 提交实验结果", type="primary"):
+            if st.button("✅ 提交答案", type="primary"):
                 missing_items = []
                 for i in range(total_questions):
                     ans = st.session_state.user_answers.get(i, "")
@@ -266,7 +266,7 @@ elif st.session_state.page_mode == "quiz":
                         missing_items.append(str(i + 1))
 
                 if missing_items:
-                    st.warning(f"⚠️ 数据完整性校验失败：第 {'、'.join(missing_items)} 题尚未作答。")
+                    st.warning(f"⚠️ 请完成全部题目：第 {'、'.join(missing_items)} 题尚未作答。")
                 else:
                     submit_and_assess()
 
