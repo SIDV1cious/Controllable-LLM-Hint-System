@@ -206,30 +206,39 @@ if not st.session_state.logged_in:
     with c2:
         tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
         with tab_l:
-            u_in, p_in = st.text_input("账号/学号"), st.text_input("密码", type="password")
-            if st.button("进入系统", type="primary", use_container_width=True):
-                # 这里完美修复了幽灵空格的问题，并只保留了一个正确的判断逻辑
-                is_auth, role = authenticate_user(u_in.strip(), p_in.strip())
-                if is_auth:
-                    st.session_state.logged_in = True
-                    st.session_state.current_user = u_in.strip()
-                    st.session_state.user_role = role
-                    log_login(u_in.strip())
-                    if role == 'admin':
-                        st.session_state.page_mode = "admin"
+
+            with st.form("login_form"):
+                u_in = st.text_input("账号/学号")
+                p_in = st.text_input("密码", type="password")
+                submitted = st.form_submit_button("进入系统", type="primary", use_container_width=True)
+
+                if submitted:
+                    is_auth, role = authenticate_user(u_in.strip(), p_in.strip())
+                    if is_auth:
+                        st.session_state.logged_in = True
+                        st.session_state.current_user = u_in.strip()
+                        st.session_state.user_role = role
+                        log_login(u_in.strip())
+                        if role == 'admin':
+                            st.session_state.page_mode = "admin"
+                        else:
+                            sync_user_data(u_in.strip())
+                        st.rerun()
                     else:
-                        sync_user_data(u_in.strip())
-                    st.rerun()
-                else:
-                    st.error("账号或密码错误")
+                        st.error("账号或密码错误")
         with tab_r:
-            ru, rp, rp2 = st.text_input("新学号"), st.text_input("新密码", type="password"), st.text_input("确认密码", type="password")
-            if st.button("立即注册", use_container_width=True):
-                # 注册时也清空隐形空格，永绝后患
-                if ru.strip() and rp.strip() == rp2.strip() and register_user(ru.strip(), rp.strip()):
-                    st.success("注册成功！请切换到登录页面。")
-                else:
-                    st.error("注册失败（学号已被占用或密码不一致）。")
+
+            with st.form("register_form"):
+                ru = st.text_input("新学号")
+                rp = st.text_input("新密码", type="password")
+                rp2 = st.text_input("确认密码", type="password")
+                reg_submitted = st.form_submit_button("立即注册", type="primary", use_container_width=True)
+
+                if reg_submitted:
+                    if ru.strip() and rp.strip() == rp2.strip() and register_user(ru.strip(), rp.strip()):
+                        st.success("注册成功！请切换到登录页面。")
+                    else:
+                        st.error("注册失败（学号已被占用或密码不一致）。")
     st.stop()
 
 with st.sidebar:
