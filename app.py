@@ -203,7 +203,7 @@ elif st.session_state.page_mode == "quiz":
     # 完美渲染题目公式
     st.info(format_math(q['content']))
 
-    ans = st.text_area("解题步骤", value=st.session_state.user_answers.get(idx, ""), height=200, key=f"ans_{idx}")
+    ans = st.text_area("请作答", value=st.session_state.user_answers.get(idx, ""), height=200, key=f"ans_{idx}")
     st.session_state.user_answers[idx] = ans
     cols = st.columns(2)
     with cols[0]:
@@ -224,7 +224,7 @@ elif st.session_state.page_mode == "quiz":
                     submit_and_assess()
 
 elif st.session_state.page_mode == "results":
-    st.title("📊 结果与辅导")
+    st.title("📊 作答结果与辅导")
     if st.button("🔄 开启新一轮"): start_experiment_session()
     st.divider()
     l_col, r_col = st.columns([1, 1])
@@ -248,7 +248,7 @@ elif st.session_state.page_mode == "results":
             if qid not in st.session_state.chat_histories:
                 st.session_state.chat_histories[qid] = []
                 if not data['is_correct']: st.session_state.chat_histories[qid].append(
-                    {"role": "assistant", "content": "发现思路偏差，哪里卡住了？"})
+                    {"role": "assistant", "content": "智能辅导"})
             for m in st.session_state.chat_histories[qid]:
                 with st.chat_message(m["role"]): st.markdown(m["content"])
             if query := st.chat_input("请求提示..."):
