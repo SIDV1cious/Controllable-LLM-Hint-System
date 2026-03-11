@@ -14,7 +14,6 @@ from questions import QUESTION_BANK
 
 load_dotenv()
 
-
 class AppConfig:
     LLM_API_KEY = st.secrets.get("LLM_API_KEY") or os.getenv("LLM_API_KEY")
     DB_USER = st.secrets.get("DB_USER") or os.getenv("DB_USER")
@@ -23,19 +22,15 @@ class AppConfig:
     DB_NAME = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
     BASE_URL = "https://api.deepseek.com"
 
-
 client = OpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
-
 
 @st.cache_resource
 def get_database_engine() -> Engine:
     connection_url = f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
     return create_engine(connection_url, pool_recycle=1800, pool_pre_ping=True)
 
-
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
-
 
 def sync_user_data(username: str):
     engine = get_database_engine()
@@ -57,14 +52,12 @@ def sync_user_data(username: str):
                 st.session_state.chat_histories[qid].append({"role": "user", "content": qry.replace("【辅导】", "")})
                 st.session_state.chat_histories[qid].append({"role": "assistant", "content": rsp})
 
-
 def authenticate_user(u: str, p: str) -> bool:
     engine = get_database_engine()
     with engine.connect() as conn:
         res = conn.execute(text("SELECT id FROM users WHERE username = :u AND password_hash = :p"),
                            {"u": u, "p": hash_password(p)}).fetchone()
         return res is not None
-
 
 def register_user(u: str, p: str) -> bool:
     engine = get_database_engine()
@@ -76,7 +69,6 @@ def register_user(u: str, p: str) -> bool:
         conn.commit()
         return True
 
-
 def init_session_state():
     defaults = {
         "logged_in": False, "current_user": None, "page_mode": "home",
@@ -87,9 +79,7 @@ def init_session_state():
     for k, v in defaults.items():
         if k not in st.session_state: st.session_state[k] = v
 
-
 init_session_state()
-
 
 def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
     try:
@@ -104,9 +94,7 @@ def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
     except Exception as e:
         print(f"Error: {e}")
 
-
 def start_experiment_session():
-    # 改为随机抽取 10 道题
     selected = random.sample(QUESTION_BANK, 10) if len(QUESTION_BANK) >= 10 else QUESTION_BANK
     q_ids = ",".join([str(q['id']) for q in selected])
     engine = get_database_engine()
@@ -118,7 +106,6 @@ def start_experiment_session():
     st.session_state.user_answers = {i: "" for i in range(len(selected))}
     st.session_state.page_mode = "quiz"
     st.rerun()
-
 
 def submit_and_assess():
     st.session_state.assessment_results = []
@@ -141,10 +128,9 @@ def submit_and_assess():
         log_interaction(q["id"], f"【答案提交】{ans}", "正确" if is_ok else "错误")
         p_bar.progress((i + 1) / total)
 
-    st.session_count += 1
+    st.session_state.session_count += 1
     st.session_state.page_mode = "results"
     st.rerun()
-
 
 st.set_page_config(page_title="可控解题提示生成系统", layout="wide")
 
@@ -163,13 +149,12 @@ if not st.session_state.logged_in:
                 else:
                     st.error("验证失败")
         with tab_r:
-            ru, rp, rp2 = st.text_input("新学号"), st.text_input("新密码", type="password"), st.text_input("确认密码",
-                                                                                                           type="password")
+            ru, rp, rp2 = st.text_input("新学号"), st.text_input("新密码", type="password"), st.text_input("确认密码", type="password")
             if st.button("立即注册", use_container_width=True):
                 if ru and rp == rp2 and register_user(ru, rp):
-                    st.success("注册成功")
+                    st.success("注册成功，请切换到登录页面进行登录。")
                 else:
-                    st.error("注册失败")
+                    st.error("注册失败（学号可能已被占用或密码不一致）。")
     st.stop()
 
 with st.sidebar:
@@ -204,7 +189,12 @@ elif st.session_state.page_mode == "quiz":
                 st.session_state.current_question_index += 1
                 st.rerun()
         else:
-            if st.button("✅ 提交", type="primary"): submit_and_assess()
+            if st.button("✅ 提交", type="primary"):
+                missing = [str(i + 1) for i in range(total) if not st.session_state.user_answers.get(i, "").strip()]
+                if missing:
+                    st.warning(f"⚠️ 第 {'、'.join(missing)} 题尚未作答，请完成后再提交。")
+                else:
+                    submit_and_assess()
 
 elif st.session_state.page_mode == "results":
     st.title("📊 结果与辅导")
@@ -238,7 +228,7 @@ elif st.session_state.page_mode == "results":
                 with st.chat_message("assistant"):
                     h = st.empty()
                     f = ""
-                    ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'错误'}\n请求：{query}"
+                    ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
                     stream = client.chat.completions.create(model="deepseek-chat",
                                                             messages=[{"role": "system", "content": SYSTEM_INSTRUCTION},
                                                                       {"role": "user", "content": ctx}], stream=True)
