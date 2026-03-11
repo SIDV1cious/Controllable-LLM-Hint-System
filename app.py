@@ -236,6 +236,12 @@ with st.sidebar:
         f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
     if st.session_state.user_role == 'student' and st.session_state.page_mode != "home":
         if st.button("🏠 返回大厅"):
+
+            engine = get_database_engine()
+            with engine.connect() as conn:
+                conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
+                             {"u": st.session_state.current_user})
+                conn.commit()
             st.session_state.page_mode = "home"
             st.rerun()
     if st.button("🚪 退出登录"):
