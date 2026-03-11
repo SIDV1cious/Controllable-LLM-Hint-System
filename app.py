@@ -288,14 +288,15 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
     st.write("请选择你要进行随堂测验的课程模块：")
     st.divider()
 
-    col1, col2, col3 = st.columns(3)
+    cols = st.columns(4)
     courses = [
         ("高等数学", "包含极限、导数、微积分等核心考点，重点测试逻辑推导能力。"),
         ("线性代数", "包含矩阵运算、特征值、二次型等，培养空间与代数转换思维。"),
-        ("概率统计", "包含随机变量、分布规律、信息熵等，结合实际应用场景。")
+        ("概率统计", "包含随机变量、分布规律、信息熵等，结合实际应用场景。"),
+        ("C语言", "包含指针、数组、结构体等核心语法，锻炼底层逻辑与编程思维。") # ✨ 这是为你新增的C语言模块
     ]
     for idx, (c_name, c_desc) in enumerate(courses):
-        with [col1, col2, col3][idx]:
+        with cols[idx]:
             st.markdown(f"### 📘 {c_name}")
             st.caption(c_desc)
             if st.button(f"进入《{c_name}》测验", key=f"btn_{c_name}", use_container_width=True):
