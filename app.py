@@ -3,6 +3,7 @@ import os
 import random
 import time
 import hashlib
+import re
 from typing import List, Dict, Optional, Any
 from sqlalchemy import create_engine, text, Engine
 from openai import OpenAI
@@ -35,6 +36,15 @@ def get_database_engine() -> Engine:
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+
+def format_math(text: str) -> str:
+    """终极公式清洗函数：去除定界符内的多余空格并转换为标准 Markdown Math"""
+    text = re.sub(r"\\\(\s*", "$", text)
+    text = re.sub(r"\s*\\\)", "$", text)
+    text = re.sub(r"\\\[\s*", "$$", text)
+    text = re.sub(r"\s*\\\]", "$$", text)
+    return text
 
 
 def sync_user_data(username: str):
@@ -190,8 +200,8 @@ elif st.session_state.page_mode == "quiz":
     st.progress((idx + 1) / total, text=f"进度：{idx + 1} / {total}")
     st.markdown(f"### 第 {idx + 1} 题")
 
-    # 修复处 1：答题页面的公式渲染
-    st.info(q['content'].replace(r"\(", "$").replace(r"\)", "$").replace(r"\[", "$$").replace(r"\]", "$$"))
+    # 完美渲染题目公式
+    st.info(format_math(q['content']))
 
     ans = st.text_area("解题步骤", value=st.session_state.user_answers.get(idx, ""), height=200, key=f"ans_{idx}")
     st.session_state.user_answers[idx] = ans
@@ -230,10 +240,8 @@ elif st.session_state.page_mode == "results":
             data = st.session_state.assessment_results[ridx]
             qid = data['question_data']['id']
 
-            # 修复处 2：结果辅导页面的公式渲染
-            st.info(
-                data['question_data']['content'].replace(r"\(", "$").replace(r"\)", "$").replace(r"\[", "$$").replace(
-                    r"\]", "$$"))
+            # 完美渲染结果页公式
+            st.info(format_math(data['question_data']['content']))
 
             st.write(f"作答: {data['user_answer']}")
             st.divider()
@@ -258,9 +266,9 @@ elif st.session_state.page_mode == "results":
                         c = chunk.choices[0].delta.content
                         if c:
                             f += c
-                            h.markdown(f.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(", "$").replace(r"\)",
-                                                                                                               "$") + "▌")
-                    final = f.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(", "$").replace(r"\)", "$")
+                            # 完美渲染 AI 实时输出的公式
+                            h.markdown(format_math(f) + "▌")
+                    final = format_math(f)
                     h.markdown(final)
                     st.session_state.chat_histories[qid].append({"role": "assistant", "content": final})
                     log_interaction(qid, f"【辅导】{query}", final)
