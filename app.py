@@ -14,6 +14,7 @@ from questions import QUESTION_BANK
 
 load_dotenv()
 
+
 class AppConfig:
     LLM_API_KEY = st.secrets.get("LLM_API_KEY") or os.getenv("LLM_API_KEY")
     DB_USER = st.secrets.get("DB_USER") or os.getenv("DB_USER")
@@ -22,15 +23,19 @@ class AppConfig:
     DB_NAME = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
     BASE_URL = "https://api.deepseek.com"
 
+
 client = OpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
+
 
 @st.cache_resource
 def get_database_engine() -> Engine:
     connection_url = f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
     return create_engine(connection_url, pool_recycle=1800, pool_pre_ping=True)
 
+
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
 
 def sync_user_data(username: str):
     engine = get_database_engine()
@@ -52,12 +57,14 @@ def sync_user_data(username: str):
                 st.session_state.chat_histories[qid].append({"role": "user", "content": qry.replace("【辅导】", "")})
                 st.session_state.chat_histories[qid].append({"role": "assistant", "content": rsp})
 
+
 def authenticate_user(u: str, p: str) -> bool:
     engine = get_database_engine()
     with engine.connect() as conn:
         res = conn.execute(text("SELECT id FROM users WHERE username = :u AND password_hash = :p"),
                            {"u": u, "p": hash_password(p)}).fetchone()
         return res is not None
+
 
 def register_user(u: str, p: str) -> bool:
     engine = get_database_engine()
@@ -69,6 +76,7 @@ def register_user(u: str, p: str) -> bool:
         conn.commit()
         return True
 
+
 def init_session_state():
     defaults = {
         "logged_in": False, "current_user": None, "page_mode": "home",
@@ -79,7 +87,9 @@ def init_session_state():
     for k, v in defaults.items():
         if k not in st.session_state: st.session_state[k] = v
 
+
 init_session_state()
+
 
 def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
     try:
@@ -88,11 +98,12 @@ def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
             ts = datetime.now(pytz.timezone('Asia/Shanghai'))
             conn.execute(text(
                 "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :time)"),
-                         {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak,
-                          "time": ts})
+                {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak,
+                 "time": ts})
             conn.commit()
     except Exception as e:
         print(f"Error: {e}")
+
 
 def start_experiment_session():
     selected = random.sample(QUESTION_BANK, 10) if len(QUESTION_BANK) >= 10 else QUESTION_BANK
@@ -106,6 +117,7 @@ def start_experiment_session():
     st.session_state.user_answers = {i: "" for i in range(len(selected))}
     st.session_state.page_mode = "quiz"
     st.rerun()
+
 
 def submit_and_assess():
     st.session_state.assessment_results = []
@@ -132,6 +144,7 @@ def submit_and_assess():
     st.session_state.page_mode = "results"
     st.rerun()
 
+
 st.set_page_config(page_title="可控解题提示生成系统", layout="wide")
 
 if not st.session_state.logged_in:
@@ -149,7 +162,8 @@ if not st.session_state.logged_in:
                 else:
                     st.error("验证失败")
         with tab_r:
-            ru, rp, rp2 = st.text_input("新学号"), st.text_input("新密码", type="password"), st.text_input("确认密码", type="password")
+            ru, rp, rp2 = st.text_input("新学号"), st.text_input("新密码", type="password"), st.text_input("确认密码",
+                                                                                                           type="password")
             if st.button("立即注册", use_container_width=True):
                 if ru and rp == rp2 and register_user(ru, rp):
                     st.success("注册成功，请切换到登录页面进行登录。")
@@ -175,7 +189,10 @@ elif st.session_state.page_mode == "quiz":
     q = st.session_state.quiz_queue[idx]
     st.progress((idx + 1) / total, text=f"进度：{idx + 1} / {total}")
     st.markdown(f"### 第 {idx + 1} 题")
-    st.info(q['content'])
+
+    # 修复处 1：答题页面的公式渲染
+    st.info(q['content'].replace(r"\(", "$").replace(r"\)", "$").replace(r"\[", "$$").replace(r"\]", "$$"))
+
     ans = st.text_area("解题步骤", value=st.session_state.user_answers.get(idx, ""), height=200, key=f"ans_{idx}")
     st.session_state.user_answers[idx] = ans
     cols = st.columns(2)
@@ -212,7 +229,12 @@ elif st.session_state.page_mode == "results":
             ridx = st.session_state.review_question_index
             data = st.session_state.assessment_results[ridx]
             qid = data['question_data']['id']
-            st.info(data['question_data']['content'])
+
+            # 修复处 2：结果辅导页面的公式渲染
+            st.info(
+                data['question_data']['content'].replace(r"\(", "$").replace(r"\)", "$").replace(r"\[", "$$").replace(
+                    r"\]", "$$"))
+
             st.write(f"作答: {data['user_answer']}")
             st.divider()
             if qid not in st.session_state.chat_histories:
