@@ -107,13 +107,28 @@ def init_session_state():
 init_session_state()
 
 
+# =============== 核心！动态合并题库机制 ===============
+def get_all_questions():
+    all_q = QUESTION_BANK.copy()
+    try:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            res = conn.execute(text("SELECT id, category, content FROM custom_questions")).fetchall()
+            for r in res:
+                all_q.append({"id": 1000 + r[0], "category": r[1], "content": r[2]})
+    except:
+        pass
+    return all_q
+
+
 def sync_user_data(username: str):
+    all_q = get_all_questions()
     engine = get_database_engine()
     with engine.connect() as conn:
         u_res = conn.execute(text("SELECT current_quiz_ids FROM users WHERE username = :u"), {"u": username}).fetchone()
         if u_res and u_res[0]:
             q_ids = [int(i) for i in u_res[0].split(",")]
-            st.session_state.quiz_queue = [q for q in QUESTION_BANK if q['id'] in q_ids]
+            st.session_state.quiz_queue = [q for q in all_q if q['id'] in q_ids]
             st.session_state.page_mode = "quiz"
 
         logs = conn.execute(
@@ -129,9 +144,9 @@ def sync_user_data(username: str):
 
 
 def start_experiment_session(course_name: str):
-    # 筛选对应科目的题目
-    course_questions = [q for q in QUESTION_BANK if q.get('category') == course_name]
-    if not course_questions: course_questions = QUESTION_BANK
+    all_q = get_all_questions()
+    course_questions = [q for q in all_q if q.get('category') == course_name]
+    if not course_questions: course_questions = all_q
 
     selected = random.sample(course_questions, 10) if len(course_questions) >= 10 else course_questions
     q_ids = ",".join([str(q['id']) for q in selected])
@@ -140,7 +155,6 @@ def start_experiment_session(course_name: str):
     with engine.connect() as conn:
         conn.execute(text("UPDATE users SET current_quiz_ids = :ids WHERE username = :u"),
                      {"ids": q_ids, "u": st.session_state.current_user})
-        # 记录学习开始时间
         ts = datetime.now(pytz.timezone('Asia/Shanghai'))
         res = conn.execute(text("INSERT INTO study_sessions (username, course_name, start_time) VALUES (:u, :c, :t)"),
                            {"u": st.session_state.current_user, "c": course_name, "t": ts})
@@ -179,14 +193,13 @@ def submit_and_assess():
         log_interaction(q["id"], f"【答案提交】{ans}", "正确" if is_ok else "错误")
         p_bar.progress((i + 1) / total)
 
-    # 结束学习时长计算
     if st.session_state.study_session_id:
         engine = get_database_engine()
         with engine.connect() as conn:
             ts = datetime.now(pytz.timezone('Asia/Shanghai'))
             conn.execute(text(
                 "UPDATE study_sessions SET end_time = :t, duration_seconds = TIMESTAMPDIFF(SECOND, start_time, :t) WHERE id = :id"),
-                         {"t": ts, "id": st.session_state.study_session_id})
+                {"t": ts, "id": st.session_state.study_session_id})
             conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
                          {"u": st.session_state.current_user})
             conn.commit()
@@ -206,7 +219,6 @@ if not st.session_state.logged_in:
     with c2:
         tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
         with tab_l:
-
             with st.form("login_form"):
                 u_in = st.text_input("账号/学号")
                 p_in = st.text_input("密码", type="password")
@@ -227,7 +239,6 @@ if not st.session_state.logged_in:
                     else:
                         st.error("账号或密码错误")
         with tab_r:
-
             with st.form("register_form"):
                 ru = st.text_input("新学号")
                 rp = st.text_input("新密码", type="password")
@@ -260,7 +271,8 @@ with st.sidebar:
 # === 管理员后台 ===
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
     st.markdown("<h1>👨‍💻 教务管理控制台</h1>", unsafe_allow_html=True)
-    tab1, tab2, tab3 = st.tabs(["🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控"])
+    # ✨ 第四个标签页改为“课程与题库管理”
+    tab1, tab2, tab3, tab4 = st.tabs(["🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理"])
     engine = get_database_engine()
     with engine.connect() as conn:
         with tab1:
@@ -282,21 +294,136 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 conn)
             st.dataframe(df_chat, use_container_width=True)
 
+        # === ✨ 新增的课程题库管理 UI（增删全闭环） ===
+        with tab4:
+            st.subheader("📚 课程管理")
+            col_c1, col_c2 = st.columns(2)
+
+            with col_c1:
+                with st.form("add_course_form"):
+                    st.write("➕ 添加新课程")
+                    new_c_name = st.text_input("新课程名称 (如: 大学物理)")
+                    new_c_desc = st.text_input("课程简介描述")
+                    if st.form_submit_button("确认添加", type="primary", use_container_width=True):
+                        if new_c_name and new_c_desc:
+                            try:
+                                conn.execute(
+                                    text("INSERT INTO custom_courses (course_name, description) VALUES (:n, :d)"),
+                                    {"n": new_c_name, "d": new_c_desc})
+                                conn.commit()
+                                st.success(f"课程《{new_c_name}》添加成功！")
+                                time.sleep(1)  # 停顿1秒让管理员看到成功提示
+                                st.rerun()  # 刷新页面同步最新数据
+                            except Exception as e:
+                                st.error("添加失败，可能是课程名称已存在。")
+                        else:
+                            st.warning("请填写完整的课程信息！")
+
+            with col_c2:
+                with st.form("delete_course_form"):
+                    st.write("🗑️ 删除自定义课程")
+                    try:
+                        custom_c_res = conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()
+                        del_c_list = [r[0] for r in custom_c_res]
+                    except:
+                        del_c_list = []
+
+                    if del_c_list:
+                        del_c_name = st.selectbox("选择要下架的课程", del_c_list)
+                        if st.form_submit_button("确认删除 (将同步删除下属题目)", type="primary",
+                                                 use_container_width=True):
+                            # 级联删除：删掉课程的同时，把这个课程下的题也清空
+                            conn.execute(text("DELETE FROM custom_courses WHERE course_name = :c"), {"c": del_c_name})
+                            conn.execute(text("DELETE FROM custom_questions WHERE category = :c"), {"c": del_c_name})
+                            conn.commit()
+                            st.success(f"已彻底删除课程《{del_c_name}》！")
+                            time.sleep(1)
+                            st.rerun()
+                    else:
+                        st.info("暂无自定义课程可以删除。")
+                        st.form_submit_button("确认删除", disabled=True, use_container_width=True)
+
+            st.divider()
+
+            st.subheader("📝 题库管理")
+            col_q1, col_q2 = st.columns(2)
+
+            with col_q1:
+                hardcoded_c = ["高等数学", "线性代数", "概率统计", "C语言"]
+                try:
+                    all_c = hardcoded_c + [r[0] for r in
+                                           conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()]
+                except:
+                    all_c = hardcoded_c
+
+                with st.form("add_question_form"):
+                    st.write("➕ 录入新题目")
+                    q_category = st.selectbox("选择所属课程", all_c)
+                    q_content = st.text_area("输入题目内容 (支持 LaTeX 格式)")
+                    if st.form_submit_button("确认录入题目", type="primary", use_container_width=True):
+                        if q_category and q_content:
+                            try:
+                                conn.execute(text("INSERT INTO custom_questions (category, content) VALUES (:c, :t)"),
+                                             {"c": q_category, "t": q_content})
+                                conn.commit()
+                                st.success("题目添加成功！")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"题目添加失败: {e}")
+                        else:
+                            st.warning("请填写完整的题目内容！")
+
+            with col_q2:
+                with st.form("delete_question_form"):
+                    st.write("🗑️ 删除自定义题目")
+                    try:
+                        # 抓取自定义题库里的题，并在下拉框里展示前 15 个字方便识别
+                        custom_q_res = conn.execute(
+                            text("SELECT id, category, LEFT(content, 15) FROM custom_questions")).fetchall()
+                        del_q_options = {f"[{r[1]}] {r[2]}... (内部ID:{r[0]})": r[0] for r in custom_q_res}
+                    except:
+                        del_q_options = {}
+
+                    if del_q_options:
+                        del_q_choice = st.selectbox("选择要删除的错误题目", list(del_q_options.keys()))
+                        if st.form_submit_button("确认删除该题", type="primary", use_container_width=True):
+                            q_id_to_del = del_q_options[del_q_choice]
+                            conn.execute(text("DELETE FROM custom_questions WHERE id = :id"), {"id": q_id_to_del})
+                            conn.commit()
+                            st.success("指定题目已永久删除！")
+                            time.sleep(1)
+                            st.rerun()
+                    else:
+                        st.info("暂无自定义题目可以删除。")
+                        st.form_submit_button("确认删除", disabled=True, use_container_width=True)
+
 # === 学生课程大厅 ===
 elif st.session_state.page_mode == "home" and st.session_state.user_role == "student":
     st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
     st.write("请选择你要进行随堂测验的课程模块：")
     st.divider()
 
-    cols = st.columns(4)
-    courses = [
+    base_courses = [
         ("高等数学", "包含极限、导数、微积分等核心考点，重点测试逻辑推导能力。"),
         ("线性代数", "包含矩阵运算、特征值、二次型等，培养空间与代数转换思维。"),
         ("概率统计", "包含随机变量、分布规律、信息熵等，结合实际应用场景。"),
-        ("C语言", "包含指针、数组、结构体等核心语法，锻炼底层逻辑与编程思维。") # ✨ 这是为你新增的C语言模块
+        ("C语言", "包含指针、数组、结构体等核心语法，锻炼底层逻辑与编程思维。")
     ]
-    for idx, (c_name, c_desc) in enumerate(courses):
-        with cols[idx]:
+
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        try:
+            custom_c_res = conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall()
+            for r in custom_c_res:
+                base_courses.append((r[0], r[1]))
+        except:
+            pass
+
+    cols = st.columns(4)
+    for idx, (c_name, c_desc) in enumerate(base_courses):
+        col_idx = idx % 4
+        with cols[col_idx]:
             st.markdown(f"### 📘 {c_name}")
             st.caption(c_desc)
             if st.button(f"进入《{c_name}》测验", key=f"btn_{c_name}", use_container_width=True):
