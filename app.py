@@ -302,7 +302,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             with col_c1:
                 with st.form("add_course_form"):
                     st.write("➕ 添加新课程")
-                    new_c_name = st.text_input("新课程名称 (如: 大学物理)")
+                    new_c_name = st.text_input("新课程名称")
                     new_c_desc = st.text_input("课程简介描述")
                     if st.form_submit_button("确认添加", type="primary", use_container_width=True):
                         if new_c_name and new_c_desc:
