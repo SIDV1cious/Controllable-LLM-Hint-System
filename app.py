@@ -208,6 +208,10 @@ if not st.session_state.logged_in:
         with tab_l:
             u_in, p_in = st.text_input("账号/学号"), st.text_input("密码", type="password")
             if st.button("进入系统", type="primary", use_container_width=True):
+
+                if authenticate_user(u_in.strip(), p_in.strip()):
+
+            if st.button("进入系统", type="primary", use_container_width=True):
                 is_auth, role = authenticate_user(u_in, p_in)
                 if is_auth:
                     st.session_state.logged_in = True
