@@ -123,8 +123,15 @@ def start_experiment_session():
         conn.execute(text("UPDATE users SET current_quiz_ids = :ids WHERE username = :u"),
                      {"ids": q_ids, "u": st.session_state.current_user})
         conn.commit()
+
     st.session_state.quiz_queue = selected
     st.session_state.user_answers = {i: "" for i in range(len(selected))}
+
+    st.session_state.current_question_index = 0
+    st.session_state.assessment_results = []
+    st.session_state.review_question_index = None
+    st.session_state.chat_histories = {}
+
     st.session_state.page_mode = "quiz"
     st.rerun()
 
@@ -225,7 +232,7 @@ elif st.session_state.page_mode == "quiz":
 
 elif st.session_state.page_mode == "results":
     st.title("📊 作答结果与辅导")
-    if st.button("🔄 开启新一轮"): start_experiment_session()
+    if st.button("🔄 开启新一轮作答"): start_experiment_session()
     st.divider()
     l_col, r_col = st.columns([1, 1])
     with l_col:
