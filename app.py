@@ -410,7 +410,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
 
-                with tab5:
+        with tab5:
                     st.subheader("🧠 大模型 Prompt 注入控制台")
                     st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
 
