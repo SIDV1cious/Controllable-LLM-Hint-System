@@ -276,25 +276,32 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
     engine = get_database_engine()
     with engine.connect() as conn:
         with tab1:
-            st.subheader("学生活跃度监控")
-            df_login = pd.read_sql(
-                "SELECT username AS '学号', login_time AS '登录时间' FROM login_logs ORDER BY login_time DESC LIMIT 50",
-                conn)
+            st.subheader("学生活动监控")
+            df_login = pd.read_sql("SELECT username AS '学号', login_time AS '登录时间' FROM login_logs ORDER BY login_time DESC LIMIT 50", conn)
             st.dataframe(df_login, use_container_width=True)
+            # ✨ 新增：一键导出为 CSV 按钮 (使用 utf-8-sig 防止 Excel 中文乱码)
+            if not df_login.empty:
+                csv_login = df_login.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(label="📥 导出登录日志 (CSV)", data=csv_login, file_name="login_logs.csv", mime="text/csv", use_container_width=True)
+
         with tab2:
             st.subheader("各科课程学习时长分析")
-            df_study = pd.read_sql(
-                "SELECT username AS '学号', course_name AS '课程', start_time AS '开始时间', end_time AS '结束时间', duration_seconds AS '学习时长(秒)' FROM study_sessions ORDER BY start_time DESC LIMIT 50",
-                conn)
+            df_study = pd.read_sql("SELECT username AS '学号', course_name AS '课程', start_time AS '开始时间', end_time AS '结束时间', duration_seconds AS '学习时长(秒)' FROM study_sessions ORDER BY start_time DESC LIMIT 50", conn)
             st.dataframe(df_study, use_container_width=True)
+            # ✨ 新增：一键导出为 CSV 按钮
+            if not df_study.empty:
+                csv_study = df_study.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(label="📥 导出学习时长记录 (CSV)", data=csv_study, file_name="study_sessions.csv", mime="text/csv", use_container_width=True)
+
         with tab3:
             st.subheader("大模型交互质量抽查")
-            df_chat = pd.read_sql(
-                "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
-                conn)
+            df_chat = pd.read_sql("SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50", conn)
             st.dataframe(df_chat, use_container_width=True)
+            # ✨ 新增：一键导出为 CSV 按钮
+            if not df_chat.empty:
+                csv_chat = df_chat.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(label="📥 导出AI辅导监控记录 (CSV)", data=csv_chat, file_name="ai_interaction_logs.csv", mime="text/csv", use_container_width=True)
 
-        # === ✨ 新增的课程题库管理 UI（增删全闭环） ===
         with tab4:
             st.subheader("📚 课程管理")
             col_c1, col_c2 = st.columns(2)
