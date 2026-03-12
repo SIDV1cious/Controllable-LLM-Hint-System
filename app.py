@@ -409,38 +409,39 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.info("暂无自定义题目可以删除。")
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
-        # === ✨ 全新的大模型底层控制面板 ===
-        with tab5:
-            st.subheader("🧠 大模型 Prompt 注入控制台")
-            st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
 
-            # 抓取当前数据库里的最新提示词
-            try:
-                curr_prompt_res = conn.execute(
-                    text("SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
-                current_prompt = curr_prompt_res[0] if curr_prompt_res else SYSTEM_INSTRUCTION
-            except:
-                current_prompt = SYSTEM_INSTRUCTION
+                with tab5:
+                    st.subheader("🧠 大模型 Prompt 注入控制台")
+                    st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
 
-            with st.form("prompt_update_form"):
-                new_prompt = st.text_area("🔧 当前系统底层提示词 (System Prompt)", value=current_prompt, height=250)
+                    # 抓取当前数据库里的最新提示词
+                    try:
+                        curr_prompt_res = conn.execute(text(
+                            "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
+                        current_prompt = curr_prompt_res[0] if curr_prompt_res else SYSTEM_INSTRUCTION
+                    except:
+                        current_prompt = SYSTEM_INSTRUCTION
 
-                st.caption("您可以尝试输入：'你是一个暴躁的导师，如果学生做错题，请先严厉批评他，再给出提示。' 来测试效果。")
-                if st.form_submit_button("💾 保存并全局应用新指令", type="primary", use_container_width=True):
-                    if new_prompt.strip():
-                        try:
-                            # 覆盖更新底层提示词
-                            conn.execute(text(
-                                "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
-                                         {"val": new_prompt.strip()})
-                            conn.commit()
-                            st.success("✅ 大模型底层指令已热更新！全站生效！")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"更新失败: {e}")
-                    else:
-                        st.warning("提示词不能为空！")
+                    with st.form("prompt_update_form"):
+                        new_prompt = st.text_area("🔧 当前系统底层提示词 (System Prompt)", value=current_prompt,
+                                                  height=250)
+
+
+                        if st.form_submit_button("💾 保存并全局应用新指令", type="primary", use_container_width=True):
+                            if new_prompt.strip():
+                                try:
+                                    # 覆盖更新底层提示词
+                                    conn.execute(text(
+                                        "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
+                                                 {"val": new_prompt.strip()})
+                                    conn.commit()
+                                    st.success("✅ 大模型底层指令已热更新！全站生效！")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"更新失败: {e}")
+                            else:
+                                st.warning("提示词不能为空！")
 
 # === 学生课程大厅 ===
 elif st.session_state.page_mode == "home" and st.session_state.user_role == "student":
