@@ -435,7 +435,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                         "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
                                                  {"val": new_prompt.strip()})
                                     conn.commit()
-                                    st.success("✅ 大模型底层指令已热更新！全站生效！")
+                                    st.success("✅ 大模型底层指令已热更新！全系统生效！")
                                     time.sleep(1)
                                     st.rerun()
                                 except Exception as e:
