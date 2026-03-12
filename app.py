@@ -77,7 +77,7 @@ def log_login(username: str):
                          {"u": username, "t": ts})
             conn.commit()
     except Exception as e:
-        print(f"Login Log Error: {e}")
+        pass
 
 
 def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
@@ -90,7 +90,7 @@ def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
                 {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak, "time": ts})
             conn.commit()
     except Exception as e:
-        print(f"Interaction Log Error: {e}")
+        pass
 
 
 def init_session_state():
@@ -107,7 +107,6 @@ def init_session_state():
 init_session_state()
 
 
-# =============== 核心！动态合并题库机制 ===============
 def get_all_questions():
     all_q = QUESTION_BANK.copy()
     try:
@@ -271,36 +270,43 @@ with st.sidebar:
 # === 管理员后台 ===
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
     st.markdown("<h1>👨‍💻 教务管理控制台</h1>", unsafe_allow_html=True)
-    # ✨ 第四个标签页改为“课程与题库管理”
-    tab1, tab2, tab3, tab4 = st.tabs(["🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理"])
+    # ✨ 核心升级：新增第五个标签页！
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理", "⚙️ 智能辅导大模型设置"])
     engine = get_database_engine()
     with engine.connect() as conn:
         with tab1:
-            st.subheader("学生活动监控")
-            df_login = pd.read_sql("SELECT username AS '学号', login_time AS '登录时间' FROM login_logs ORDER BY login_time DESC LIMIT 50", conn)
+            st.subheader("学生活跃度监控")
+            df_login = pd.read_sql(
+                "SELECT username AS '学号', login_time AS '登录时间' FROM login_logs ORDER BY login_time DESC LIMIT 50",
+                conn)
             st.dataframe(df_login, use_container_width=True)
-            # ✨ 新增：一键导出为 CSV 按钮 (使用 utf-8-sig 防止 Excel 中文乱码)
             if not df_login.empty:
                 csv_login = df_login.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(label="📥 导出登录日志 (CSV)", data=csv_login, file_name="login_logs.csv", mime="text/csv", use_container_width=True)
+                st.download_button(label="📥 导出登录日志 (CSV)", data=csv_login, file_name="login_logs.csv",
+                                   mime="text/csv", use_container_width=True)
 
         with tab2:
             st.subheader("各科课程学习时长分析")
-            df_study = pd.read_sql("SELECT username AS '学号', course_name AS '课程', start_time AS '开始时间', end_time AS '结束时间', duration_seconds AS '学习时长(秒)' FROM study_sessions ORDER BY start_time DESC LIMIT 50", conn)
+            df_study = pd.read_sql(
+                "SELECT username AS '学号', course_name AS '课程', start_time AS '开始时间', end_time AS '结束时间', duration_seconds AS '学习时长(秒)' FROM study_sessions ORDER BY start_time DESC LIMIT 50",
+                conn)
             st.dataframe(df_study, use_container_width=True)
-            # ✨ 新增：一键导出为 CSV 按钮
             if not df_study.empty:
                 csv_study = df_study.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(label="📥 导出学习时长记录 (CSV)", data=csv_study, file_name="study_sessions.csv", mime="text/csv", use_container_width=True)
+                st.download_button(label="📥 导出学习时长记录 (CSV)", data=csv_study, file_name="study_sessions.csv",
+                                   mime="text/csv", use_container_width=True)
 
         with tab3:
             st.subheader("大模型交互质量抽查")
-            df_chat = pd.read_sql("SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50", conn)
+            df_chat = pd.read_sql(
+                "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
+                conn)
             st.dataframe(df_chat, use_container_width=True)
-            # ✨ 新增：一键导出为 CSV 按钮
             if not df_chat.empty:
                 csv_chat = df_chat.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(label="📥 导出AI辅导监控记录 (CSV)", data=csv_chat, file_name="ai_interaction_logs.csv", mime="text/csv", use_container_width=True)
+                st.download_button(label="📥 导出AI辅导监控记录 (CSV)", data=csv_chat,
+                                   file_name="ai_interaction_logs.csv", mime="text/csv", use_container_width=True)
 
         with tab4:
             st.subheader("📚 课程管理")
@@ -319,9 +325,9 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                     {"n": new_c_name, "d": new_c_desc})
                                 conn.commit()
                                 st.success(f"课程《{new_c_name}》添加成功！")
-                                time.sleep(1)  # 停顿1秒让管理员看到成功提示
-                                st.rerun()  # 刷新页面同步最新数据
-                            except Exception as e:
+                                time.sleep(1)
+                                st.rerun()
+                            except:
                                 st.error("添加失败，可能是课程名称已存在。")
                         else:
                             st.warning("请填写完整的课程信息！")
@@ -339,7 +345,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         del_c_name = st.selectbox("选择要下架的课程", del_c_list)
                         if st.form_submit_button("确认删除 (将同步删除下属题目)", type="primary",
                                                  use_container_width=True):
-                            # 级联删除：删掉课程的同时，把这个课程下的题也清空
                             conn.execute(text("DELETE FROM custom_courses WHERE course_name = :c"), {"c": del_c_name})
                             conn.execute(text("DELETE FROM custom_questions WHERE category = :c"), {"c": del_c_name})
                             conn.commit()
@@ -376,8 +381,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 st.success("题目添加成功！")
                                 time.sleep(1)
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"题目添加失败: {e}")
+                            except:
+                                st.error(f"题目添加失败")
                         else:
                             st.warning("请填写完整的题目内容！")
 
@@ -385,7 +390,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 with st.form("delete_question_form"):
                     st.write("🗑️ 删除自定义题目")
                     try:
-                        # 抓取自定义题库里的题，并在下拉框里展示前 15 个字方便识别
                         custom_q_res = conn.execute(
                             text("SELECT id, category, LEFT(content, 15) FROM custom_questions")).fetchall()
                         del_q_options = {f"[{r[1]}] {r[2]}... (内部ID:{r[0]})": r[0] for r in custom_q_res}
@@ -404,6 +408,39 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     else:
                         st.info("暂无自定义题目可以删除。")
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
+
+        # === ✨ 全新的大模型底层控制面板 ===
+        with tab5:
+            st.subheader("🧠 大模型 Prompt 注入控制台")
+            st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
+
+            # 抓取当前数据库里的最新提示词
+            try:
+                curr_prompt_res = conn.execute(
+                    text("SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
+                current_prompt = curr_prompt_res[0] if curr_prompt_res else SYSTEM_INSTRUCTION
+            except:
+                current_prompt = SYSTEM_INSTRUCTION
+
+            with st.form("prompt_update_form"):
+                new_prompt = st.text_area("🔧 当前系统底层提示词 (System Prompt)", value=current_prompt, height=250)
+
+                st.caption("您可以尝试输入：'你是一个暴躁的导师，如果学生做错题，请先严厉批评他，再给出提示。' 来测试效果。")
+                if st.form_submit_button("💾 保存并全局应用新指令", type="primary", use_container_width=True):
+                    if new_prompt.strip():
+                        try:
+                            # 覆盖更新底层提示词
+                            conn.execute(text(
+                                "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
+                                         {"val": new_prompt.strip()})
+                            conn.commit()
+                            st.success("✅ 大模型底层指令已热更新！全站生效！")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"更新失败: {e}")
+                    else:
+                        st.warning("提示词不能为空！")
 
 # === 学生课程大厅 ===
 elif st.session_state.page_mode == "home" and st.session_state.user_role == "student":
@@ -501,8 +538,21 @@ elif st.session_state.page_mode == "results":
                     h = st.empty()
                     f = ""
                     ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
+
+                    # ✨ 核心升级：聊天时动态去数据库抓取管理员设置的最新 Prompt！
+                    dynamic_prompt = SYSTEM_INSTRUCTION
+                    try:
+                        engine_tmp = get_database_engine()
+                        with engine_tmp.connect() as conn_tmp:
+                            dyn_prompt_res = conn_tmp.execute(text(
+                                "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
+                            if dyn_prompt_res:
+                                dynamic_prompt = dyn_prompt_res[0]
+                    except:
+                        pass
+
                     stream = client.chat.completions.create(model="deepseek-chat",
-                                                            messages=[{"role": "system", "content": SYSTEM_INSTRUCTION},
+                                                            messages=[{"role": "system", "content": dynamic_prompt},
                                                                       {"role": "user", "content": ctx}], stream=True)
                     for chunk in stream:
                         c = chunk.choices[0].delta.content
