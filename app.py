@@ -5,6 +5,7 @@ import time
 import hashlib
 import re
 import pandas as pd
+import plotly.express as px
 from typing import List, Dict, Optional, Any
 from sqlalchemy import create_engine, text, Engine
 from openai import OpenAI
@@ -269,12 +270,80 @@ with st.sidebar:
 
 # === 管理员后台 ===
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
-    st.markdown("<h1>👨‍💻 教务管理控制台</h1>", unsafe_allow_html=True)
-    # ✨ 核心升级：新增第五个标签页！
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理", "⚙️ 智能辅导大模型设置"])
+    st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
+    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["📊 可视化数据大屏", "🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理",
+         "⚙️ 智能辅导大模型设置"])
     engine = get_database_engine()
     with engine.connect() as conn:
+        with tab0:
+            st.subheader("🎓 全站学情实时监控看板")
+            st.markdown("---")
+
+            st.markdown("#### 🕒 最近7天系统活跃人数趋势")
+            try:
+                sql_active = text("""
+                    SELECT DATE(login_time) as login_date, COUNT(DISTINCT username) as user_count 
+                    FROM login_logs 
+                    WHERE login_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
+                    GROUP BY login_date 
+                    ORDER BY login_date;
+                """)
+                df_active = pd.read_sql(sql_active, conn)
+                if not df_active.empty:
+                    df_active['login_date'] = pd.to_datetime(df_active['login_date'])
+                    st.line_chart(df_active, x='login_date', y='user_count', use_container_width=True)
+                else:
+                    st.info("暂无最近7天的活跃数据。")
+            except:
+                pass
+
+            st.markdown("---")
+
+            st.markdown("#### 📘 各科课程学习时长占比")
+            col_chart1, col_data1 = st.columns([2, 1])
+            try:
+                sql_duration = text("""
+                    SELECT course_name, SUM(duration_seconds) as total_seconds 
+                    FROM study_sessions 
+                    WHERE duration_seconds IS NOT NULL
+                    GROUP BY course_name;
+                """)
+                df_duration = pd.read_sql(sql_duration, conn)
+                if not df_duration.empty:
+                    df_duration['total_minutes'] = (df_duration['total_seconds'] / 60).round(1)
+                    fig_pie = px.pie(df_duration, values='total_minutes', names='course_name',
+                                     hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                    with col_chart1:
+                        st.plotly_chart(fig_pie, use_container_width=True)
+                    with col_data1:
+                        st.dataframe(df_duration[['course_name', 'total_minutes']], hide_index=True)
+                else:
+                    st.info("暂无学习时长数据。")
+            except:
+                pass
+
+            st.markdown("---")
+
+            st.markdown("#### ✅ 全站题目平均正确率统计")
+            try:
+                df_interact_raw = pd.read_sql(
+                    "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%'", conn)
+                if not df_interact_raw.empty:
+                    all_questions = get_all_questions()
+                    q_id_map = {q['id']: q['category'] for q in all_questions}
+                    df_interact_raw['course_name'] = df_interact_raw['question_id'].map(q_id_map)
+                    df_interact_raw['is_correct'] = df_interact_raw['ai_response'].apply(
+                        lambda x: 1 if ('正确' in str(x) or 'PASS' in str(x)) else 0)
+                    df_accuracy = df_interact_raw.groupby('course_name')['is_correct'].mean().reset_index()
+                    df_accuracy['accuracy_percent'] = (df_accuracy['is_correct'] * 100).round(1)
+                    st.bar_chart(df_accuracy, x='course_name', y='accuracy_percent', use_container_width=True)
+                else:
+                    st.info("暂无答题提交数据，无法计算正确率。")
+            except:
+                pass
+
         with tab1:
             st.subheader("学生活跃度监控")
             df_login = pd.read_sql(
@@ -409,39 +478,33 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.info("暂无自定义题目可以删除。")
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
-
         with tab5:
-                    st.subheader("🧠 大模型 Prompt 注入控制台")
-                    st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
+            st.subheader("🧠 大模型 Prompt 注入控制台")
+            st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
 
-                    # 抓取当前数据库里的最新提示词
-                    try:
-                        curr_prompt_res = conn.execute(text(
-                            "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
-                        current_prompt = curr_prompt_res[0] if curr_prompt_res else SYSTEM_INSTRUCTION
-                    except:
-                        current_prompt = SYSTEM_INSTRUCTION
+            try:
+                curr_prompt_res = conn.execute(text(
+                    "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
+                current_prompt = curr_prompt_res[0] if curr_prompt_res else SYSTEM_INSTRUCTION
+            except:
+                current_prompt = SYSTEM_INSTRUCTION
 
-                    with st.form("prompt_update_form"):
-                        new_prompt = st.text_area("🔧 当前系统底层提示词 (System Prompt)", value=current_prompt,
-                                                  height=250)
-
-
-                        if st.form_submit_button("💾 保存并全局应用新指令", type="primary", use_container_width=True):
-                            if new_prompt.strip():
-                                try:
-                                    # 覆盖更新底层提示词
-                                    conn.execute(text(
-                                        "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
-                                                 {"val": new_prompt.strip()})
-                                    conn.commit()
-                                    st.success("✅ 大模型底层指令已热更新！全系统生效！")
-                                    time.sleep(1)
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"更新失败: {e}")
-                            else:
-                                st.warning("提示词不能为空！")
+            with st.form("prompt_update_form"):
+                new_prompt = st.text_area("🔧 当前系统底层提示词 (System Prompt)", value=current_prompt, height=250)
+                if st.form_submit_button("💾 保存并全局应用新指令", type="primary", use_container_width=True):
+                    if new_prompt.strip():
+                        try:
+                            conn.execute(text(
+                                "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
+                                {"val": new_prompt.strip()})
+                            conn.commit()
+                            st.success("✅ 大模型底层指令已热更新！全系统生效！")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"更新失败: {e}")
+                    else:
+                        st.warning("提示词不能为空！")
 
 # === 学生课程大厅 ===
 elif st.session_state.page_mode == "home" and st.session_state.user_role == "student":
@@ -540,7 +603,6 @@ elif st.session_state.page_mode == "results":
                     f = ""
                     ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
 
-                    # ✨ 核心升级：聊天时动态去数据库抓取管理员设置的最新 Prompt！
                     dynamic_prompt = SYSTEM_INSTRUCTION
                     try:
                         engine_tmp = get_database_engine()
