@@ -545,8 +545,10 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
                 start_experiment_session(c_name)
 
 elif st.session_state.page_mode == "quiz":
+    st.warning("⚠️ 考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！")
     idx = st.session_state.current_question_index
     total = len(st.session_state.quiz_queue)
+
     q = st.session_state.quiz_queue[idx]
     st.progress((idx + 1) / total, text=f"【{st.session_state.current_course}】 进度：{idx + 1} / {total}")
     st.markdown(f"### 第 {idx + 1} 题")
