@@ -211,7 +211,7 @@ def submit_and_assess():
 
 # =============== 页面渲染逻辑 ===============
 
-st.set_page_config(page_title="智能导学系统", layout="centered")
+st.set_page_config(page_title="智能导学系统", layout="wide")
 
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center;'>🎓 智能导学与测试系统</h1>", unsafe_allow_html=True)
@@ -293,8 +293,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 if not df_active.empty:
                     df_active['login_date'] = pd.to_datetime(df_active['login_date'])
                     st.line_chart(df_active, x='login_date', y='user_count', use_container_width=True)
-                else:
-                    st.info("暂无最近7天的活跃数据。")
             except:
                 pass
 
@@ -319,8 +317,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.plotly_chart(fig_pie, use_container_width=True)
                     with col_data1:
                         st.dataframe(df_duration[['course_name', 'total_minutes']], hide_index=True)
-                else:
-                    st.info("暂无学习时长数据。")
             except:
                 pass
 
@@ -332,9 +328,9 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%'", conn)
                 if not df_interact_raw.empty:
                     all_questions = get_all_questions()
-                    q_id_map = {int(q['id']): q['category'] for q in all_questions}
-                    df_interact_raw['question_id'] = pd.to_numeric(df_interact_raw['question_id'], errors='coerce').fillna(-1).astype(int)
-                    df_interact_raw['course_name'] = df_interact_raw['question_id'].map(q_id_map)
+                    q_id_map = {str(int(q['id'])): q['category'] for q in all_questions}
+                    df_interact_raw['clean_id'] = pd.to_numeric(df_interact_raw['question_id'], errors='coerce').fillna(-1).astype(int).astype(str)
+                    df_interact_raw['course_name'] = df_interact_raw['clean_id'].map(q_id_map)
                     df_valid = df_interact_raw.dropna(subset=['course_name']).copy()
                     if not df_valid.empty:
                         df_valid['is_correct'] = df_valid['ai_response'].apply(
