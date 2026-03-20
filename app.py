@@ -211,7 +211,7 @@ def submit_and_assess():
 
 # =============== 页面渲染逻辑 ===============
 
-st.set_page_config(page_title="智能导学系统", layout="centered")
+st.set_page_config(page_title="智能导学系统", layout="wide")
 
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center;'>🎓 智能导学与测试系统</h1>", unsafe_allow_html=True)
@@ -253,8 +253,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 with st.sidebar:
-    st.write(
-        f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
+    st.write(f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
     if st.session_state.user_role == 'student' and st.session_state.page_mode != "home":
         if st.button("🏠 返回大厅"):
             engine = get_database_engine()
@@ -283,10 +282,10 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             st.markdown("#### 🕒 最近7天系统活跃人数趋势")
             try:
                 sql_active = text("""
-                    SELECT DATE(login_time) as login_date, COUNT(DISTINCT username) as user_count 
-                    FROM login_logs 
-                    WHERE login_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
-                    GROUP BY login_date 
+                    SELECT DATE(login_time) as login_date, COUNT(DISTINCT username) as user_count
+                    FROM login_logs
+                    WHERE login_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                    GROUP BY login_date
                     ORDER BY login_date;
                 """)
                 df_active = pd.read_sql(sql_active, conn)
@@ -304,8 +303,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             col_chart1, col_data1 = st.columns([2, 1])
             try:
                 sql_duration = text("""
-                    SELECT course_name, SUM(duration_seconds) as total_seconds 
-                    FROM study_sessions 
+                    SELECT course_name, SUM(duration_seconds) as total_seconds
+                    FROM study_sessions
                     WHERE duration_seconds IS NOT NULL
                     GROUP BY course_name;
                 """)
@@ -334,20 +333,16 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     all_questions = get_all_questions()
                     q_id_map = {str(q['id']): q['category'] for q in all_questions}
                     df_interact_raw['course_name'] = df_interact_raw['question_id'].astype(str).map(q_id_map)
-
                     df_interact_raw['is_correct'] = df_interact_raw['ai_response'].apply(
                         lambda x: 1 if ('正确' in str(x) or 'PASS' in str(x)) else 0)
                     df_accuracy = df_interact_raw.groupby('course_name')['is_correct'].mean().reset_index()
                     df_accuracy['accuracy_percent'] = (df_accuracy['is_correct'] * 100).round(1)
-
                     if not df_accuracy.empty:
                         st.bar_chart(df_accuracy, x='course_name', y='accuracy_percent', use_container_width=True)
-                    else:
-                        st.warning("⚠️ 题号映射失败，未能生成正确率图表。")
                 else:
                     st.info("暂无答题提交数据，无法计算正确率。")
-            except Exception as e:
-                st.error(f"图表加载失败，详细报错: {e}")
+            except:
+                pass
 
         with tab1:
             st.subheader("学生活跃度监控")
