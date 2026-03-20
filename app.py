@@ -313,6 +313,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     with col_chart1:
                         st.plotly_chart(fig_pie, use_container_width=True)
                     with col_data1:
+                        st.markdown("<div style='margin-top: 100px;'></div>", unsafe_allow_html=True)
                         st.dataframe(df_duration[['course_name', 'total_minutes']], hide_index=True)
             except:
                 pass
