@@ -211,7 +211,7 @@ def submit_and_assess():
 
 # =============== 页面渲染逻辑 ===============
 
-st.set_page_config(page_title="智能导学系统", layout="wide")
+st.set_page_config(page_title="智能导学系统", layout="centered")
 
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center;'>🎓 智能导学与测试系统</h1>", unsafe_allow_html=True)
@@ -332,17 +332,22 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%'", conn)
                 if not df_interact_raw.empty:
                     all_questions = get_all_questions()
-                    q_id_map = {q['id']: q['category'] for q in all_questions}
-                    df_interact_raw['course_name'] = df_interact_raw['question_id'].map(q_id_map)
+                    q_id_map = {str(q['id']): q['category'] for q in all_questions}
+                    df_interact_raw['course_name'] = df_interact_raw['question_id'].astype(str).map(q_id_map)
+
                     df_interact_raw['is_correct'] = df_interact_raw['ai_response'].apply(
                         lambda x: 1 if ('正确' in str(x) or 'PASS' in str(x)) else 0)
                     df_accuracy = df_interact_raw.groupby('course_name')['is_correct'].mean().reset_index()
                     df_accuracy['accuracy_percent'] = (df_accuracy['is_correct'] * 100).round(1)
-                    st.bar_chart(df_accuracy, x='course_name', y='accuracy_percent', use_container_width=True)
+
+                    if not df_accuracy.empty:
+                        st.bar_chart(df_accuracy, x='course_name', y='accuracy_percent', use_container_width=True)
+                    else:
+                        st.warning("⚠️ 题号映射失败，未能生成正确率图表。")
                 else:
                     st.info("暂无答题提交数据，无法计算正确率。")
-            except:
-                pass
+            except Exception as e:
+                st.error(f"图表加载失败，详细报错: {e}")
 
         with tab1:
             st.subheader("学生活跃度监控")
