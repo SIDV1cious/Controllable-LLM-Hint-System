@@ -322,10 +322,9 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             st.markdown("#### ✅ 全系统题目平均正确率统计")
             try:
                 df_interact_raw = pd.read_sql(
-                    "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%'", conn)
+                    "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%%'", conn)
                 if not df_interact_raw.empty:
                     all_questions = get_all_questions()
-                    # 强力转成字符串映射，确保万无一失
                     q_id_map = {str(int(q['id'])): str(q['category']) for q in all_questions}
                     df_interact_raw['clean_id'] = pd.to_numeric(df_interact_raw['question_id'], errors='coerce').fillna(
                         -1).astype(int).astype(str)
