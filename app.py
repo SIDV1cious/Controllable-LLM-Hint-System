@@ -277,7 +277,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
     engine = get_database_engine()
     with engine.connect() as conn:
         with tab0:
-            st.subheader("🎓 全站学情实时监控看板")
+            st.subheader("🎓 全系统学情实时监控看板")
             st.markdown("---")
 
             st.markdown("#### 🕒 最近7天系统活跃人数趋势")
@@ -326,7 +326,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
 
             st.markdown("---")
 
-            st.markdown("#### ✅ 全站题目平均正确率统计")
+            st.markdown("#### ✅ 全系统题目平均正确率统计")
             try:
                 df_interact_raw = pd.read_sql(
                     "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%'", conn)
