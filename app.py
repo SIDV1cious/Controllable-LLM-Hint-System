@@ -209,8 +209,6 @@ def submit_and_assess():
     st.rerun()
 
 
-# =============== 页面渲染逻辑 ===============
-
 st.set_page_config(page_title="智能导学系统", layout="wide")
 
 if not st.session_state.logged_in:
@@ -268,7 +266,6 @@ with st.sidebar:
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
 
-# === 管理员后台 ===
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
     st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
     tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(
@@ -328,18 +325,27 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%'", conn)
                 if not df_interact_raw.empty:
                     all_questions = get_all_questions()
-                    q_id_map = {str(int(q['id'])): q['category'] for q in all_questions}
-                    df_interact_raw['clean_id'] = pd.to_numeric(df_interact_raw['question_id'], errors='coerce').fillna(-1).astype(int).astype(str)
+                    # 强力转成字符串映射，确保万无一失
+                    q_id_map = {str(int(q['id'])): str(q['category']) for q in all_questions}
+                    df_interact_raw['clean_id'] = pd.to_numeric(df_interact_raw['question_id'], errors='coerce').fillna(
+                        -1).astype(int).astype(str)
                     df_interact_raw['course_name'] = df_interact_raw['clean_id'].map(q_id_map)
+
                     df_valid = df_interact_raw.dropna(subset=['course_name']).copy()
+
                     if not df_valid.empty:
                         df_valid['is_correct'] = df_valid['ai_response'].apply(
                             lambda x: 1 if ('正确' in str(x) or 'PASS' in str(x)) else 0)
                         df_accuracy = df_valid.groupby('course_name')['is_correct'].mean().reset_index()
                         df_accuracy['accuracy_percent'] = (df_accuracy['is_correct'] * 100).round(1)
                         st.bar_chart(df_accuracy, x='course_name', y='accuracy_percent', use_container_width=True)
-            except:
-                pass
+                    else:
+                        sample_ids = df_interact_raw['clean_id'].tolist()[:10]
+                        st.warning(f"⚠️ 无法生成图表：题号映射失败！数据库里抓到的题号前10个是: {sample_ids}")
+                else:
+                    st.info("暂无答题提交数据，无法计算正确率。")
+            except Exception as e:
+                st.error(f"⚠️ 图表加载报错，详细原因: {e}")
 
         with tab1:
             st.subheader("学生活跃度监控")
