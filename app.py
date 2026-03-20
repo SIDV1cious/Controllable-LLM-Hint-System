@@ -253,15 +253,20 @@ if not st.session_state.logged_in:
 with st.sidebar:
     st.write(
         f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
-    if st.session_state.user_role == 'student' and st.session_state.page_mode != "home":
-        if st.button("🏠 返回大厅"):
-            engine = get_database_engine()
-            with engine.connect() as conn:
-                conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
-                             {"u": st.session_state.current_user})
-                conn.commit()
-            st.session_state.page_mode = "home"
-            st.rerun()
+    if st.session_state.user_role == 'student':
+        if st.session_state.page_mode != "home":
+            if st.button("🏠 返回大厅"):
+                engine = get_database_engine()
+                with engine.connect() as conn:
+                    conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
+                                 {"u": st.session_state.current_user})
+                    conn.commit()
+                st.session_state.page_mode = "home"
+                st.rerun()
+        if st.session_state.page_mode != "report":
+            if st.button("📊 我的学情报告"):
+                st.session_state.page_mode = "report"
+                st.rerun()
     if st.button("🚪 退出登录"):
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
@@ -509,7 +514,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     else:
                         st.warning("提示词不能为空！")
 
-# === 学生课程大厅 ===
 elif st.session_state.page_mode == "home" and st.session_state.user_role == "student":
     st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
     st.write("请选择你要进行随堂测验的课程模块：")
@@ -540,7 +544,6 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
             if st.button(f"进入《{c_name}》测验", key=f"btn_{c_name}", use_container_width=True):
                 start_experiment_session(c_name)
 
-# === 学生答题区 ===
 elif st.session_state.page_mode == "quiz":
     idx = st.session_state.current_question_index
     total = len(st.session_state.quiz_queue)
@@ -569,7 +572,6 @@ elif st.session_state.page_mode == "quiz":
                 else:
                     submit_and_assess()
 
-# === 学生结果与辅导区 ===
 elif st.session_state.page_mode == "results":
     st.title("📊 作答结果与辅导")
     if st.button("🔄 返回大厅开启新课程"):
@@ -629,3 +631,58 @@ elif st.session_state.page_mode == "results":
                     h.markdown(final)
                     st.session_state.chat_histories[qid].append({"role": "assistant", "content": final})
                     log_interaction(qid, f"【辅导】{query}", final)
+
+elif st.session_state.page_mode == "report" and st.session_state.user_role == "student":
+    st.markdown("<h1 style='text-align: center;'>📊 个人学情中心与错题记录</h1>", unsafe_allow_html=True)
+    st.divider()
+
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        study_res = conn.execute(text("SELECT SUM(duration_seconds) FROM study_sessions WHERE username = :u"),
+                                 {"u": st.session_state.current_user}).fetchone()
+        total_seconds = study_res[0] if study_res and study_res[0] else 0
+        total_minutes = round(total_seconds / 60)
+
+        ans_logs = conn.execute(text(
+            "SELECT question_id, ai_response FROM interaction_logs WHERE student_id = :u AND user_query LIKE '【答案提交】%%'"),
+                                {"u": st.session_state.current_user}).fetchall()
+
+        total_answered = len(ans_logs)
+        total_correct = sum(1 for log in ans_logs if '正确' in str(log[1]) or 'PASS' in str(log[1]))
+        accuracy = round((total_correct / total_answered * 100), 1) if total_answered > 0 else 0.0
+
+        wrong_qids = set()
+        for log in ans_logs:
+            if '错误' in str(log[1]) or 'FAIL' in str(log[1]):
+                try:
+                    wrong_qids.add(int(log[0]))
+                except:
+                    pass
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("⏱️ 累计专注学习", f"{total_minutes} 分钟")
+    col2.metric("✅ 累计答对题目", f"{total_correct} 题")
+    col3.metric("🎯 历史平均正确率", f"{accuracy} %")
+
+    st.markdown("---")
+    st.subheader("📓 错题记录与智能辅导")
+    if not wrong_qids:
+        st.info("你目前没有任何错题记录")
+    else:
+        all_questions = get_all_questions()
+        q_dict = {int(q['id']): q for q in all_questions}
+
+        for qid in wrong_qids:
+            if qid in q_dict:
+                q_data = q_dict[qid]
+                with st.expander(f"[{q_data['category']}] 错题回顾 (题号: {qid})"):
+                    st.info(format_math(q_data['content']))
+                    if qid in st.session_state.chat_histories and st.session_state.chat_histories[qid]:
+                        st.markdown("##### 💬 智能辅导记录")
+                        for m in st.session_state.chat_histories[qid]:
+                            if m["role"] == "user":
+                                st.markdown(f"**🧑‍🎓 你**: {m['content']}")
+                            else:
+                                st.markdown(f"**🤖 智能辅导员**: {m['content']}")
+                    else:
+                        st.caption("暂无针对此题的对话辅导记录。")
