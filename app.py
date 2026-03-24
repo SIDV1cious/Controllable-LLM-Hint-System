@@ -259,7 +259,7 @@ if not st.session_state.logged_in:
                 reg_submitted = st.form_submit_button("立即注册", type="primary", use_container_width=True)
                 if reg_submitted:
                     if ru.strip() and rp.strip() == rp2.strip() and register_user(ru.strip(), rp.strip()):
-                        st.success("注册成功！请切换到登录页面。")
+                        st.toast("注册成功！请切换到登录页面。", icon="✅")
                     else:
                         st.error("注册失败（学号已被占用或密码不一致）。")
     st.stop()
@@ -408,13 +408,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                     text("INSERT INTO custom_courses (course_name, description) VALUES (:n, :d)"),
                                     {"n": new_c_name, "d": new_c_desc})
                                 conn.commit()
-                                st.success(f"课程《{new_c_name}》添加成功！")
-                                time.sleep(1)
+                                st.toast(f"课程《{new_c_name}》添加成功！", icon="✅")
+                                time.sleep(0.5)
                                 st.rerun()
                             except:
-                                st.error("添加失败，可能是课程名称已存在。")
+                                st.toast("添加失败，可能是课程名称已存在。", icon="❌")
                         else:
-                            st.warning("请填写完整的课程信息！")
+                            st.toast("请填写完整的课程信息！", icon="⚠️")
 
             with t_c_del:
                 with st.form("delete_course_form"):
@@ -430,8 +430,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                             conn.execute(text("DELETE FROM custom_courses WHERE course_name = :c"), {"c": del_c_name})
                             conn.execute(text("DELETE FROM custom_questions WHERE category = :c"), {"c": del_c_name})
                             conn.commit()
-                            st.success(f"已彻底删除课程《{del_c_name}》！")
-                            time.sleep(1)
+                            st.toast(f"已彻底删除课程《{del_c_name}》！", icon="✅")
+                            time.sleep(0.5)
                             st.rerun()
                     else:
                         st.info("暂无自定义课程可以删除。")
@@ -466,13 +466,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                             "UPDATE custom_questions SET category = :new_n WHERE category = :old_n"),
                                                      {"new_n": updated_c_name.strip(), "old_n": selected_c_name})
                                     conn.commit()
-                                    st.success("✅ 课程修改成功！")
-                                    time.sleep(1)
+                                    st.toast("课程修改成功！", icon="✅")
+                                    time.sleep(0.5)
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"修改失败: {e}")
+                                    st.toast(f"修改失败: {e}", icon="❌")
                             else:
-                                st.warning("课程名称和描述不能为空！")
+                                st.toast("课程名称和描述不能为空！", icon="⚠️")
                 else:
                     st.info("暂无自定义课程可以修改。")
 
@@ -511,13 +511,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 conn.execute(text("INSERT INTO custom_questions (category, content) VALUES (:c, :t)"),
                                              {"c": q_category, "t": q_content})
                                 conn.commit()
-                                st.success("题目添加成功！")
-                                time.sleep(1)
+                                st.toast("题目添加成功！", icon="✅")
+                                time.sleep(0.5)
                                 st.rerun()
                             except:
-                                st.error(f"题目添加失败")
+                                st.toast("题目添加失败", icon="❌")
                         else:
-                            st.warning("请填写完整的题目内容！")
+                            st.toast("请填写完整的题目内容！", icon="⚠️")
 
             with t_del:
                 with st.form("delete_question_form"):
@@ -534,8 +534,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                             q_id_to_del = del_q_options[del_q_choice]
                             conn.execute(text("DELETE FROM custom_questions WHERE id = :id"), {"id": q_id_to_del})
                             conn.commit()
-                            st.success("指定题目已永久删除！")
-                            time.sleep(1)
+                            st.toast("指定题目已永久删除！", icon="✅")
+                            time.sleep(0.5)
                             st.rerun()
                     else:
                         st.info("暂无自定义题目可以删除。")
@@ -565,13 +565,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                         text("UPDATE custom_questions SET category = :c, content = :t WHERE id = :id"),
                                         {"c": new_category, "t": new_content, "id": selected_id})
                                     conn.commit()
-                                    st.success("✅ 题目修改成功！")
-                                    time.sleep(1)
+                                    st.toast("题目修改成功！", icon="✅")
+                                    time.sleep(0.5)
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"修改失败: {e}")
+                                    st.toast(f"修改失败: {e}", icon="❌")
                             else:
-                                st.warning("题目内容不能为空！")
+                                st.toast("题目内容不能为空！", icon="⚠️")
                 else:
                     st.info("暂无自定义题目可以修改。")
 
@@ -606,13 +606,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
                                 {"val": new_prompt.strip()})
                             conn.commit()
-                            st.success("✅ 大模型底层指令已热更新！全系统生效！")
-                            time.sleep(1)
+                            st.toast("大模型底层指令已热更新！全系统生效！", icon="✅")
+                            time.sleep(0.5)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"更新失败: {e}")
+                            st.toast(f"更新失败: {e}", icon="❌")
                     else:
-                        st.warning("提示词不能为空！")
+                        st.toast("提示词不能为空！", icon="⚠️")
 
 elif st.session_state.page_mode == "home" and st.session_state.user_role == "student":
     st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
