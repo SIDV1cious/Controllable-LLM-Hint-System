@@ -344,7 +344,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 st.error(f"⚠️ 图表加载报错，详细原因: {e}")
 
         with tab1:
-            st.subheader("学生活活跃度监控")
+            st.subheader("学生活跃度监控")
             df_login = pd.read_sql(
                 "SELECT username AS '学号', login_time AS '登录时间' FROM login_logs ORDER BY login_time DESC LIMIT 50",
                 conn)
@@ -378,10 +378,11 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
 
         with tab4:
             st.subheader("📚 课程管理")
-            col_c1, col_c2 = st.columns(2)
-            with col_c1:
+            t_c_add, t_c_del, t_c_edit, t_c_view = st.tabs(
+                ["➕ 录入新课程", "🗑️ 删除自定义课程", "✏️ 修改自定义课程", "👀 预览自定义课程"])
+
+            with t_c_add:
                 with st.form("add_course_form"):
-                    st.write("➕ 添加新课程")
                     new_c_name = st.text_input("新课程名称")
                     new_c_desc = st.text_input("课程简介描述")
                     if st.form_submit_button("确认添加", type="primary", use_container_width=True):
@@ -398,9 +399,9 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 st.error("添加失败，可能是课程名称已存在。")
                         else:
                             st.warning("请填写完整的课程信息！")
-            with col_c2:
+
+            with t_c_del:
                 with st.form("delete_course_form"):
-                    st.write("🗑️ 删除自定义课程")
                     try:
                         custom_c_res = conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()
                         del_c_list = [r[0] for r in custom_c_res]
@@ -419,6 +420,56 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     else:
                         st.info("暂无自定义课程可以删除。")
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
+
+            with t_c_edit:
+                try:
+                    custom_c_res_edit = conn.execute(
+                        text("SELECT course_name, description FROM custom_courses")).fetchall()
+                    edit_c_options = {r[0]: r for r in custom_c_res_edit}
+                except:
+                    edit_c_options = {}
+
+                if edit_c_options:
+                    edit_c_choice = st.selectbox("👇 第一步：选择需要修改的课程", list(edit_c_options.keys()),
+                                                 key="edit_c_select")
+                    selected_c_name, selected_c_desc = edit_c_options[edit_c_choice]
+                    with st.form("edit_course_form"):
+                        st.write("👇 第二步：在下方直接编辑并保存")
+                        updated_c_name = st.text_input("修改课程名称 (注意：修改会同步更新该课程下的所有题目)",
+                                                       value=selected_c_name)
+                        updated_c_desc = st.text_input("修改课程简介描述", value=selected_c_desc)
+                        if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
+                            if updated_c_name.strip() and updated_c_desc.strip():
+                                try:
+                                    conn.execute(text(
+                                        "UPDATE custom_courses SET course_name = :new_n, description = :new_d WHERE course_name = :old_n"),
+                                                 {"new_n": updated_c_name.strip(), "new_d": updated_c_desc.strip(),
+                                                  "old_n": selected_c_name})
+                                    if updated_c_name.strip() != selected_c_name:
+                                        conn.execute(text(
+                                            "UPDATE custom_questions SET category = :new_n WHERE category = :old_n"),
+                                                     {"new_n": updated_c_name.strip(), "old_n": selected_c_name})
+                                    conn.commit()
+                                    st.success("✅ 课程修改成功！")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"修改失败: {e}")
+                            else:
+                                st.warning("课程名称和描述不能为空！")
+                else:
+                    st.info("暂无自定义课程可以修改。")
+
+            with t_c_view:
+                try:
+                    df_custom_c = pd.read_sql(
+                        "SELECT course_name AS '课程名称', description AS '课程简介描述' FROM custom_courses", conn)
+                    if not df_custom_c.empty:
+                        st.dataframe(df_custom_c, use_container_width=True)
+                    else:
+                        st.info("当前云端数据库中暂无任何自定义课程。")
+                except Exception as e:
+                    st.warning(f"读取课程失败: {e}")
 
             st.divider()
 
