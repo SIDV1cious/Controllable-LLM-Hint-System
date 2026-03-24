@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 from datetime import datetime
 import pytz
 from prompts import SYSTEM_INSTRUCTION, JUDGE_PROMPT_SYSTEM
-from questions import QUESTION_BANK
 
 load_dotenv()
 
@@ -109,13 +108,20 @@ init_session_state()
 
 
 def get_all_questions():
-    all_q = QUESTION_BANK.copy()
+    all_q = []
     try:
         engine = get_database_engine()
         with engine.connect() as conn:
-            res = conn.execute(text("SELECT id, category, content FROM custom_questions")).fetchall()
-            for r in res:
-                all_q.append({"id": 1000 + r[0], "category": r[1], "content": r[2]})
+            try:
+                res = conn.execute(
+                    text("SELECT id, category, content, answer, solution FROM custom_questions")).fetchall()
+                for r in res:
+                    all_q.append(
+                        {"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3], "solution": r[4]})
+            except:
+                res = conn.execute(text("SELECT id, category, content FROM custom_questions")).fetchall()
+                for r in res:
+                    all_q.append({"id": 1000 + r[0], "category": r[1], "content": r[2]})
     except:
         pass
     return all_q
@@ -146,7 +152,10 @@ def sync_user_data(username: str):
 def start_experiment_session(course_name: str):
     all_q = get_all_questions()
     course_questions = [q for q in all_q if q.get('category') == course_name]
-    if not course_questions: course_questions = all_q
+
+    if not course_questions:
+        st.error("题库内目前无该课程对应题目")
+        return
 
     selected = random.sample(course_questions, 10) if len(course_questions) >= 10 else course_questions
     q_ids = ",".join([str(q['id']) for q in selected])
@@ -178,7 +187,14 @@ def submit_and_assess():
     total = len(st.session_state.quiz_queue)
     for i, q in enumerate(st.session_state.quiz_queue):
         ans = st.session_state.user_answers.get(i, "未作答")
-        prompt = f"题目：{q['content']}\n学生答案：{ans}\n任务：判断是否正确。正确输出PASS，错误输出FAIL。"
+        std_ans = q.get("answer", "")
+        std_sol = q.get("solution", "")
+
+        if std_ans or std_sol:
+            prompt = f"题目：{q['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{ans}\n任务：请严格对照标准答案判断学生是否正确。正确输出PASS，错误输出FAIL。"
+        else:
+            prompt = f"题目：{q['content']}\n学生答案：{ans}\n任务：判断是否正确。正确输出PASS，错误输出FAIL。"
+
         try:
             resp = client.chat.completions.create(
                 model="deepseek-chat",
@@ -689,7 +705,13 @@ elif st.session_state.page_mode == "results":
                 with st.chat_message("assistant"):
                     h = st.empty()
                     f = ""
-                    ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
+                    std_ans = data['question_data'].get('answer', '')
+                    std_sol = data['question_data'].get('solution', '')
+                    if std_ans or std_sol:
+                        ctx = f"题目：{data['question_data']['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
+                    else:
+                        ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
+
                     dynamic_prompt = SYSTEM_INSTRUCTION
                     try:
                         engine_tmp = get_database_engine()
