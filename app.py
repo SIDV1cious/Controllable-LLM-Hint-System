@@ -17,7 +17,6 @@ from questions import QUESTION_BANK
 
 load_dotenv()
 
-
 class AppConfig:
     LLM_API_KEY = st.secrets.get("LLM_API_KEY") or os.getenv("LLM_API_KEY")
     DB_USER = st.secrets.get("DB_USER") or os.getenv("DB_USER")
@@ -26,19 +25,15 @@ class AppConfig:
     DB_NAME = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
     BASE_URL = "https://api.deepseek.com"
 
-
 client = OpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
-
 
 @st.cache_resource
 def get_database_engine() -> Engine:
     connection_url = f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
     return create_engine(connection_url, pool_recycle=1800, pool_pre_ping=True)
 
-
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
-
 
 def format_math(text: str) -> str:
     text = re.sub(r"\\\(\s*", "$", text)
@@ -46,7 +41,6 @@ def format_math(text: str) -> str:
     text = re.sub(r"\\\[\s*", "$$", text)
     text = re.sub(r"\s*\\\]", "$$", text)
     return text
-
 
 def authenticate_user(u: str, p: str):
     engine = get_database_engine()
@@ -56,7 +50,6 @@ def authenticate_user(u: str, p: str):
         if res:
             return True, res[0]
         return False, None
-
 
 def register_user(u: str, p: str) -> bool:
     engine = get_database_engine()
@@ -68,7 +61,6 @@ def register_user(u: str, p: str) -> bool:
         conn.commit()
         return True
 
-
 def log_login(username: str):
     try:
         engine = get_database_engine()
@@ -79,7 +71,6 @@ def log_login(username: str):
             conn.commit()
     except Exception as e:
         pass
-
 
 def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
     try:
@@ -93,7 +84,6 @@ def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
     except Exception as e:
         pass
 
-
 def init_session_state():
     defaults = {
         "logged_in": False, "current_user": None, "user_role": "student", "page_mode": "home",
@@ -104,9 +94,7 @@ def init_session_state():
     for k, v in defaults.items():
         if k not in st.session_state: st.session_state[k] = v
 
-
 init_session_state()
-
 
 def get_all_questions():
     all_q = QUESTION_BANK.copy()
@@ -119,7 +107,6 @@ def get_all_questions():
     except:
         pass
     return all_q
-
 
 def sync_user_data(username: str):
     all_q = get_all_questions()
@@ -141,7 +128,6 @@ def sync_user_data(username: str):
             if "【辅导】" in qry:
                 st.session_state.chat_histories[qid].append({"role": "user", "content": qry.replace("【辅导】", "")})
                 st.session_state.chat_histories[qid].append({"role": "assistant", "content": rsp})
-
 
 def start_experiment_session(course_name: str):
     all_q = get_all_questions()
@@ -170,7 +156,6 @@ def start_experiment_session(course_name: str):
     st.session_state.chat_histories = {}
     st.session_state.page_mode = "quiz"
     st.rerun()
-
 
 def submit_and_assess():
     st.session_state.assessment_results = []
@@ -207,7 +192,6 @@ def submit_and_assess():
     st.session_state.session_count += 1
     st.session_state.page_mode = "results"
     st.rerun()
-
 
 st.set_page_config(page_title="智能导学系统", layout="wide")
 
@@ -251,8 +235,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 with st.sidebar:
-    st.write(
-        f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
+    st.write(f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
     if st.session_state.user_role == 'student':
         if st.session_state.page_mode != "home":
             if st.button("🏠 返回大厅"):
@@ -274,14 +257,12 @@ with st.sidebar:
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
     st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
     tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["📊 可视化数据大屏", "🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理",
-         "⚙️ 智能辅导大模型设置"])
+        ["📊 可视化数据大屏", "🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理", "⚙️ 智能辅导大模型设置"])
     engine = get_database_engine()
     with engine.connect() as conn:
         with tab0:
             st.subheader("🎓 全系统学情实时监控看板")
             st.markdown("---")
-
             st.markdown("#### 🕒 最近7天系统活跃人数趋势")
             try:
                 sql_active = text("""
@@ -297,9 +278,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     st.line_chart(df_active, x='login_date', y='user_count', use_container_width=True)
             except:
                 pass
-
             st.markdown("---")
-
             st.markdown("#### 📘 各科课程学习时长占比")
             col_chart1, col_data1 = st.columns([2, 1])
             try:
@@ -322,9 +301,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.dataframe(df_duration[['course_name', 'total_minutes']], hide_index=True)
             except:
                 pass
-
             st.markdown("---")
-
             st.markdown("#### ✅ 全系统题目平均正确率统计")
             try:
                 df_interact_raw = pd.read_sql(
@@ -335,9 +312,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     df_interact_raw['clean_id'] = pd.to_numeric(df_interact_raw['question_id'], errors='coerce').fillna(
                         -1).astype(int).astype(str)
                     df_interact_raw['course_name'] = df_interact_raw['clean_id'].map(q_id_map)
-
                     df_valid = df_interact_raw.dropna(subset=['course_name']).copy()
-
                     if not df_valid.empty:
                         df_valid['is_correct'] = df_valid['ai_response'].apply(
                             lambda x: 1 if ('正确' in str(x) or 'PASS' in str(x)) else 0)
@@ -388,7 +363,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
         with tab4:
             st.subheader("📚 课程管理")
             col_c1, col_c2 = st.columns(2)
-
             with col_c1:
                 with st.form("add_course_form"):
                     st.write("➕ 添加新课程")
@@ -408,7 +382,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 st.error("添加失败，可能是课程名称已存在。")
                         else:
                             st.warning("请填写完整的课程信息！")
-
             with col_c2:
                 with st.form("delete_course_form"):
                     st.write("🗑️ 删除自定义课程")
@@ -433,10 +406,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
             st.divider()
-
             st.subheader("📝 题库管理")
             col_q1, col_q2 = st.columns(2)
-
             with col_q1:
                 hardcoded_c = ["高等数学", "线性代数", "概率统计", "C语言"]
                 try:
@@ -462,7 +433,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 st.error(f"题目添加失败")
                         else:
                             st.warning("请填写完整的题目内容！")
-
             with col_q2:
                 with st.form("delete_question_form"):
                     st.write("🗑️ 删除自定义题目")
@@ -486,10 +456,51 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.info("暂无自定义题目可以删除。")
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
+            st.divider()
+            st.subheader("✏️ 修改自定义题目")
+            try:
+                custom_q_res_edit = conn.execute(text("SELECT id, category, content FROM custom_questions")).fetchall()
+                edit_q_options = {f"[{r[1]}] (内部ID:{r[0]}) {r[2][:20]}...": (r[0], r[1], r[2]) for r in custom_q_res_edit}
+            except:
+                edit_q_options = {}
+
+            if edit_q_options:
+                edit_q_choice = st.selectbox("👇 第一步：选择需要修改的题目", list(edit_q_options.keys()), key="edit_q_select")
+                selected_id, selected_cat, selected_content = edit_q_options[edit_q_choice]
+                with st.form("edit_question_form"):
+                    st.write("👇 第二步：在下方直接编辑并保存")
+                    new_category = st.selectbox("修改所属课程", all_c, index=all_c.index(selected_cat) if selected_cat in all_c else 0)
+                    new_content = st.text_area("修改题目内容 (支持 LaTeX 格式)", value=selected_content, height=150)
+                    if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
+                        if new_content.strip():
+                            try:
+                                conn.execute(text("UPDATE custom_questions SET category = :c, content = :t WHERE id = :id"),
+                                             {"c": new_category, "t": new_content, "id": selected_id})
+                                conn.commit()
+                                st.success("✅ 题目修改成功！")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"修改失败: {e}")
+                        else:
+                            st.warning("题目内容不能为空！")
+            else:
+                st.info("暂无自定义题目可以修改。")
+
+            st.divider()
+            st.subheader("👀 已录入自定义题库总览")
+            try:
+                df_custom_q = pd.read_sql("SELECT id AS '内部ID', category AS '所属课程', content AS '题目完整内容' FROM custom_questions ORDER BY id DESC", conn)
+                if not df_custom_q.empty:
+                    st.dataframe(df_custom_q, use_container_width=True)
+                else:
+                    st.info("当前云端数据库中暂无任何自定义题目。")
+            except Exception as e:
+                st.warning(f"读取题库失败: {e}")
+
         with tab5:
             st.subheader("🧠 大模型 Prompt 注入控制台")
             st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
-
             try:
                 curr_prompt_res = conn.execute(text(
                     "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
@@ -518,14 +529,12 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
     st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
     st.write("请选择你要进行随堂测验的课程模块：")
     st.divider()
-
     base_courses = [
         ("高等数学", "包含极限、导数、微积分等核心考点，重点测试逻辑推导能力。"),
         ("线性代数", "包含矩阵运算、特征值、二次型等，培养空间与代数转换思维。"),
         ("概率统计", "包含随机变量、分布规律、信息熵等，结合实际应用场景。"),
         ("C语言", "包含指针、数组、结构体等核心语法，锻炼底层逻辑与编程思维。")
     ]
-
     engine = get_database_engine()
     with engine.connect() as conn:
         try:
@@ -548,7 +557,6 @@ elif st.session_state.page_mode == "quiz":
     st.warning("⚠️ 考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！")
     idx = st.session_state.current_question_index
     total = len(st.session_state.quiz_queue)
-
     q = st.session_state.quiz_queue[idx]
     st.progress((idx + 1) / total, text=f"【{st.session_state.current_course}】 进度：{idx + 1} / {total}")
     st.markdown(f"### 第 {idx + 1} 题")
@@ -609,7 +617,6 @@ elif st.session_state.page_mode == "results":
                     h = st.empty()
                     f = ""
                     ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
-
                     dynamic_prompt = SYSTEM_INSTRUCTION
                     try:
                         engine_tmp = get_database_engine()
@@ -620,7 +627,6 @@ elif st.session_state.page_mode == "results":
                                 dynamic_prompt = dyn_prompt_res[0]
                     except:
                         pass
-
                     stream = client.chat.completions.create(model="deepseek-chat",
                                                             messages=[{"role": "system", "content": dynamic_prompt},
                                                                       {"role": "user", "content": ctx}], stream=True)
@@ -637,7 +643,6 @@ elif st.session_state.page_mode == "results":
 elif st.session_state.page_mode == "report" and st.session_state.user_role == "student":
     st.markdown("<h1 style='text-align: center;'>📊 个人学情中心与错题记录</h1>", unsafe_allow_html=True)
     st.divider()
-
     engine = get_database_engine()
     with engine.connect() as conn:
         study_res = conn.execute(text("SELECT SUM(duration_seconds) FROM study_sessions WHERE username = :u"),
