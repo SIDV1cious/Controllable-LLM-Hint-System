@@ -17,6 +17,7 @@ from questions import QUESTION_BANK
 
 load_dotenv()
 
+
 class AppConfig:
     LLM_API_KEY = st.secrets.get("LLM_API_KEY") or os.getenv("LLM_API_KEY")
     DB_USER = st.secrets.get("DB_USER") or os.getenv("DB_USER")
@@ -25,15 +26,19 @@ class AppConfig:
     DB_NAME = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
     BASE_URL = "https://api.deepseek.com"
 
+
 client = OpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
+
 
 @st.cache_resource
 def get_database_engine() -> Engine:
     connection_url = f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
     return create_engine(connection_url, pool_recycle=1800, pool_pre_ping=True)
 
+
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
 
 def format_math(text: str) -> str:
     text = re.sub(r"\\\(\s*", "$", text)
@@ -41,6 +46,7 @@ def format_math(text: str) -> str:
     text = re.sub(r"\\\[\s*", "$$", text)
     text = re.sub(r"\s*\\\]", "$$", text)
     return text
+
 
 def authenticate_user(u: str, p: str):
     engine = get_database_engine()
@@ -50,6 +56,7 @@ def authenticate_user(u: str, p: str):
         if res:
             return True, res[0]
         return False, None
+
 
 def register_user(u: str, p: str) -> bool:
     engine = get_database_engine()
@@ -61,6 +68,7 @@ def register_user(u: str, p: str) -> bool:
         conn.commit()
         return True
 
+
 def log_login(username: str):
     try:
         engine = get_database_engine()
@@ -71,6 +79,7 @@ def log_login(username: str):
             conn.commit()
     except Exception as e:
         pass
+
 
 def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
     try:
@@ -84,6 +93,7 @@ def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
     except Exception as e:
         pass
 
+
 def init_session_state():
     defaults = {
         "logged_in": False, "current_user": None, "user_role": "student", "page_mode": "home",
@@ -94,7 +104,9 @@ def init_session_state():
     for k, v in defaults.items():
         if k not in st.session_state: st.session_state[k] = v
 
+
 init_session_state()
+
 
 def get_all_questions():
     all_q = QUESTION_BANK.copy()
@@ -107,6 +119,7 @@ def get_all_questions():
     except:
         pass
     return all_q
+
 
 def sync_user_data(username: str):
     all_q = get_all_questions()
@@ -128,6 +141,7 @@ def sync_user_data(username: str):
             if "【辅导】" in qry:
                 st.session_state.chat_histories[qid].append({"role": "user", "content": qry.replace("【辅导】", "")})
                 st.session_state.chat_histories[qid].append({"role": "assistant", "content": rsp})
+
 
 def start_experiment_session(course_name: str):
     all_q = get_all_questions()
@@ -156,6 +170,7 @@ def start_experiment_session(course_name: str):
     st.session_state.chat_histories = {}
     st.session_state.page_mode = "quiz"
     st.rerun()
+
 
 def submit_and_assess():
     st.session_state.assessment_results = []
@@ -193,6 +208,7 @@ def submit_and_assess():
     st.session_state.page_mode = "results"
     st.rerun()
 
+
 st.set_page_config(page_title="智能导学系统", layout="wide")
 
 if not st.session_state.logged_in:
@@ -205,7 +221,6 @@ if not st.session_state.logged_in:
                 u_in = st.text_input("账号/学号")
                 p_in = st.text_input("密码", type="password")
                 submitted = st.form_submit_button("进入系统", type="primary", use_container_width=True)
-
                 if submitted:
                     is_auth, role = authenticate_user(u_in.strip(), p_in.strip())
                     if is_auth:
@@ -226,7 +241,6 @@ if not st.session_state.logged_in:
                 rp = st.text_input("新密码", type="password")
                 rp2 = st.text_input("确认密码", type="password")
                 reg_submitted = st.form_submit_button("立即注册", type="primary", use_container_width=True)
-
                 if reg_submitted:
                     if ru.strip() and rp.strip() == rp2.strip() and register_user(ru.strip(), rp.strip()):
                         st.success("注册成功！请切换到登录页面。")
@@ -235,7 +249,8 @@ if not st.session_state.logged_in:
     st.stop()
 
 with st.sidebar:
-    st.write(f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
+    st.write(
+        f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
     if st.session_state.user_role == 'student':
         if st.session_state.page_mode != "home":
             if st.button("🏠 返回大厅"):
@@ -257,7 +272,8 @@ with st.sidebar:
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
     st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
     tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["📊 可视化数据大屏", "🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理", "⚙️ 智能辅导大模型设置"])
+        ["📊 可视化数据大屏", "🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理",
+         "⚙️ 智能辅导大模型设置"])
     engine = get_database_engine()
     with engine.connect() as conn:
         with tab0:
@@ -328,7 +344,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 st.error(f"⚠️ 图表加载报错，详细原因: {e}")
 
         with tab1:
-            st.subheader("学生活跃度监控")
+            st.subheader("学生活活跃度监控")
             df_login = pd.read_sql(
                 "SELECT username AS '学号', login_time AS '登录时间' FROM login_logs ORDER BY login_time DESC LIMIT 50",
                 conn)
@@ -390,7 +406,6 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         del_c_list = [r[0] for r in custom_c_res]
                     except:
                         del_c_list = []
-
                     if del_c_list:
                         del_c_name = st.selectbox("选择要下架的课程", del_c_list)
                         if st.form_submit_button("确认删除 (将同步删除下属题目)", type="primary",
@@ -406,18 +421,21 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
             st.divider()
-            st.subheader("📝 题库管理")
-            col_q1, col_q2 = st.columns(2)
-            with col_q1:
-                hardcoded_c = ["高等数学", "线性代数", "概率统计", "C语言"]
-                try:
-                    all_c = hardcoded_c + [r[0] for r in
-                                           conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()]
-                except:
-                    all_c = hardcoded_c
 
+            st.subheader("📝 题库管理")
+
+            hardcoded_c = ["高等数学", "线性代数", "概率统计", "C语言"]
+            try:
+                all_c = hardcoded_c + [r[0] for r in
+                                       conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()]
+            except:
+                all_c = hardcoded_c
+
+            t_add, t_del, t_edit, t_view = st.tabs(
+                ["➕ 录入新题目", "🗑️ 删除自定义题目", "✏️ 修改自定义题目", "👀 预览自定义题库"])
+
+            with t_add:
                 with st.form("add_question_form"):
-                    st.write("➕ 录入新题目")
                     q_category = st.selectbox("选择所属课程", all_c)
                     q_content = st.text_area("输入题目内容 (支持 LaTeX 格式)")
                     if st.form_submit_button("确认录入题目", type="primary", use_container_width=True):
@@ -433,9 +451,9 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 st.error(f"题目添加失败")
                         else:
                             st.warning("请填写完整的题目内容！")
-            with col_q2:
+
+            with t_del:
                 with st.form("delete_question_form"):
-                    st.write("🗑️ 删除自定义题目")
                     try:
                         custom_q_res = conn.execute(
                             text("SELECT id, category, LEFT(content, 15) FROM custom_questions")).fetchall()
@@ -456,47 +474,51 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.info("暂无自定义题目可以删除。")
                         st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
-            st.divider()
-            st.subheader("✏️ 修改自定义题目")
-            try:
-                custom_q_res_edit = conn.execute(text("SELECT id, category, content FROM custom_questions")).fetchall()
-                edit_q_options = {f"[{r[1]}] (内部ID:{r[0]}) {r[2][:20]}...": (r[0], r[1], r[2]) for r in custom_q_res_edit}
-            except:
-                edit_q_options = {}
+            with t_edit:
+                try:
+                    custom_q_res_edit = conn.execute(
+                        text("SELECT id, category, content FROM custom_questions")).fetchall()
+                    edit_q_options = {f"[{r[1]}] (内部ID:{r[0]}) {r[2][:20]}...": (r[0], r[1], r[2]) for r in
+                                      custom_q_res_edit}
+                except:
+                    edit_q_options = {}
 
-            if edit_q_options:
-                edit_q_choice = st.selectbox("👇 第一步：选择需要修改的题目", list(edit_q_options.keys()), key="edit_q_select")
-                selected_id, selected_cat, selected_content = edit_q_options[edit_q_choice]
-                with st.form("edit_question_form"):
-                    st.write("👇 第二步：在下方直接编辑并保存")
-                    new_category = st.selectbox("修改所属课程", all_c, index=all_c.index(selected_cat) if selected_cat in all_c else 0)
-                    new_content = st.text_area("修改题目内容 (支持 LaTeX 格式)", value=selected_content, height=150)
-                    if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
-                        if new_content.strip():
-                            try:
-                                conn.execute(text("UPDATE custom_questions SET category = :c, content = :t WHERE id = :id"),
-                                             {"c": new_category, "t": new_content, "id": selected_id})
-                                conn.commit()
-                                st.success("✅ 题目修改成功！")
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"修改失败: {e}")
-                        else:
-                            st.warning("题目内容不能为空！")
-            else:
-                st.info("暂无自定义题目可以修改。")
-
-            st.divider()
-            st.subheader("👀 已录入自定义题库总览")
-            try:
-                df_custom_q = pd.read_sql("SELECT id AS '内部ID', category AS '所属课程', content AS '题目完整内容' FROM custom_questions ORDER BY id DESC", conn)
-                if not df_custom_q.empty:
-                    st.dataframe(df_custom_q, use_container_width=True)
+                if edit_q_options:
+                    edit_q_choice = st.selectbox("👇 第一步：选择需要修改的题目", list(edit_q_options.keys()),
+                                                 key="edit_q_select")
+                    selected_id, selected_cat, selected_content = edit_q_options[edit_q_choice]
+                    with st.form("edit_question_form"):
+                        new_category = st.selectbox("修改所属课程", all_c,
+                                                    index=all_c.index(selected_cat) if selected_cat in all_c else 0)
+                        new_content = st.text_area("修改题目内容 (支持 LaTeX 格式)", value=selected_content, height=150)
+                        if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
+                            if new_content.strip():
+                                try:
+                                    conn.execute(
+                                        text("UPDATE custom_questions SET category = :c, content = :t WHERE id = :id"),
+                                        {"c": new_category, "t": new_content, "id": selected_id})
+                                    conn.commit()
+                                    st.success("✅ 题目修改成功！")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"修改失败: {e}")
+                            else:
+                                st.warning("题目内容不能为空！")
                 else:
-                    st.info("当前云端数据库中暂无任何自定义题目。")
-            except Exception as e:
-                st.warning(f"读取题库失败: {e}")
+                    st.info("暂无自定义题目可以修改。")
+
+            with t_view:
+                try:
+                    df_custom_q = pd.read_sql(
+                        "SELECT id AS '内部ID', category AS '所属课程', content AS '题目完整内容' FROM custom_questions ORDER BY id DESC",
+                        conn)
+                    if not df_custom_q.empty:
+                        st.dataframe(df_custom_q, use_container_width=True)
+                    else:
+                        st.info("当前云端数据库中暂无任何自定义题目。")
+                except Exception as e:
+                    st.warning(f"读取题库失败: {e}")
 
         with tab5:
             st.subheader("🧠 大模型 Prompt 注入控制台")
@@ -652,7 +674,7 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
 
         ans_logs = conn.execute(text(
             "SELECT question_id, ai_response FROM interaction_logs WHERE student_id = :u AND user_query LIKE '【答案提交】%%'"),
-                                {"u": st.session_state.current_user}).fetchall()
+            {"u": st.session_state.current_user}).fetchall()
 
         total_answered = len(ans_logs)
         total_correct = sum(1 for log in ans_logs if '正确' in str(log[1]) or 'PASS' in str(log[1]))
