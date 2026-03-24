@@ -127,7 +127,7 @@ def sync_user_data(username: str):
     with engine.connect() as conn:
         u_res = conn.execute(text("SELECT current_quiz_ids FROM users WHERE username = :u"), {"u": username}).fetchone()
         if u_res and u_res[0]:
-            q_ids = [int(i) for i in u_res[0].split(",")]
+            q_ids = [int(i) for i in u_res[0].split(",") if i.strip()]
             st.session_state.quiz_queue = [q for q in all_q if q['id'] in q_ids]
             st.session_state.page_mode = "quiz"
 
