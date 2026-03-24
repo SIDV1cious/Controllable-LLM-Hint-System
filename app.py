@@ -154,7 +154,7 @@ def start_experiment_session(course_name: str):
     course_questions = [q for q in all_q if q.get('category') == course_name]
 
     if not course_questions:
-        st.error("题库内目前无该课程对应题目")
+        st.toast("题库内目前无该课程对应题目", icon="⚠️")
         return
 
     selected = random.sample(course_questions, 10) if len(course_questions) >= 10 else course_questions
