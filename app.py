@@ -135,6 +135,10 @@ def sync_user_data(username: str):
         if u_res and u_res[0]:
             q_ids = [int(i) for i in u_res[0].split(",") if i.strip()]
             st.session_state.quiz_queue = [q for q in all_q if q['id'] in q_ids]
+
+            if st.session_state.quiz_queue:
+                st.session_state.current_course = st.session_state.quiz_queue[0].get('category', '继续测验')
+
             st.session_state.page_mode = "quiz"
 
         logs = conn.execute(
@@ -147,7 +151,6 @@ def sync_user_data(username: str):
             if "【辅导】" in qry:
                 st.session_state.chat_histories[qid].append({"role": "user", "content": qry.replace("【辅导】", "")})
                 st.session_state.chat_histories[qid].append({"role": "assistant", "content": rsp})
-
 
 def start_experiment_session(course_name: str):
     all_q = get_all_questions()
