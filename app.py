@@ -350,7 +350,12 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                             lambda x: 1 if ('正确' in str(x) or 'PASS' in str(x)) else 0)
                         df_accuracy = df_valid.groupby('course_name')['is_correct'].mean().reset_index()
                         df_accuracy['accuracy_percent'] = (df_accuracy['is_correct'] * 100).round(1)
-                        st.bar_chart(df_accuracy, x='course_name', y='accuracy_percent', use_container_width=True)
+                        fig_bar = px.bar(df_accuracy, x='course_name', y='accuracy_percent',
+                                         labels={'course_name': '课程名称', 'accuracy_percent': '正确率 (%)'},
+                                         color_discrete_sequence=['#1f77b4'])
+                        if len(df_accuracy) == 1:
+                            fig_bar.update_traces(width=0.2)
+                        st.plotly_chart(fig_bar, use_container_width=True)
                     else:
                         st.warning("⚠️ 无法生成图表：题号映射失败！")
                 else:
