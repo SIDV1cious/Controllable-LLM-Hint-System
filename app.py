@@ -231,7 +231,7 @@ def submit_and_assess():
 st.set_page_config(page_title="智能导学系统", layout="wide")
 
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align: center;'>🎓 智能导学与测试系统</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
         tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
