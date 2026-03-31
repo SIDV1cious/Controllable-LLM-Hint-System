@@ -6,15 +6,19 @@ import hashlib
 import re
 import pandas as pd
 import plotly.express as px
+import logging
+import asyncio
 from typing import List, Dict, Optional, Any
 from sqlalchemy import create_engine, text, Engine
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 from dotenv import load_dotenv
 from datetime import datetime
 import pytz
+from werkzeug.security import generate_password_hash, check_password_hash
 from prompts import SYSTEM_INSTRUCTION, JUDGE_PROMPT_SYSTEM
 
 load_dotenv()
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 class AppConfig:
@@ -27,6 +31,7 @@ class AppConfig:
 
 
 client = OpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
+aclient = AsyncOpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
 
 
 @st.cache_resource
@@ -35,25 +40,26 @@ def get_database_engine() -> Engine:
     return create_engine(connection_url, pool_recycle=1800, pool_pre_ping=True)
 
 
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+def verify_password(db_hash: str, pwd: str) -> bool:
+    if db_hash.startswith("scrypt:") or db_hash.startswith("pbkdf2:"):
+        return check_password_hash(db_hash, pwd)
+    return hashlib.sha256(pwd.encode('utf-8')).hexdigest() == db_hash
 
 
-def format_math(text: str) -> str:
-    text = re.sub(r"\\\(\s*", "$", text)
-    text = re.sub(r"\s*\\\)", "$", text)
-    text = re.sub(r"\\\[\s*", "$$", text)
-    text = re.sub(r"\s*\\\]", "$$", text)
-    return text
+def format_math(text_str: str) -> str:
+    text_str = re.sub(r"\\\(\s*", "$", text_str)
+    text_str = re.sub(r"\s*\\\)", "$", text_str)
+    text_str = re.sub(r"\\\[\s*", "$$", text_str)
+    text_str = re.sub(r"\s*\\\]", "$$", text_str)
+    return text_str
 
 
 def authenticate_user(u: str, p: str):
     engine = get_database_engine()
     with engine.connect() as conn:
-        res = conn.execute(text("SELECT role FROM users WHERE username = :u AND password_hash = :p"),
-                           {"u": u, "p": hash_password(p)}).fetchone()
-        if res:
-            return True, res[0]
+        res = conn.execute(text("SELECT password_hash, role FROM users WHERE username = :u"), {"u": u}).fetchone()
+        if res and verify_password(res[0], p):
+            return True, res[1]
         return False, None
 
 
@@ -63,7 +69,7 @@ def register_user(u: str, p: str) -> bool:
         if conn.execute(text("SELECT id FROM users WHERE username = :u"), {"u": u}).fetchone():
             return False
         conn.execute(text("INSERT INTO users (username, password_hash, role) VALUES (:u, :p, 'student')"),
-                     {"u": u, "p": hash_password(p)})
+                     {"u": u, "p": generate_password_hash(p)})
         conn.commit()
         return True
 
@@ -77,7 +83,7 @@ def log_login(username: str):
                          {"u": username, "t": ts})
             conn.commit()
     except Exception as e:
-        pass
+        logging.error(f"log_login error: {e}")
 
 
 def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
@@ -87,10 +93,11 @@ def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
             ts = datetime.now(pytz.timezone('Asia/Shanghai'))
             conn.execute(text(
                 "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :time)"),
-                {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak, "time": ts})
+                         {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak,
+                          "time": ts})
             conn.commit()
     except Exception as e:
-        pass
+        logging.error(f"log_interaction error: {e}")
 
 
 def init_session_state():
@@ -107,39 +114,25 @@ def init_session_state():
 init_session_state()
 
 
-def get_all_questions():
-    all_q = []
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            try:
-                res = conn.execute(
-                    text("SELECT id, category, content, answer, solution FROM custom_questions")).fetchall()
-                for r in res:
-                    all_q.append(
-                        {"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3], "solution": r[4]})
-            except:
-                res = conn.execute(text("SELECT id, category, content FROM custom_questions")).fetchall()
-                for r in res:
-                    all_q.append({"id": 1000 + r[0], "category": r[1], "content": r[2]})
-    except:
-        pass
-    return all_q
-
-
 def sync_user_data(username: str):
-    all_q = get_all_questions()
     engine = get_database_engine()
     with engine.connect() as conn:
         u_res = conn.execute(text("SELECT current_quiz_ids FROM users WHERE username = :u"), {"u": username}).fetchone()
         if u_res and u_res[0]:
             q_ids = [int(i) for i in u_res[0].split(",") if i.strip()]
-            st.session_state.quiz_queue = [q for q in all_q if q['id'] in q_ids]
-
-            if st.session_state.quiz_queue:
-                st.session_state.current_course = st.session_state.quiz_queue[0].get('category', '继续测验')
-
-            st.session_state.page_mode = "quiz"
+            if q_ids:
+                db_ids = tuple([i - 1000 for i in q_ids])
+                if db_ids:
+                    res = conn.execute(
+                        text("SELECT id, category, content, answer, solution FROM custom_questions WHERE id IN :ids"),
+                        {"ids": db_ids}).fetchall()
+                    fetched_qs = [{"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3] or "",
+                                   "solution": r[4] or ""} for r in res]
+                    q_map = {q['id']: q for q in fetched_qs}
+                    st.session_state.quiz_queue = [q_map[qid] for qid in q_ids if qid in q_map]
+                    if st.session_state.quiz_queue:
+                        st.session_state.current_course = st.session_state.quiz_queue[0].get('category', '继续测验')
+                    st.session_state.page_mode = "quiz"
 
         logs = conn.execute(
             text("SELECT question_id, user_query, ai_response FROM interaction_logs WHERE student_id = :u"),
@@ -152,30 +145,35 @@ def sync_user_data(username: str):
                 st.session_state.chat_histories[qid].append({"role": "user", "content": qry.replace("【辅导】", "")})
                 st.session_state.chat_histories[qid].append({"role": "assistant", "content": rsp})
 
+
 def start_experiment_session(course_name: str):
-    all_q = get_all_questions()
-    course_questions = [q for q in all_q if q.get('category') == course_name]
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        res = conn.execute(text(
+            "SELECT id, category, content, answer, solution FROM custom_questions WHERE category = :c ORDER BY RAND() LIMIT 10"),
+                           {"c": course_name}).fetchall()
+        course_questions = [
+            {"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3] or "", "solution": r[4] or ""} for r
+            in res]
 
     if not course_questions:
         st.toast("题库内目前无该课程对应题目", icon="⚠️")
         return
 
-    selected = random.sample(course_questions, 10) if len(course_questions) >= 10 else course_questions
-    q_ids = ",".join([str(q['id']) for q in selected])
-
-    engine = get_database_engine()
+    q_ids = ",".join([str(q['id']) for q in course_questions])
     with engine.connect() as conn:
         conn.execute(text("UPDATE users SET current_quiz_ids = :ids WHERE username = :u"),
                      {"ids": q_ids, "u": st.session_state.current_user})
         ts = datetime.now(pytz.timezone('Asia/Shanghai'))
-        res = conn.execute(text("INSERT INTO study_sessions (username, course_name, start_time) VALUES (:u, :c, :t)"),
-                           {"u": st.session_state.current_user, "c": course_name, "t": ts})
-        st.session_state.study_session_id = res.lastrowid
+        res_insert = conn.execute(
+            text("INSERT INTO study_sessions (username, course_name, start_time) VALUES (:u, :c, :t)"),
+            {"u": st.session_state.current_user, "c": course_name, "t": ts})
+        st.session_state.study_session_id = res_insert.lastrowid
         conn.commit()
 
     st.session_state.current_course = course_name
-    st.session_state.quiz_queue = selected
-    st.session_state.user_answers = {i: "" for i in range(len(selected))}
+    st.session_state.quiz_queue = course_questions
+    st.session_state.user_answers = {i: "" for i in range(len(course_questions))}
     st.session_state.current_question_index = 0
     st.session_state.assessment_results = []
     st.session_state.review_question_index = None
@@ -184,33 +182,39 @@ def start_experiment_session(course_name: str):
     st.rerun()
 
 
+async def async_assess_single(q: dict, ans: str) -> bool:
+    std_ans = q.get("answer", "")
+    std_sol = q.get("solution", "")
+    if std_ans or std_sol:
+        prompt = f"题目：{q['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{ans}\n任务：请严格对照标准答案判断学生是否正确。正确输出PASS，错误输出FAIL。"
+    else:
+        prompt = f"题目：{q['content']}\n学生答案：{ans}\n任务：判断是否正确。正确输出PASS，错误输出FAIL。"
+    try:
+        resp = await aclient.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "system", "content": JUDGE_PROMPT_SYSTEM}, {"role": "user", "content": prompt}]
+        )
+        res_text = resp.choices[0].message.content.strip()
+        return "PASS" in res_text and "FAIL" not in res_text
+    except Exception as e:
+        logging.error(f"Async assess error: {e}")
+        return False
+
+
+async def batch_assess(queue: list, answers: dict) -> list:
+    tasks = [async_assess_single(q, answers.get(i, "未作答")) for i, q in enumerate(queue)]
+    return await asyncio.gather(*tasks)
+
+
 def submit_and_assess():
     st.session_state.assessment_results = []
-    p_bar = st.progress(0, text="分析中...")
-    total = len(st.session_state.quiz_queue)
-    for i, q in enumerate(st.session_state.quiz_queue):
+    with st.spinner("AI 并发极速批改试卷中..."):
+        results = asyncio.run(batch_assess(st.session_state.quiz_queue, st.session_state.user_answers))
+
+    for i, (q, is_ok) in enumerate(zip(st.session_state.quiz_queue, results)):
         ans = st.session_state.user_answers.get(i, "未作答")
-        std_ans = q.get("answer", "")
-        std_sol = q.get("solution", "")
-
-        if std_ans or std_sol:
-            prompt = f"题目：{q['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{ans}\n任务：请严格对照标准答案判断学生是否正确。正确输出PASS，错误输出FAIL。"
-        else:
-            prompt = f"题目：{q['content']}\n学生答案：{ans}\n任务：判断是否正确。正确输出PASS，错误输出FAIL。"
-
-        try:
-            resp = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "system", "content": JUDGE_PROMPT_SYSTEM}, {"role": "user", "content": prompt}]
-            )
-            res_text = resp.choices[0].message.content.strip()
-            is_ok = "PASS" in res_text and "FAIL" not in res_text
-        except:
-            is_ok = False
-
         st.session_state.assessment_results.append({"question_data": q, "user_answer": ans, "is_correct": is_ok})
         log_interaction(q["id"], f"【答案提交】{ans}", "正确" if is_ok else "错误")
-        p_bar.progress((i + 1) / total)
 
     if st.session_state.study_session_id:
         engine = get_database_engine()
@@ -218,7 +222,7 @@ def submit_and_assess():
             ts = datetime.now(pytz.timezone('Asia/Shanghai'))
             conn.execute(text(
                 "UPDATE study_sessions SET end_time = :t, duration_seconds = TIMESTAMPDIFF(SECOND, start_time, :t) WHERE id = :id"),
-                {"t": ts, "id": st.session_state.study_session_id})
+                         {"t": ts, "id": st.session_state.study_session_id})
             conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
                          {"u": st.session_state.current_user})
             conn.commit()
@@ -228,7 +232,7 @@ def submit_and_assess():
     st.rerun()
 
 
-st.set_page_config(page_title="智能导学系统", layout="wide")
+st.set_page_config(page_title="基于LLM的可控解题提示生成系统", layout="wide")
 
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center;'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
@@ -300,50 +304,43 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             st.markdown("---")
             st.markdown("#### 🕒 最近7天系统活跃人数趋势")
             try:
-                sql_active = text("""
-                    SELECT DATE(login_time) as login_date, COUNT(DISTINCT username) as user_count
-                    FROM login_logs
-                    WHERE login_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-                    GROUP BY login_date
-                    ORDER BY login_date;
-                """)
+                sql_active = text(
+                    "SELECT DATE(login_time) as login_date, COUNT(DISTINCT username) as user_count FROM login_logs WHERE login_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY login_date ORDER BY login_date;")
                 df_active = pd.read_sql(sql_active, conn)
                 if not df_active.empty:
                     df_active['login_date'] = pd.to_datetime(df_active['login_date'])
                     st.line_chart(df_active, x='login_date', y='user_count', use_container_width=True)
-            except:
-                pass
+            except Exception as e:
+                logging.error(f"Dashboard Active Users Error: {e}")
+
             st.markdown("---")
             st.markdown("#### 📘 各科课程学习时长占比")
             col_chart1, col_data1 = st.columns([2, 1])
             try:
-                sql_duration = text("""
-                    SELECT course_name, SUM(duration_seconds) as total_seconds
-                    FROM study_sessions
-                    WHERE duration_seconds IS NOT NULL
-                    GROUP BY course_name;
-                """)
+                sql_duration = text(
+                    "SELECT course_name, SUM(duration_seconds) as total_seconds FROM study_sessions WHERE duration_seconds IS NOT NULL GROUP BY course_name;")
                 df_duration = pd.read_sql(sql_duration, conn)
                 if not df_duration.empty:
                     df_duration['total_minutes'] = (df_duration['total_seconds'] / 60).round(1)
-                    fig_pie = px.pie(df_duration, values='total_minutes', names='course_name',
-                                     hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig_pie = px.pie(df_duration, values='total_minutes', names='course_name', hole=0.4,
+                                     color_discrete_sequence=px.colors.qualitative.Pastel)
                     fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                     with col_chart1:
                         st.plotly_chart(fig_pie, use_container_width=True)
                     with col_data1:
                         st.markdown("<div style='margin-top: 100px;'></div>", unsafe_allow_html=True)
                         st.dataframe(df_duration[['course_name', 'total_minutes']], hide_index=True)
-            except:
-                pass
+            except Exception as e:
+                logging.error(f"Dashboard Duration Error: {e}")
+
             st.markdown("---")
             st.markdown("#### ✅ 全系统题目平均正确率统计")
             try:
                 df_interact_raw = pd.read_sql(
                     "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%%'", conn)
                 if not df_interact_raw.empty:
-                    all_questions = get_all_questions()
-                    q_id_map = {str(int(q['id'])): str(q['category']) for q in all_questions}
+                    q_df = pd.read_sql("SELECT id, category FROM custom_questions", conn)
+                    q_id_map = {str(1000 + int(row['id'])): str(row['category']) for _, row in q_df.iterrows()}
                     df_interact_raw['clean_id'] = pd.to_numeric(df_interact_raw['question_id'], errors='coerce').fillna(
                         -1).astype(int).astype(str)
                     df_interact_raw['course_name'] = df_interact_raw['clean_id'].map(q_id_map)
@@ -355,12 +352,11 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         df_accuracy['accuracy_percent'] = (df_accuracy['is_correct'] * 100).round(1)
                         st.bar_chart(df_accuracy, x='course_name', y='accuracy_percent', use_container_width=True)
                     else:
-                        sample_ids = df_interact_raw['clean_id'].tolist()[:10]
-                        st.warning(f"⚠️ 无法生成图表：题号映射失败！数据库里抓到的题号前10个是: {sample_ids}")
+                        st.warning("⚠️ 无法生成图表：题号映射失败！")
                 else:
                     st.info("暂无答题提交数据，无法计算正确率。")
             except Exception as e:
-                st.error(f"⚠️ 图表加载报错，详细原因: {e}")
+                st.error(f"⚠️ 图表加载报错: {e}")
 
         with tab1:
             st.subheader("学生活跃度监控")
@@ -369,9 +365,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 conn)
             st.dataframe(df_login, use_container_width=True)
             if not df_login.empty:
-                csv_login = df_login.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(label="📥 导出登录日志 (CSV)", data=csv_login, file_name="login_logs.csv",
-                                   mime="text/csv", use_container_width=True)
+                st.download_button("📥 导出登录日志 (CSV)", df_login.to_csv(index=False).encode('utf-8-sig'),
+                                   "login_logs.csv", "text/csv", use_container_width=True)
 
         with tab2:
             st.subheader("各科课程学习时长分析")
@@ -380,9 +375,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 conn)
             st.dataframe(df_study, use_container_width=True)
             if not df_study.empty:
-                csv_study = df_study.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(label="📥 导出学习时长记录 (CSV)", data=csv_study, file_name="study_sessions.csv",
-                                   mime="text/csv", use_container_width=True)
+                st.download_button("📥 导出学习时长记录 (CSV)", df_study.to_csv(index=False).encode('utf-8-sig'),
+                                   "study_sessions.csv", "text/csv", use_container_width=True)
 
         with tab3:
             st.subheader("大模型交互质量抽查")
@@ -391,15 +385,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 conn)
             st.dataframe(df_chat, use_container_width=True)
             if not df_chat.empty:
-                csv_chat = df_chat.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(label="📥 导出AI辅导监控记录 (CSV)", data=csv_chat,
-                                   file_name="ai_interaction_logs.csv", mime="text/csv", use_container_width=True)
+                st.download_button("📥 导出AI辅导监控记录 (CSV)", df_chat.to_csv(index=False).encode('utf-8-sig'),
+                                   "ai_interaction_logs.csv", "text/csv", use_container_width=True)
 
         with tab4:
             st.subheader("📚 课程管理")
             t_c_add, t_c_del, t_c_edit, t_c_view = st.tabs(
                 ["➕ 录入新课程", "🗑️ 删除自定义课程", "✏️ 修改自定义课程", "👀 预览自定义课程"])
-
             with t_c_add:
                 with st.form("add_course_form"):
                     new_c_name = st.text_input("新课程名称")
@@ -414,17 +406,18 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 st.toast(f"课程《{new_c_name}》添加成功！", icon="✅")
                                 time.sleep(0.5)
                                 st.rerun()
-                            except:
-                                st.toast("添加失败，可能是课程名称已存在。", icon="❌")
+                            except Exception as e:
+                                st.toast(f"添加失败: {e}", icon="❌")
                         else:
                             st.toast("请填写完整的课程信息！", icon="⚠️")
 
             with t_c_del:
                 with st.form("delete_course_form"):
                     try:
-                        custom_c_res = conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()
-                        del_c_list = [r[0] for r in custom_c_res]
-                    except:
+                        del_c_list = [r[0] for r in
+                                      conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()]
+                    except Exception as e:
+                        logging.error(f"Delete course load error: {e}")
                         del_c_list = []
                     if del_c_list:
                         del_c_name = st.selectbox("选择要下架的课程", del_c_list)
@@ -442,10 +435,10 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
 
             with t_c_edit:
                 try:
-                    custom_c_res_edit = conn.execute(
-                        text("SELECT course_name, description FROM custom_courses")).fetchall()
-                    edit_c_options = {r[0]: r for r in custom_c_res_edit}
-                except:
+                    edit_c_options = {r[0]: r for r in conn.execute(
+                        text("SELECT course_name, description FROM custom_courses")).fetchall()}
+                except Exception as e:
+                    logging.error(f"Edit course load error: {e}")
                     edit_c_options = {}
 
                 if edit_c_options:
@@ -454,8 +447,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     selected_c_name, selected_c_desc = edit_c_options[edit_c_choice]
                     with st.form("edit_course_form"):
                         st.write("👇 第二步：在下方直接编辑并保存")
-                        updated_c_name = st.text_input("修改课程名称 (注意：修改会同步更新该课程下的所有题目)",
-                                                       value=selected_c_name)
+                        updated_c_name = st.text_input("修改课程名称", value=selected_c_name)
                         updated_c_desc = st.text_input("修改课程简介描述", value=selected_c_desc)
                         if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
                             if updated_c_name.strip() and updated_c_desc.strip():
@@ -491,14 +483,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     st.warning(f"读取课程失败: {e}")
 
             st.divider()
-
             st.subheader("📝 题库管理")
-
             hardcoded_c = ["高等数学", "线性代数", "概率统计", "C语言"]
             try:
                 all_c = hardcoded_c + [r[0] for r in
                                        conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()]
-            except:
+            except Exception as e:
+                logging.error(f"Load courses for questions error: {e}")
                 all_c = hardcoded_c
 
             t_add, t_del, t_edit, t_view = st.tabs(
@@ -517,25 +508,25 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 st.toast("题目添加成功！", icon="✅")
                                 time.sleep(0.5)
                                 st.rerun()
-                            except:
-                                st.toast("题目添加失败", icon="❌")
+                            except Exception as e:
+                                st.toast(f"题目添加失败: {e}", icon="❌")
                         else:
                             st.toast("请填写完整的题目内容！", icon="⚠️")
 
             with t_del:
                 with st.form("delete_question_form"):
                     try:
-                        custom_q_res = conn.execute(
-                            text("SELECT id, category, LEFT(content, 15) FROM custom_questions")).fetchall()
-                        del_q_options = {f"[{r[1]}] {r[2]}... (内部ID:{r[0]})": r[0] for r in custom_q_res}
-                    except:
+                        del_q_options = {f"[{r[1]}] {r[2]}... (内部ID:{r[0]})": r[0] for r in conn.execute(
+                            text("SELECT id, category, LEFT(content, 15) FROM custom_questions")).fetchall()}
+                    except Exception as e:
+                        logging.error(f"Load questions for delete error: {e}")
                         del_q_options = {}
 
                     if del_q_options:
                         del_q_choice = st.selectbox("选择要删除的错误题目", list(del_q_options.keys()))
                         if st.form_submit_button("确认删除该题", type="primary", use_container_width=True):
-                            q_id_to_del = del_q_options[del_q_choice]
-                            conn.execute(text("DELETE FROM custom_questions WHERE id = :id"), {"id": q_id_to_del})
+                            conn.execute(text("DELETE FROM custom_questions WHERE id = :id"),
+                                         {"id": del_q_options[del_q_choice]})
                             conn.commit()
                             st.toast("指定题目已永久删除！", icon="✅")
                             time.sleep(0.5)
@@ -546,11 +537,11 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
 
             with t_edit:
                 try:
-                    custom_q_res_edit = conn.execute(
-                        text("SELECT id, category, content FROM custom_questions")).fetchall()
                     edit_q_options = {f"[{r[1]}] (内部ID:{r[0]}) {r[2][:20]}...": (r[0], r[1], r[2]) for r in
-                                      custom_q_res_edit}
-                except:
+                                      conn.execute(
+                                          text("SELECT id, category, content FROM custom_questions")).fetchall()}
+                except Exception as e:
+                    logging.error(f"Load questions for edit error: {e}")
                     edit_q_options = {}
 
                 if edit_q_options:
@@ -594,10 +585,11 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             st.subheader("🧠 大模型 Prompt 注入控制台")
             st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
             try:
-                curr_prompt_res = conn.execute(text(
-                    "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
+                curr_prompt_res = conn.execute(
+                    text("SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
                 current_prompt = curr_prompt_res[0] if curr_prompt_res else SYSTEM_INSTRUCTION
-            except:
+            except Exception as e:
+                logging.error(f"Load prompt config error: {e}")
                 current_prompt = SYSTEM_INSTRUCTION
 
             with st.form("prompt_update_form"):
@@ -607,7 +599,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         try:
                             conn.execute(text(
                                 "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
-                                {"val": new_prompt.strip()})
+                                         {"val": new_prompt.strip()})
                             conn.commit()
                             st.toast("大模型底层指令已热更新！全系统生效！", icon="✅")
                             time.sleep(0.5)
@@ -630,16 +622,14 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
     engine = get_database_engine()
     with engine.connect() as conn:
         try:
-            custom_c_res = conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall()
-            for r in custom_c_res:
+            for r in conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall():
                 base_courses.append((r[0], r[1]))
-        except:
-            pass
+        except Exception as e:
+            logging.error(f"Load courses error: {e}")
 
     cols = st.columns(4)
     for idx, (c_name, c_desc) in enumerate(base_courses):
-        col_idx = idx % 4
-        with cols[col_idx]:
+        with cols[idx % 4]:
             st.markdown(f"### 📘 {c_name}")
             st.caption(c_desc)
             if st.button(f"进入《{c_name}》测验", key=f"btn_{c_name}", use_container_width=True):
@@ -714,7 +704,6 @@ elif st.session_state.page_mode == "results":
                         ctx = f"题目：{data['question_data']['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
                     else:
                         ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
-
                     dynamic_prompt = SYSTEM_INSTRUCTION
                     try:
                         engine_tmp = get_database_engine()
@@ -723,8 +712,8 @@ elif st.session_state.page_mode == "results":
                                 "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
                             if dyn_prompt_res:
                                 dynamic_prompt = dyn_prompt_res[0]
-                    except:
-                        pass
+                    except Exception as e:
+                        logging.error(f"Fetch prompt error: {e}")
                     stream = client.chat.completions.create(model="deepseek-chat",
                                                             messages=[{"role": "system", "content": dynamic_prompt},
                                                                       {"role": "user", "content": ctx}], stream=True)
@@ -750,8 +739,7 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
 
         ans_logs = conn.execute(text(
             "SELECT question_id, ai_response FROM interaction_logs WHERE student_id = :u AND user_query LIKE '【答案提交】%%'"),
-            {"u": st.session_state.current_user}).fetchall()
-
+                                {"u": st.session_state.current_user}).fetchall()
         total_answered = len(ans_logs)
         total_correct = sum(1 for log in ans_logs if '正确' in str(log[1]) or 'PASS' in str(log[1]))
         accuracy = round((total_correct / total_answered * 100), 1) if total_answered > 0 else 0.0
@@ -761,8 +749,8 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
             if '错误' in str(log[1]) or 'FAIL' in str(log[1]):
                 try:
                     wrong_qids.add(int(log[0]))
-                except:
-                    pass
+                except Exception as e:
+                    logging.error(f"Parse qid error: {e}")
 
     col1, col2, col3 = st.columns(3)
     col1.metric("⏱️ 累计专注学习", f"{total_minutes} 分钟")
@@ -774,8 +762,16 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
     if not wrong_qids:
         st.info("你目前没有任何错题记录")
     else:
-        all_questions = get_all_questions()
-        q_dict = {int(q['id']): q for q in all_questions}
+        db_ids_tuple = tuple([int(qid) - 1000 for qid in wrong_qids])
+        q_dict = {}
+        if db_ids_tuple:
+            with engine.connect() as conn:
+                try:
+                    res = conn.execute(text("SELECT id, category, content FROM custom_questions WHERE id IN :ids"),
+                                       {"ids": db_ids_tuple}).fetchall()
+                    q_dict = {1000 + r[0]: {"category": r[1], "content": r[2]} for r in res}
+                except Exception as e:
+                    logging.error(f"Fetch wrong questions error: {e}")
 
         for qid in wrong_qids:
             if qid in q_dict:
