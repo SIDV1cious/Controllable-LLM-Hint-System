@@ -143,7 +143,7 @@ def render_mathlive_input(default_value=""):
     </body>
     </html>
     """
-    components.html(html_code, height=220)
+    components.html(html_code, height=450)
 
 
 def sync_user_data(username: str):
