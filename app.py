@@ -123,30 +123,24 @@ def render_mathlive_input(default_value=''):
       <meta charset='utf-8'>
       <script defer src='https://unpkg.com/mathlive'></script>
       <style>
-        .symbol-btn {{ padding: 6px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 4px; font-size: 16px; display: flex; align-items: center; justify-content: center; font-family: 'Times New Roman', serif; font-weight: bold; transition: all 0.2s; }}
-        .symbol-btn:hover {{ background: #e0f0ff; border-color: #0066cc; transform: scale(1.05); }}
-        #search-box {{ width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; outline: none; }}
-        #search-box:focus {{ border-color: #0066cc; box-shadow: 0 0 4px rgba(0,102,204,0.3); }}
-        #symbol-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); gap: 6px; max-height: 120px; overflow-y: auto; padding: 2px; }}
-        #symbol-grid::-webkit-scrollbar {{ width: 6px; }}
-        #symbol-grid::-webkit-scrollbar-thumb {{ background: #bbb; border-radius: 3px; }}
-        #toggle-btn {{ cursor: pointer; font-size: 13px; color: #0066cc; font-weight: bold; margin-bottom: 10px; display: inline-block; user-select: none; }}
-        #toggle-btn:hover {{ color: #004499; }}
+        .ML__menu, [role='menu'], math-field::part(menu) {{
+            max-height: 250px !important; 
+            overflow-y: auto !important;  
+            overflow-x: hidden !important;
+        }}
+        .ML__menu::-webkit-scrollbar, [role='menu']::-webkit-scrollbar, math-field::part(menu)::-webkit-scrollbar {{
+            width: 6px;
+        }}
+        .ML__menu::-webkit-scrollbar-thumb, [role='menu']::-webkit-scrollbar-thumb, math-field::part(menu)::-webkit-scrollbar-thumb {{
+            background-color: #aaa;
+            border-radius: 3px;
+        }}
       </style>
     </head>
     <body style='margin: 0; padding: 0; font-family: sans-serif; background: #f9f9f9;'>
       <div style='padding: 10px; border: 1px solid #ccc; border-radius: 8px;'>
-
-          <div id='toggle-btn'>▶ 点击展开快捷拼音符号库</div>
-
-          <div id='symbol-container' style='display: none; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 12px;'>
-            <input type='text' id='search-box' placeholder='输入拼音或英文检索 (如: jifen, qiuhe, alpha)...'>
-            <div id='symbol-grid'></div>
-          </div>
-
           <div style='font-size: 14px; color: #666; margin-bottom: 8px; font-weight: bold;'>📐 MathLive公式编辑面板</div>
           <math-field id='mf' locale='zh-cn' style='font-size: 24px; width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fff; box-sizing: border-box;'>{default_value}</math-field>
-
           <div style='margin-top: 12px; font-size: 12px; color: #333;'>
             <strong>✨ 生成的LaTeX代码 (复制此处提交):</strong>
             <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 4px; word-break: break-all; min-height: 20px; user-select: all; border: 1px dashed #999;'></div>
@@ -155,82 +149,16 @@ def render_mathlive_input(default_value=''):
       <script>
         const mf = document.getElementById('mf');
         const output = document.getElementById('latex-output');
-        const searchBox = document.getElementById('search-box');
-        const grid = document.getElementById('symbol-grid');
-        const toggleBtn = document.getElementById('toggle-btn');
-        const symbolContainer = document.getElementById('symbol-container');
-
         mf.locale = 'zh-cn';
-
-        toggleBtn.addEventListener('click', () => {{
-            if (symbolContainer.style.display === 'none') {{
-                symbolContainer.style.display = 'block';
-                toggleBtn.innerHTML = '▼ 收起快捷拼音符号库';
-            }} else {{
-                symbolContainer.style.display = 'none';
-                toggleBtn.innerHTML = '▶ 点击展开快捷拼音符号库';
-            }}
-        }});
-
-        const symbols = [
-            {{ id: 'alpha', tex: '\\\\alpha', show: 'α', tags: ['alpha', 'a', 'aerfa'] }},
-            {{ id: 'beta', tex: '\\\\beta', show: 'β', tags: ['beta', 'b', 'beita'] }},
-            {{ id: 'gamma', tex: '\\\\gamma', show: 'γ', tags: ['gamma', 'g', 'jiama'] }},
-            {{ id: 'theta', tex: '\\\\theta', show: 'θ', tags: ['theta', 'xita'] }},
-            {{ id: 'pi', tex: '\\\\pi', show: 'π', tags: ['pi', 'pai'] }},
-            {{ id: 'infty', tex: '\\\\infty', show: '∞', tags: ['infty', 'wuqiong', 'wuxian'] }},
-            {{ id: 'frac', tex: '\\\\frac{{#?}}{{#?}}', show: 'a/b', tags: ['frac', 'fenshu', 'chu'] }},
-            {{ id: 'sqrt', tex: '\\\\sqrt{{#?}}', show: '√', tags: ['sqrt', 'genhao', 'kaifang'] }},
-            {{ id: 'sum', tex: '\\\\sum_{{n=1}}^{{\\\\infty}}', show: '∑', tags: ['sum', 'qiuhe', 'sigma'] }},
-            {{ id: 'int', tex: '\\\\int', show: '∫', tags: ['int', 'jifen', 'integral'] }},
-            {{ id: 'iint', tex: '\\\\iint', show: '∬', tags: ['iint', 'chongjifen'] }},
-            {{ id: 'pm', tex: '\\\\pm', show: '±', tags: ['pm', 'zhengfu', 'jiajian'] }},
-            {{ id: 'times', tex: '\\\\times', show: '×', tags: ['times', 'cheng'] }},
-            {{ id: 'div', tex: '\\\\div', show: '÷', tags: ['div', 'chu'] }},
-            {{ id: 'matrix', tex: '\\\\begin{{pmatrix}} a & b \\\\\\\\ c & d \\\\end{{pmatrix}}', show: '[ ]', tags: ['matrix', 'juzhen'] }},
-            {{ id: 'vector', tex: '\\\\vec{{v}}', show: 'v⃗', tags: ['vector', 'xiangliang'] }},
-            {{ id: 'limit', tex: '\\\\lim_{{x \\\\to \\\\infty}}', show: 'lim', tags: ['limit', 'jixian'] }},
-            {{ id: 'partial', tex: '\\\\frac{{\\\\partial f}}{{\\\\partial x}}', show: '∂', tags: ['partial', 'piandao'] }},
-            {{ id: 'neq', tex: '\\\\neq', show: '≠', tags: ['neq', 'budengyu'] }},
-            {{ id: 'approx', tex: '\\\\approx', show: '≈', tags: ['approx', 'yueyu'] }},
-            {{ id: 'leq', tex: '\\\\leq', show: '≤', tags: ['leq', 'xiaoyudengyu'] }},
-            {{ id: 'geq', tex: '\\\\geq', show: '≥', tags: ['geq', 'dayudengyu'] }}
-        ];
-
-        function renderGrid(filter = '') {{
-            grid.innerHTML = '';
-            const lowerFilter = filter.toLowerCase();
-            symbols.forEach(s => {{
-                const match = s.id.includes(lowerFilter) || s.tags.some(t => t.includes(lowerFilter));
-                if (match) {{
-                    const btn = document.createElement('div');
-                    btn.className = 'symbol-btn';
-                    btn.innerHTML = s.show;
-                    btn.title = s.id;
-                    btn.onclick = () => {{
-                        mf.executeCommand(['insert', s.tex]);
-                        mf.focus();
-                    }};
-                    grid.appendChild(btn);
-                }}
-            }});
-        }}
-
-        searchBox.addEventListener('input', (e) => {{
-            renderGrid(e.target.value);
-        }});
-
         mf.addEventListener('input', (ev) => {{
             output.textContent = mf.value;
         }});
-
         setTimeout(() => {{ output.textContent = mf.value; }}, 500);
-        renderGrid();
       </script>
     </body>
     </html>
     '''
-    components.html(html_code, height=650, scrolling=True)
+    components.html(html_code, height=380, scrolling=True)
 
 
 def sync_user_data(username: str):
