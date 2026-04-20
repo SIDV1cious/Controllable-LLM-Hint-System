@@ -8,6 +8,7 @@ import pandas as pd
 import plotly.express as px
 import logging
 import asyncio
+import streamlit.components.v1 as components
 from typing import List, Dict, Optional, Any
 from sqlalchemy import create_engine, text, Engine
 from openai import OpenAI, AsyncOpenAI
@@ -93,8 +94,8 @@ def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
             ts = datetime.now(pytz.timezone('Asia/Shanghai'))
             conn.execute(text(
                 "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :time)"),
-                         {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak,
-                          "time": ts})
+                {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak,
+                 "time": ts})
             conn.commit()
     except Exception as e:
         logging.error(f"log_interaction error: {e}")
@@ -112,6 +113,37 @@ def init_session_state():
 
 
 init_session_state()
+
+
+def render_mathlive_input(default_value=""):
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <script defer src="https://unpkg.com/mathlive"></script>
+    </head>
+    <body style="margin: 0; padding: 0; font-family: sans-serif;">
+      <div style="padding: 10px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9;">
+          <div style="font-size: 14px; color: #666; margin-bottom: 8px;">📐 MathLive 公式面板 (可视化编辑后，请复制下方代码)</div>
+          <math-field id="mf" style="font-size: 24px; width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fff;">{default_value}</math-field>
+          <div style="margin-top: 10px; font-size: 12px; color: #333;">
+            <strong>LaTeX 代码实时生成区:</strong>
+            <div id="latex-output" style="padding: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 4px; word-break: break-all; min-height: 20px; user-select: all;"></div>
+          </div>
+      </div>
+      <script>
+        const mf = document.getElementById('mf');
+        const output = document.getElementById('latex-output');
+        mf.addEventListener('input', (ev) => {{
+            output.textContent = mf.value;
+        }});
+        setTimeout(() => {{ output.textContent = mf.value; }}, 500);
+      </script>
+    </body>
+    </html>
+    """
+    components.html(html_code, height=220)
 
 
 def sync_user_data(username: str):
@@ -151,7 +183,7 @@ def start_experiment_session(course_name: str):
     with engine.connect() as conn:
         res = conn.execute(text(
             "SELECT id, category, content, answer, solution FROM custom_questions WHERE category = :c ORDER BY RAND() LIMIT 10"),
-                           {"c": course_name}).fetchall()
+            {"c": course_name}).fetchall()
         course_questions = [
             {"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3] or "", "solution": r[4] or ""} for r
             in res]
@@ -222,7 +254,7 @@ def submit_and_assess():
             ts = datetime.now(pytz.timezone('Asia/Shanghai'))
             conn.execute(text(
                 "UPDATE study_sessions SET end_time = :t, duration_seconds = TIMESTAMPDIFF(SECOND, start_time, :t) WHERE id = :id"),
-                         {"t": ts, "id": st.session_state.study_session_id})
+                {"t": ts, "id": st.session_state.study_session_id})
             conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
                          {"u": st.session_state.current_user})
             conn.commit()
@@ -459,12 +491,12 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                 try:
                                     conn.execute(text(
                                         "UPDATE custom_courses SET course_name = :new_n, description = :new_d WHERE course_name = :old_n"),
-                                                 {"new_n": updated_c_name.strip(), "new_d": updated_c_desc.strip(),
-                                                  "old_n": selected_c_name})
+                                        {"new_n": updated_c_name.strip(), "new_d": updated_c_desc.strip(),
+                                         "old_n": selected_c_name})
                                     if updated_c_name.strip() != selected_c_name:
                                         conn.execute(text(
                                             "UPDATE custom_questions SET category = :new_n WHERE category = :old_n"),
-                                                     {"new_n": updated_c_name.strip(), "old_n": selected_c_name})
+                                            {"new_n": updated_c_name.strip(), "old_n": selected_c_name})
                                     conn.commit()
                                     st.toast("课程修改成功！", icon="✅")
                                     time.sleep(0.5)
@@ -476,7 +508,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 else:
                     st.info("暂无自定义课程可以修改。")
 
-            with t_c_view:
+            with t_view:
                 try:
                     df_custom_c = pd.read_sql(
                         "SELECT course_name AS '课程名称', description AS '课程简介描述' FROM custom_courses", conn)
@@ -604,7 +636,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         try:
                             conn.execute(text(
                                 "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
-                                         {"val": new_prompt.strip()})
+                                {"val": new_prompt.strip()})
                             conn.commit()
                             st.toast("大模型底层指令已热更新！全系统生效！", icon="✅")
                             time.sleep(0.5)
@@ -649,7 +681,10 @@ elif st.session_state.page_mode == "quiz":
     st.markdown(f"### 第 {idx + 1} 题")
     st.info(format_math(q['content']))
 
-    ans = st.text_area("请作答", value=st.session_state.user_answers.get(idx, ""), height=200, key=f"ans_{idx}")
+    st.markdown("#### ✍️ 你的解答")
+    render_mathlive_input()
+    ans = st.text_area("请在上方键入公式，并将生成的 LaTeX 代码复制粘贴至此框内提交：",
+                       value=st.session_state.user_answers.get(idx, ""), height=100, key=f"ans_{idx}")
     st.session_state.user_answers[idx] = ans
     cols = st.columns(2)
     with cols[0]:
@@ -696,6 +731,10 @@ elif st.session_state.page_mode == "results":
                     {"role": "assistant", "content": "智能辅导"})
             for m in st.session_state.chat_histories[qid]:
                 with st.chat_message(m["role"]): st.markdown(m["content"])
+
+            with st.expander("📐 点击展开公式键盘 (输入后复制生成的代码至聊天框)"):
+                render_mathlive_input()
+
             if query := st.chat_input("请求提示..."):
                 st.session_state.chat_histories[qid].append({"role": "user", "content": query})
                 st.rerun()
@@ -744,7 +783,7 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
 
         ans_logs = conn.execute(text(
             "SELECT question_id, ai_response FROM interaction_logs WHERE student_id = :u AND user_query LIKE '【答案提交】%%'"),
-                                {"u": st.session_state.current_user}).fetchall()
+            {"u": st.session_state.current_user}).fetchall()
         total_answered = len(ans_logs)
         total_correct = sum(1 for log in ans_logs if '正确' in str(log[1]) or 'PASS' in str(log[1]))
         accuracy = round((total_correct / total_answered * 100), 1) if total_answered > 0 else 0.0
@@ -759,7 +798,7 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
 
     col1, col2, col3 = st.columns(3)
     col1.metric("⏱️ 累计专注学习", f"{total_minutes} 分钟")
-    col2.metric("✅ 累计答对题目", f"{total_correct} 题")
+    col2.metric("✅ 累计答提示", f"{total_correct} 题")
     col3.metric("🎯 历史平均正确率", f"{accuracy} %")
 
     st.markdown("---")
