@@ -121,13 +121,13 @@ def render_mathlive_input(default_value=''):
     <html lang='zh-CN'>
     <head>
       <meta charset='utf-8'>
-      <script defer src='https://unpkg.com/mathlive'></script>
+      <script src="https://unpkg.com/mathlive@0.98.0/dist/mathlive.min.js"></script>
       <style>
         body {{ margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; }}
         * {{ box-sizing: border-box !important; }}
         .main-container {{
             border: 1px solid #ccc; border-radius: 8px; padding: 15px; background: #fff;
-            display: flex; flex-direction: column; gap: 15px;
+            display: flex; flex-direction: column; gap: 15px; margin-bottom: 350px;
         }}
         math-field {{
             font-size: 24px; width: 100%; min-height: 150px; padding: 10px;
@@ -145,31 +145,30 @@ def render_mathlive_input(default_value=''):
           </div>
       </div>
       <script>
-        document.addEventListener("DOMContentLoaded", () => {{
-            customElements.whenDefined('math-field').then(() => {{
-                const mf = document.getElementById('mf');
-                const output = document.getElementById('latex-output');
+        const mf = document.getElementById('mf');
+        const output = document.getElementById('latex-output');
+        mf.locale = 'zh-cn';
 
-                mf.locale = 'zh-cn';
-                window.mathVirtualKeyboard.container = document.body;
+        mathVirtualKeyboard.container = document.body;
 
-                const updateOutput = () => {{
-                    const tex = mf.value;
-                    const wrappedTex = tex ? '$$' + tex + '$$' : '';
-                    if (output.textContent !== wrappedTex) {{
-                        output.textContent = wrappedTex;
-                    }}
-                }};
-
-                mf.addEventListener('input', updateOutput);
-                setInterval(updateOutput, 200);
-            }});
+        mf.addEventListener('focusin', () => {{ 
+            mathVirtualKeyboard.show(); 
         }});
+
+        const updateOutput = () => {{
+            const tex = mf.value;
+            const wrappedTex = tex ? '$$' + tex + '$$' : '';
+            if (output.textContent !== wrappedTex) {{
+                output.textContent = wrappedTex;
+            }}
+        }};
+        mf.addEventListener('input', updateOutput);
+        setInterval(updateOutput, 200);
       </script>
     </body>
     </html>
     '''
-    components.html(html_code, height=750, scrolling=True)
+    components.html(html_code, height=800, scrolling=True)
 
 def sync_user_data(username: str):
     engine = get_database_engine()
