@@ -123,7 +123,6 @@ def render_mathlive_input(default_value=''):
       <meta charset='utf-8'>
       <script defer src='https://unpkg.com/mathlive'></script>
       <style>
- 
         html, body {{
             overflow-x: hidden !important; 
             width: 100%;
@@ -147,7 +146,8 @@ def render_mathlive_input(default_value=''):
       <script>
         const mf = document.getElementById('mf');
         const output = document.getElementById('latex-output');
-        mf.setOptions({{ locale: 'zh-cn' }});
+
+        mf.locale = 'zh-cn';
 
         mf.addEventListener('input', () => {{ output.textContent = mf.value; }});
 
