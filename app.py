@@ -122,34 +122,27 @@ def render_mathlive_input(default_value=''):
     <head>
       <meta charset='utf-8'>
       <script defer src='https://unpkg.com/mathlive'></script>
-      <style>
-        .ML__menu, [role='menu'], math-field::part(menu) {{
-            max-height: 250px !important; 
-            overflow-y: auto !important;  
-            overflow-x: hidden !important;
-        }}
-        .ML__menu::-webkit-scrollbar, [role='menu']::-webkit-scrollbar, math-field::part(menu)::-webkit-scrollbar {{
-            width: 6px;
-        }}
-        .ML__menu::-webkit-scrollbar-thumb, [role='menu']::-webkit-scrollbar-thumb, math-field::part(menu)::-webkit-scrollbar-thumb {{
-            background-color: #aaa;
-            border-radius: 3px;
-        }}
-      </style>
     </head>
     <body style='margin: 0; padding: 0; font-family: sans-serif; background: #f9f9f9;'>
       <div style='padding: 10px; border: 1px solid #ccc; border-radius: 8px;'>
           <div style='font-size: 14px; color: #666; margin-bottom: 8px; font-weight: bold;'>📐 MathLive公式编辑面板</div>
-          <math-field id='mf' locale='zh-cn' style='font-size: 24px; width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fff; box-sizing: border-box;'>{default_value}</math-field>
+          <math-field id='mf' style='font-size: 24px; width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fff; box-sizing: border-box;'>{default_value}</math-field>
           <div style='margin-top: 12px; font-size: 12px; color: #333;'>
             <strong>✨ 生成的LaTeX代码 (复制此处提交):</strong>
             <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 4px; word-break: break-all; min-height: 20px; user-select: all; border: 1px dashed #999;'></div>
           </div>
       </div>
+
+      <div style='height: 350px; pointer-events: none;'></div>
+
       <script>
         const mf = document.getElementById('mf');
         const output = document.getElementById('latex-output');
-        mf.locale = 'zh-cn';
+
+        mf.setOptions({{
+            locale: 'zh-cn'
+        }});
+
         mf.addEventListener('input', (ev) => {{
             output.textContent = mf.value;
         }});
@@ -158,7 +151,8 @@ def render_mathlive_input(default_value=''):
     </body>
     </html>
     '''
-    components.html(html_code, height=380, scrolling=True)
+
+    components.html(html_code, height=450, scrolling=True)
 
 
 def sync_user_data(username: str):
@@ -749,7 +743,7 @@ elif st.session_state.page_mode == "results":
             with st.expander("📐 点击展开公式键盘 (输入后复制生成的代码至聊天框)"):
                 render_mathlive_input()
 
-            if query := st.chat_input("请求提示..."):
+            if query := st.chat_input("请求智能辅导..."):
                 st.session_state.chat_histories[qid].append({"role": "user", "content": query})
                 st.rerun()
             if st.session_state.chat_histories[qid] and st.session_state.chat_histories[qid][-1]["role"] == "user":
