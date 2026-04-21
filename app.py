@@ -179,7 +179,7 @@ def render_mathlive_input(default_value=''):
     </html>
     '''
 
-    components.html(html_code, height=750, scrolling=True))
+    components.html(html_code, height=750, scrolling=True)
 
 
 def sync_user_data(username: str):
