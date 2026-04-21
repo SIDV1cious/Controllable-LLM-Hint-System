@@ -129,16 +129,11 @@ def render_mathlive_input(default_value=''):
             border: 1px solid #ccc; border-radius: 8px; padding: 15px; background: #fff;
         }}
         math-field {{
-            font-size: 24px; width: 100%; min-height: 150px; padding: 10px;
+            font-size: 24px; width: 100%; min-height: 120px; padding: 10px;
             border: 1px solid #ddd; border-radius: 4px; background: #fff; outline: none;
         }}
-        #kb-box {{
-            width: 100%; height: 320px; margin-top: 10px; background: #fdfdfd;
-            border: 1px dashed #ccc; border-radius: 8px; position: relative; overflow: hidden;
-        }}
-        math-virtual-keyboard {{
-            position: absolute !important; bottom: 0 !important; left: 0 !important;
-            width: 100% !important; z-index: 9999 !important; display: block !important;
+        math-field::part(virtual-keyboard-toggle) {{
+            display: none;
         }}
       </style>
     </head>
@@ -151,25 +146,12 @@ def render_mathlive_input(default_value=''):
             <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; word-break: break-all; min-height: 30px; border: 1px dashed #999; margin-top:5px;'></div>
           </div>
       </div>
-      <div id="kb-box"></div>
       <script>
         customElements.whenDefined('math-field').then(() => {{
             const mf = document.getElementById('mf');
             const output = document.getElementById('latex-output');
-            const kbBox = document.getElementById('kb-box');
             mf.locale = 'zh-cn';
-
-            const checkKB = setInterval(() => {{
-                if (window.mathVirtualKeyboard) {{
-                    clearInterval(checkKB);
-                    window.mathVirtualKeyboard.container = kbBox;
-                    window.mathVirtualKeyboard.show();
-                }}
-            }}, 50);
-
-            mf.addEventListener('focusin', () => {{
-                if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.show();
-            }});
+            mf.mathVirtualKeyboardPolicy = "manual";
 
             const updateOutput = () => {{
                 const tex = mf.value;
@@ -185,7 +167,7 @@ def render_mathlive_input(default_value=''):
     </body>
     </html>
     '''
-    components.html(html_code, height=750, scrolling=True)
+    components.html(html_code, height=350, scrolling=True)
 
 def sync_user_data(username: str):
     engine = get_database_engine()
