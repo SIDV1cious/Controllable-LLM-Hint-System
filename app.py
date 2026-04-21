@@ -181,7 +181,6 @@ def render_mathlive_input(default_value=''):
 
     components.html(html_code, height=750, scrolling=True)
 
-
 def sync_user_data(username: str):
     engine = get_database_engine()
     with engine.connect() as conn:
@@ -710,29 +709,54 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
 
 elif st.session_state.page_mode == "quiz":
     st.warning("⚠️ 考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！")
+
     idx = st.session_state.current_question_index
     total = len(st.session_state.quiz_queue)
     q = st.session_state.quiz_queue[idx]
+
+    current_ans_key = f"ans_{idx}"
+    if current_ans_key in st.session_state:
+        st.session_state.user_answers[idx] = st.session_state[current_ans_key]
+
+    st.markdown("### 🗂️ 题目列表")
+    with st.container():
+        cols_per_row = 10
+        for i in range(0, total, cols_per_row):
+            cols = st.columns(cols_per_row)
+            for j in range(cols_per_row):
+                q_idx = i + j
+                if q_idx < total:
+                    with cols[j]:
+                        is_answered = bool(st.session_state.user_answers.get(q_idx, "").strip())
+                        btn_type = "primary" if q_idx == idx else "secondary"
+                        btn_label = f"{q_idx + 1} ✅" if is_answered else str(q_idx + 1)
+
+                        if st.button(btn_label, key=f"nav_btn_{q_idx}", type=btn_type, use_container_width=True):
+                            st.session_state.current_question_index = q_idx
+                            st.rerun()
+    st.divider()
+
     st.progress((idx + 1) / total, text=f"【{st.session_state.current_course}】 进度：{idx + 1} / {total}")
     st.markdown(f"### 第 {idx + 1} 题")
     st.info(format_math(q['content']))
 
     st.markdown("#### ✍️ 你的解答")
-    ans = st.text_area("请输入你的答案：",
+    ans = st.text_area("请输入你的答案（选择题请直接输入选项字母）：",
                        value=st.session_state.user_answers.get(idx, ""), height=150, key=f"ans_{idx}")
     st.session_state.user_answers[idx] = ans
+
     cols = st.columns(2)
     with cols[0]:
-        if idx > 0 and st.button("⬅️ 上一题"):
+        if idx > 0 and st.button("⬅️ 上一题", use_container_width=True):
             st.session_state.current_question_index -= 1
             st.rerun()
     with cols[1]:
         if idx < total - 1:
-            if st.button("下一题 ➡️"):
+            if st.button("下一题 ➡️", use_container_width=True):
                 st.session_state.current_question_index += 1
                 st.rerun()
         else:
-            if st.button("✅ 提交试卷", type="primary"):
+            if st.button("✅ 提交试卷", type="primary", use_container_width=True):
                 missing = [str(i + 1) for i in range(total) if not st.session_state.user_answers.get(i, "").strip()]
                 if missing:
                     st.warning(f"⚠️ 第 {'、'.join(missing)} 题尚未作答，请完成后再提交。")
