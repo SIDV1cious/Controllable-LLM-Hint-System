@@ -121,7 +121,7 @@ def render_mathlive_input(default_value=''):
     <html lang='zh-CN'>
     <head>
       <meta charset='utf-8'>
-      <script src='https://unpkg.com/mathlive'></script>
+      <script defer src='https://unpkg.com/mathlive'></script>
       <style>
         body {{ margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; }}
         * {{ box-sizing: border-box !important; }}
@@ -133,14 +133,6 @@ def render_mathlive_input(default_value=''):
             font-size: 24px; width: 100%; min-height: 150px; padding: 10px;
             border: 1px solid #ddd; border-radius: 4px; background: #fff; outline: none;
         }}
-        #keyboard-container {{
-            width: 100%; min-height: 300px; border-radius: 8px; overflow: hidden;
-            border: 1px solid #eee; background: #fdfdfd; position: relative;
-        }}
-        math-virtual-keyboard {{
-            position: absolute !important; bottom: 0 !important; left: 0 !important;
-            width: 100% !important; z-index: 9999 !important;
-        }}
       </style>
     </head>
     <body>
@@ -151,32 +143,28 @@ def render_mathlive_input(default_value=''):
             <strong>✨ 自动生成的 LaTeX 代码:</strong>
             <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; word-break: break-all; min-height: 30px; border: 1px dashed #999; margin-top:5px;'></div>
           </div>
-          <div id="keyboard-container"></div>
       </div>
       <script>
-        const mf = document.getElementById('mf');
-        const output = document.getElementById('latex-output');
-        const kbContainer = document.getElementById('keyboard-container');
-        mf.locale = 'zh-cn';
-        const checkReady = setInterval(() => {{
-            if (window.mathVirtualKeyboard) {{
-                clearInterval(checkReady);
-                window.mathVirtualKeyboard.container = kbContainer;
-                window.mathVirtualKeyboard.show();
-                mf.addEventListener('focus', () => {{
-                    window.mathVirtualKeyboard.show();
-                }});
-            }}
-        }}, 50);
-        const updateOutput = () => {{
-            const tex = mf.value;
-            const wrappedTex = tex ? '$$' + tex + '$$' : '';
-            if (output.textContent !== wrappedTex) {{
-                output.textContent = wrappedTex;
-            }}
-        }};
-        mf.addEventListener('input', updateOutput);
-        setInterval(updateOutput, 200);
+        document.addEventListener("DOMContentLoaded", () => {{
+            customElements.whenDefined('math-field').then(() => {{
+                const mf = document.getElementById('mf');
+                const output = document.getElementById('latex-output');
+
+                mf.locale = 'zh-cn';
+                window.mathVirtualKeyboard.container = document.body;
+
+                const updateOutput = () => {{
+                    const tex = mf.value;
+                    const wrappedTex = tex ? '$$' + tex + '$$' : '';
+                    if (output.textContent !== wrappedTex) {{
+                        output.textContent = wrappedTex;
+                    }}
+                }};
+
+                mf.addEventListener('input', updateOutput);
+                setInterval(updateOutput, 200);
+            }});
+        }});
       </script>
     </body>
     </html>
