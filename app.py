@@ -121,82 +121,96 @@ def render_mathlive_input(default_value=''):
     <html lang='zh-CN'>
     <head>
       <meta charset='utf-8'>
-      <script type="module">
-        import 'https://unpkg.com/mathlive?module';
-        
-        customElements.whenDefined('math-field').then(() => {{
-            if (window.mathVirtualKeyboard) {{
-                mathVirtualKeyboard.container = document.body;
-            }}
-        }});
-      </script>
       <style>
-        
-        body {{
-            margin: 0;
-            padding: 10px;
-            font-family: sans-serif;
-            background: #f9f9f9;
-        }}
-        * {{
-            box-sizing: border-box !important;
-        }}
+        body {{ margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; }}
+        * {{ box-sizing: border-box !important; }}
 
         .main-container {{
             border: 1px solid #ccc; 
             border-radius: 8px; 
-            padding: 10px; 
+            padding: 15px; 
             background: #fff;
             display: flex;
             flex-direction: column;
-           
-            height: 500px; 
+            gap: 15px; 
+        }}
+
+        math-field {{
+            font-size: 24px; 
+            width: 100%; 
+            min-height: 180px; 
+            padding: 10px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            background: #fff; 
+            outline: none;
+        }}
+
+        
+        #keyboard-container {{
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px dashed #ccc; 
+            background: #fdfdfd;
         }}
 
         
         math-virtual-keyboard {{
-            z-index: 2147483647 !important;
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 0 !important;
+            position: relative !important;
+            display: block !important;
+            bottom: auto !important;
+            left: auto !important;
+            right: auto !important;
             width: 100% !important;
+            height: auto !important;
+            z-index: 9999 !important;
         }}
       </style>
     </head>
     <body>
       <div class='main-container'>
-          <div style='font-size: 14px; color: #666; margin-bottom: 8px; font-weight: bold; flex-shrink: 0;'>📐 MathLive公式编辑面板</div>
+          <div style='font-size: 14px; color: #666; font-weight: bold;'>📐 MathLive公式编辑面板</div>
 
-          <math-field id='mf' style='font-size: 24px; width: 100%; flex-grow: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fff; outline: none;'>{default_value}</math-field>
+          <math-field id='mf'>{default_value}</math-field>
 
-          <div style='margin-top: 12px; font-size: 12px; color: #333; flex-shrink: 0;'>
-            <strong>✨ 生成上方公式对应的LaTeX代码 (复制此处代码粘贴至智能辅导提示词输入框即可生成对应公式):</strong>
-            <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 4px; word-break: break-all; min-height: 20px; user-select: all; border: 1px dashed #999;'></div>
+          <div style='font-size: 12px; color: #333;'>
+            <strong>✨ 自动生成的 LaTeX 代码:</strong>
+            <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; word-break: break-all; min-height: 30px; border: 1px dashed #999; margin-top:5px;'></div>
           </div>
+
+          <div style='font-size: 12px; color: #999; margin-bottom: -10px;'>👇 虚拟键盘</div>
+          <div id="keyboard-container"></div>
       </div>
-      <script>
+
+      <script type="module">
+        import 'https://unpkg.com/mathlive?module';
+
         const mf = document.getElementById('mf');
         const output = document.getElementById('latex-output');
+        const kbContainer = document.getElementById('keyboard-container');
 
         mf.locale = 'zh-cn';
 
-        const updateOutput = () => {{
-            const tex = mf.value;
-            const wrappedTex = tex ? '$$' + tex + '$$' : ''; 
-            if (output.textContent !== wrappedTex) {{
-                output.textContent = wrappedTex;
-            }}
-        }};
+        customElements.whenDefined('math-field').then(() => {{
+            
+            window.mathVirtualKeyboard.container = kbContainer;
 
-        mf.addEventListener('input', updateOutput);
-        setInterval(updateOutput, 200);
-        setTimeout(updateOutput, 500);
+            const updateOutput = () => {{
+                const tex = mf.value;
+                const wrappedTex = tex ? '$$' + tex + '$$' : ''; 
+                if (output.textContent !== wrappedTex) {{
+                    output.textContent = wrappedTex;
+                }}
+            }};
+            mf.addEventListener('input', updateOutput);
+            setInterval(updateOutput, 200);
+        }});
       </script>
     </body>
     </html>
     '''
-
-    components.html(html_code, height=750, scrolling=True)
+    components.html(html_code, height=850, scrolling=True)
 
 def sync_user_data(username: str):
     engine = get_database_engine()
