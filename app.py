@@ -127,13 +127,11 @@ def render_mathlive_input(default_value=''):
         * {{ box-sizing: border-box !important; }}
         .main-container {{
             border: 1px solid #ccc; border-radius: 8px; padding: 15px; background: #fff;
+            min-height: 550px; display: flex; flex-direction: column;
         }}
         math-field {{
-            font-size: 24px; width: 100%; min-height: 120px; padding: 10px;
+            font-size: 24px; width: 100%; min-height: 150px; padding: 10px;
             border: 1px solid #ddd; border-radius: 4px; background: #fff; outline: none;
-        }}
-        math-field::part(virtual-keyboard-toggle) {{
-            display: none;
         }}
       </style>
     </head>
@@ -145,13 +143,13 @@ def render_mathlive_input(default_value=''):
             <strong>✨ LaTeX 代码:</strong>
             <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; word-break: break-all; min-height: 30px; border: 1px dashed #999; margin-top:5px;'></div>
           </div>
+          <div style='margin-top: 20px; font-size: 12px; color: #999;'>💡 提示：点击输入框右侧键盘图标可唤起完整符号库</div>
       </div>
       <script>
         customElements.whenDefined('math-field').then(() => {{
             const mf = document.getElementById('mf');
             const output = document.getElementById('latex-output');
             mf.locale = 'zh-cn';
-            mf.mathVirtualKeyboardPolicy = "manual";
 
             const updateOutput = () => {{
                 const tex = mf.value;
@@ -167,7 +165,7 @@ def render_mathlive_input(default_value=''):
     </body>
     </html>
     '''
-    components.html(html_code, height=350, scrolling=True)
+    components.html(html_code, height=600, scrolling=True)
 
 def sync_user_data(username: str):
     engine = get_database_engine()
