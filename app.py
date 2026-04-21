@@ -121,9 +121,8 @@ def render_mathlive_input(default_value=''):
     <html lang='zh-CN'>
     <head>
       <meta charset='utf-8'>
-      <script defer src='https://unpkg.com/mathlive'></script>
       <style>
-        body {{ margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; }}
+        body {{ margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; height: 800px; }}
         * {{ box-sizing: border-box !important; }}
 
         .main-container {{
@@ -139,7 +138,7 @@ def render_mathlive_input(default_value=''):
         math-field {{
             font-size: 24px; 
             width: 100%; 
-            min-height: 150px;
+            min-height: 200px;
             padding: 10px; 
             border: 1px solid #ddd; 
             border-radius: 4px; 
@@ -147,28 +146,19 @@ def render_mathlive_input(default_value=''):
             outline: none;
         }}
 
-        #keyboard-container {{
-            width: 100%;
-            height: 300px;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 2px dashed #4a90e2; 
-            background: #fdfdfd;
-            position: relative;
-        }}
-
         math-virtual-keyboard {{
-            position: absolute !important;
+            position: fixed !important;
             bottom: 0 !important;
             left: 0 !important;
             width: 100% !important;
-            z-index: 9999 !important;
+            z-index: 2147483647 !important;
+            display: block !important;
         }}
       </style>
     </head>
     <body>
       <div class='main-container'>
-          <div style='font-size: 14px; color: #666; font-weight: bold;'>📐 MathLive公式编辑面板 (终极稳定版)</div>
+          <div style='font-size: 14px; color: #666; font-weight: bold;'>📐 MathLive公式编辑面板</div>
 
           <math-field id='mf'>{default_value}</math-field>
 
@@ -176,41 +166,31 @@ def render_mathlive_input(default_value=''):
             <strong>✨ 自动生成的 LaTeX 代码:</strong>
             <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; word-break: break-all; min-height: 30px; border: 1px dashed #999; margin-top:5px;'></div>
           </div>
-
-          <div style='font-size: 12px; color: #4a90e2; font-weight: bold; margin-bottom: -10px;'>👇 虚拟键盘 (自动开启)</div>
-          <div id="keyboard-container"></div>
       </div>
 
-      <script>
-        const init = setInterval(() => {{
-            if (window.mathVirtualKeyboard && document.getElementById('mf')) {{
-                clearInterval(init);
+      <script type="module">
+        import 'https://unpkg.com/mathlive?module';
 
-                const kbContainer = document.getElementById('keyboard-container');
-                window.mathVirtualKeyboard.container = kbContainer;
-                window.mathVirtualKeyboard.show();
+        const mf = document.getElementById('mf');
+        const output = document.getElementById('latex-output');
 
-                const mf = document.getElementById('mf');
-                mf.locale = 'zh-cn';
+        mf.locale = 'zh-cn';
 
-                const output = document.getElementById('latex-output');
-                const updateOutput = () => {{
-                    const tex = mf.value;
-                    const wrappedTex = tex ? '$$' + tex + '$$' : ''; 
-                    if (output.textContent !== wrappedTex) {{
-                        output.textContent = wrappedTex;
-                    }}
-                }};
-
-                mf.addEventListener('input', updateOutput);
-                setInterval(updateOutput, 200);
+        const updateOutput = () => {{
+            const tex = mf.value;
+            const wrappedTex = tex ? '$$' + tex + '$$' : ''; 
+            if (output.textContent !== wrappedTex) {{
+                output.textContent = wrappedTex;
             }}
-        }}, 100);
+        }};
+
+        mf.addEventListener('input', updateOutput);
+        setInterval(updateOutput, 200);
       </script>
     </body>
     </html>
     '''
-    components.html(html_code, height=750, scrolling=True)
+    components.html(html_code, height=850, scrolling=True)
 
 def sync_user_data(username: str):
     engine = get_database_engine()
