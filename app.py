@@ -123,7 +123,6 @@ def render_mathlive_input(default_value=''):
       <meta charset='utf-8'>
       <script defer src='https://unpkg.com/mathlive'></script>
       <style>
-
         html, body {{
             overflow-x: hidden !important; 
             width: 100%;
@@ -144,6 +143,10 @@ def render_mathlive_input(default_value=''):
             flex-direction: column;
             height: calc(100vh - 20px); 
         }}
+
+        math-virtual-keyboard {{
+            z-index: 99999 !important;
+        }}
       </style>
     </head>
     <body style='padding: 10px; font-family: sans-serif; background: #f9f9f9;'>
@@ -163,6 +166,12 @@ def render_mathlive_input(default_value=''):
 
         mf.locale = 'zh-cn';
 
+        customElements.whenDefined('math-field').then(() => {{
+            if (window.mathVirtualKeyboard) {{
+                mathVirtualKeyboard.container = document.body;
+            }}
+        }});
+
         const updateOutput = () => {{
             const tex = mf.value;
             const wrappedTex = tex ? '$$' + tex + '$$' : ''; 
@@ -178,7 +187,6 @@ def render_mathlive_input(default_value=''):
     </body>
     </html>
     '''
-
     components.html(html_code, height=750, scrolling=True)
 
 def sync_user_data(username: str):
