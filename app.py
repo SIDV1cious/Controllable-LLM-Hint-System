@@ -121,14 +121,22 @@ def render_mathlive_input(default_value=''):
     <html lang='zh-CN'>
     <head>
       <meta charset='utf-8'>
-      <script defer src='https://unpkg.com/mathlive'></script>
+      <script type="module">
+        import 'https://unpkg.com/mathlive?module';
+        
+        customElements.whenDefined('math-field').then(() => {{
+            if (window.mathVirtualKeyboard) {{
+                mathVirtualKeyboard.container = document.body;
+            }}
+        }});
+      </script>
       <style>
-        html, body {{
-            overflow-x: hidden !important; 
-            width: 100%;
-            height: 100%; 
+        
+        body {{
             margin: 0;
-            padding: 0;
+            padding: 10px;
+            font-family: sans-serif;
+            background: #f9f9f9;
         }}
         * {{
             box-sizing: border-box !important;
@@ -141,15 +149,21 @@ def render_mathlive_input(default_value=''):
             background: #fff;
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 20px); 
+           
+            height: 500px; 
         }}
 
+        
         math-virtual-keyboard {{
-            z-index: 99999 !important;
+            z-index: 2147483647 !important;
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
         }}
       </style>
     </head>
-    <body style='padding: 10px; font-family: sans-serif; background: #f9f9f9;'>
+    <body>
       <div class='main-container'>
           <div style='font-size: 14px; color: #666; margin-bottom: 8px; font-weight: bold; flex-shrink: 0;'>📐 MathLive公式编辑面板</div>
 
@@ -166,12 +180,6 @@ def render_mathlive_input(default_value=''):
 
         mf.locale = 'zh-cn';
 
-        customElements.whenDefined('math-field').then(() => {{
-            if (window.mathVirtualKeyboard) {{
-                mathVirtualKeyboard.container = document.body;
-            }}
-        }});
-
         const updateOutput = () => {{
             const tex = mf.value;
             const wrappedTex = tex ? '$$' + tex + '$$' : ''; 
@@ -187,6 +195,7 @@ def render_mathlive_input(default_value=''):
     </body>
     </html>
     '''
+
     components.html(html_code, height=750, scrolling=True)
 
 def sync_user_data(username: str):
