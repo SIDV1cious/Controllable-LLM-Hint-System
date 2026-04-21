@@ -756,12 +756,22 @@ elif st.session_state.page_mode == "quiz":
                 st.session_state.current_question_index += 1
                 st.rerun()
         else:
+
             if st.button("✅ 提交试卷", type="primary", use_container_width=True):
                 missing = [str(i + 1) for i in range(total) if not st.session_state.user_answers.get(i, "").strip()]
                 if missing:
                     st.warning(f"⚠️ 第 {'、'.join(missing)} 题尚未作答，请完成后再提交。")
                 else:
-                    submit_and_assess()
+                    st.session_state.page_mode = "grading"
+                    st.rerun()
+
+elif st.session_state.page_mode == "grading":
+
+    st.markdown("<div style='margin-top: 100px;'></div>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🧠 系统正在阅卷中，请勿刷新或退出...</h2>", unsafe_allow_html=True)
+    st.progress(100)
+
+    submit_and_assess()
 
 elif st.session_state.page_mode == "results":
     st.title("📊 作答结果与辅导")
