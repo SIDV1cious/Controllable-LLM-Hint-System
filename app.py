@@ -121,51 +121,94 @@ def render_mathlive_input(default_value=''):
     <html lang='zh-CN'>
     <head>
       <meta charset='utf-8'>
-      <script src="https://unpkg.com/mathlive"></script>
+
+      <!-- ✅ 必须：CSS -->
+      <link rel="stylesheet" href="https://unpkg.com/mathlive/dist/mathlive.core.css">
+      <link rel="stylesheet" href="https://unpkg.com/mathlive/dist/mathlive.css">
+
+      <!-- ✅ 必须：用带版本的 JS -->
+      <script src="https://unpkg.com/mathlive@0.98.0/dist/mathlive.min.js"></script>
+
       <style>
-        body {{ margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; }}
-        * {{ box-sizing: border-box !important; }}
-        .main-container {{
-            border: 1px solid #ccc; border-radius: 8px; padding: 15px; background: #fff;
-            min-height: 550px; display: flex; flex-direction: column;
+        body {{
+            margin: 0;
+            padding: 10px;
+            font-family: sans-serif;
+            background: #f9f9f9;
         }}
+        * {{ box-sizing: border-box !important; }}
+
+        .main-container {{
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            background: #fff;
+            min-height: 550px;
+            display: flex;
+            flex-direction: column;
+        }}
+
         math-field {{
-            font-size: 24px; width: 100%; min-height: 150px; padding: 10px;
-            border: 1px solid #ddd; border-radius: 4px; background: #fff; outline: none;
+            font-size: 24px;
+            width: 100%;
+            min-height: 150px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+            outline: none;
         }}
       </style>
     </head>
+
     <body>
       <div class='main-container'>
-          <div style='font-size: 14px; color: #666; font-weight: bold; margin-bottom:10px;'>📐 MathLive公式编辑面板</div>
+          <div style='font-size: 14px; color: #666; font-weight: bold; margin-bottom:10px;'>
+            📐 MathLive公式编辑面板
+          </div>
+
           <math-field id='mf'>{default_value}</math-field>
+
           <div style='font-size: 12px; color: #333; margin-top: 15px;'>
             <strong>✨ LaTeX 代码:</strong>
-            <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; word-break: break-all; min-height: 30px; border: 1px dashed #999; margin-top:5px;'></div>
+            <div id='latex-output'
+                 style='padding: 8px; background: #e0e0e0; border-radius: 4px;
+                        word-break: break-all; min-height: 30px;
+                        border: 1px dashed #999; margin-top:5px;'>
+            </div>
           </div>
-          <div style='margin-top: 20px; font-size: 12px; color: #999;'>💡 提示：点击输入框右侧键盘图标可唤起完整符号库</div>
       </div>
+
       <script>
-        customElements.whenDefined('math-field').then(() => {{
+        window.addEventListener("load", () => {{
+
             const mf = document.getElementById('mf');
             const output = document.getElementById('latex-output');
-            mf.locale = 'zh-cn';
 
+            
+            window.mathVirtualKeyboard = window.mathVirtualKeyboard || {{}};
+            mathVirtualKeyboard.policy = "manual";
+            mathVirtualKeyboard.container = document.body;
+
+            
+            mf.addEventListener('focusin', () => {{
+                mathVirtualKeyboard.show();
+            }});
+
+            
             const updateOutput = () => {{
                 const tex = mf.value;
-                const wrappedTex = tex ? '$$' + tex + '$$' : '';
-                if (output.textContent !== wrappedTex) {{
-                    output.textContent = wrappedTex;
-                }}
+                output.textContent = tex ? '$$' + tex + '$$' : '';
             }};
+
             mf.addEventListener('input', updateOutput);
-            setInterval(updateOutput, 200);
+            updateOutput();
         }});
       </script>
     </body>
     </html>
     '''
-    components.html(html_code, height=600, scrolling=True)
+    components.html(html_code, height=650, scrolling=True)
 
 def sync_user_data(username: str):
     engine = get_database_engine()
