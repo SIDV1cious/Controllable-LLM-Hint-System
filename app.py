@@ -122,23 +122,6 @@ def render_mathlive_input(default_value=''):
     <head>
       <meta charset='utf-8'>
       <script defer src='https://unpkg.com/mathlive'></script>
-      <style>
-        
-        math-field::part(menu), .ML__menu, [role="menu"] {{
-            max-height: 220px !important; 
-            overflow-y: auto !important;  
-            overflow-x: visible !important;
-        }}
-
-        
-        math-field::part(menu)::-webkit-scrollbar, .ML__menu::-webkit-scrollbar {{
-            width: 6px;
-        }}
-        math-field::part(menu)::-webkit-scrollbar-thumb, .ML__menu::-webkit-scrollbar-thumb {{
-            background-color: #bbb;
-            border-radius: 3px;
-        }}
-      </style>
     </head>
     <body style='margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9;'>
       <div style='border: 1px solid #ccc; border-radius: 8px; padding: 10px; background: #fff;'>
@@ -160,7 +143,7 @@ def render_mathlive_input(default_value=''):
     </html>
     '''
 
-    components.html(html_code, height=380)
+    components.html(html_code, height=600, scrolling=True)
 
 
 def sync_user_data(username: str):
@@ -750,7 +733,6 @@ elif st.session_state.page_mode == "results":
 
             with st.expander("📐 点击展开公式键盘"):
                 render_mathlive_input()
-                st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
 
             if query := st.chat_input("请求智能辅导..."):
                 st.session_state.chat_histories[qid].append({"role": "user", "content": query})
