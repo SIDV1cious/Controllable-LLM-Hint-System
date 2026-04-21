@@ -697,9 +697,8 @@ elif st.session_state.page_mode == "quiz":
     st.info(format_math(q['content']))
 
     st.markdown("#### ✍️ 你的解答")
-    render_mathlive_input()
-    ans = st.text_area("请在上方键入公式，并将生成的 LaTeX 代码复制粘贴至此框内提交：",
-                       value=st.session_state.user_answers.get(idx, ""), height=100, key=f"ans_{idx}")
+    ans = st.text_area("请输入你的答案：",
+                       value=st.session_state.user_answers.get(idx, ""), height=150, key=f"ans_{idx}")
     st.session_state.user_answers[idx] = ans
     cols = st.columns(2)
     with cols[0]:
