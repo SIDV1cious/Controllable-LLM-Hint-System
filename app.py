@@ -121,85 +121,71 @@ def render_mathlive_input(default_value=''):
     <html lang='zh-CN'>
     <head>
       <meta charset='utf-8'>
-
-      <!-- ✅ 必须加：MathLive 样式 -->
-      <link rel="stylesheet" href="https://unpkg.com/mathlive/dist/mathlive.core.css">
-      <link rel="stylesheet" href="https://unpkg.com/mathlive/dist/mathlive.css">
-
-      <script src="https://unpkg.com/mathlive@0.98.0/dist/mathlive.min.js"></script>
-
+      <script src="https://unpkg.com/mathlive"></script>
       <style>
         body {{ margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; }}
         * {{ box-sizing: border-box !important; }}
-
         .main-container {{
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 15px;
-            background: #fff;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            margin-bottom: 350px;
+            border: 1px solid #ccc; border-radius: 8px; padding: 15px; background: #fff;
         }}
-
         math-field {{
-            font-size: 24px;
-            width: 100%;
-            min-height: 150px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: #fff;
-            outline: none;
+            font-size: 24px; width: 100%; min-height: 150px; padding: 10px;
+            border: 1px solid #ddd; border-radius: 4px; background: #fff; outline: none;
+        }}
+        #kb-box {{
+            width: 100%; height: 320px; margin-top: 10px; background: #fdfdfd;
+            border: 1px dashed #ccc; border-radius: 8px; position: relative; overflow: hidden;
+        }}
+        math-virtual-keyboard {{
+            position: absolute !important; bottom: 0 !important; left: 0 !important;
+            width: 100% !important; z-index: 9999 !important; display: block !important;
         }}
       </style>
     </head>
-
     <body>
       <div class='main-container'>
-          <div style='font-size: 14px; color: #666; font-weight: bold;'>📐 MathLive公式编辑面板</div>
-
+          <div style='font-size: 14px; color: #666; font-weight: bold; margin-bottom:10px;'>📐 MathLive公式编辑面板</div>
           <math-field id='mf'>{default_value}</math-field>
-
-          <div style='font-size: 12px; color: #333;'>
-            <strong>✨ 自动生成的 LaTeX 代码:</strong>
-            <div id='latex-output'
-                 style='padding: 8px; background: #e0e0e0; border-radius: 4px;
-                        word-break: break-all; min-height: 30px;
-                        border: 1px dashed #999; margin-top:5px;'>
-            </div>
+          <div style='font-size: 12px; color: #333; margin-top: 15px;'>
+            <strong>✨ LaTeX 代码:</strong>
+            <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; word-break: break-all; min-height: 30px; border: 1px dashed #999; margin-top:5px;'></div>
           </div>
       </div>
-
+      <div id="kb-box"></div>
       <script>
-        const mf = document.getElementById('mf');
-        const output = document.getElementById('latex-output');
+        customElements.whenDefined('math-field').then(() => {{
+            const mf = document.getElementById('mf');
+            const output = document.getElementById('latex-output');
+            const kbBox = document.getElementById('kb-box');
+            mf.locale = 'zh-cn';
 
-        mf.locale = 'zh-cn';
+            const checkKB = setInterval(() => {{
+                if (window.mathVirtualKeyboard) {{
+                    clearInterval(checkKB);
+                    window.mathVirtualKeyboard.container = kbBox;
+                    window.mathVirtualKeyboard.show();
+                }}
+            }}, 50);
 
-        
-        mf.setOptions({{
-            virtualKeyboardMode: "onfocus"
+            mf.addEventListener('focusin', () => {{
+                if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.show();
+            }});
+
+            const updateOutput = () => {{
+                const tex = mf.value;
+                const wrappedTex = tex ? '$$' + tex + '$$' : '';
+                if (output.textContent !== wrappedTex) {{
+                    output.textContent = wrappedTex;
+                }}
+            }};
+            mf.addEventListener('input', updateOutput);
+            setInterval(updateOutput, 200);
         }});
-
-       
-        const updateOutput = () => {{
-            const tex = mf.value;
-            output.textContent = tex ? '$$' + tex + '$$' : '';
-        }};
-
-        mf.addEventListener('input', updateOutput);
-
-        
-        updateOutput();
       </script>
-
     </body>
     </html>
     '''
-
-    components.html(html_code, height=900, scrolling=True)
+    components.html(html_code, height=750, scrolling=True)
 
 def sync_user_data(username: str):
     engine = get_database_engine()
