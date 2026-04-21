@@ -123,8 +123,8 @@ def render_mathlive_input(default_value=''):
       <meta charset='utf-8'>
       <script defer src='https://unpkg.com/mathlive'></script>
     </head>
-    <body style='margin: 0; padding: 0; font-family: sans-serif; background: #f9f9f9;'>
-      <div style='padding: 10px; border: 1px solid #ccc; border-radius: 8px;'>
+    <body style='margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; min-height: 400px;'>
+      <div style='border: 1px solid #ccc; border-radius: 8px; padding: 10px; background: #fff;'>
           <div style='font-size: 14px; color: #666; margin-bottom: 8px; font-weight: bold;'>📐 MathLive公式编辑面板</div>
           <math-field id='mf' style='font-size: 24px; width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fff; box-sizing: border-box;'>{default_value}</math-field>
           <div style='margin-top: 12px; font-size: 12px; color: #333;'>
@@ -132,27 +132,18 @@ def render_mathlive_input(default_value=''):
             <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 4px; word-break: break-all; min-height: 20px; user-select: all; border: 1px dashed #999;'></div>
           </div>
       </div>
-
-      <div style='height: 350px; pointer-events: none;'></div>
-
       <script>
         const mf = document.getElementById('mf');
         const output = document.getElementById('latex-output');
-
-        mf.setOptions({{
-            locale: 'zh-cn'
-        }});
-
-        mf.addEventListener('input', (ev) => {{
-            output.textContent = mf.value;
-        }});
+        mf.setOptions({{ locale: 'zh-cn' }});
+        mf.addEventListener('input', () => {{ output.textContent = mf.value; }});
         setTimeout(() => {{ output.textContent = mf.value; }}, 500);
       </script>
     </body>
     </html>
     '''
 
-    components.html(html_code, height=500, scrolling=True)
+    components.html(html_code, height=350, scrolling=True)
 
 
 def sync_user_data(username: str):
@@ -742,6 +733,8 @@ elif st.session_state.page_mode == "results":
 
             with st.expander("📐 点击展开公式键盘 (输入后复制生成的代码至聊天框)"):
                 render_mathlive_input()
+
+                st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
 
             if query := st.chat_input("请求智能辅导..."):
                 st.session_state.chat_histories[qid].append({"role": "user", "content": query})
