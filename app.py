@@ -115,6 +115,7 @@ def init_session_state():
 
 init_session_state()
 
+
 def sync_user_data(username: str):
     engine = get_database_engine()
     with engine.connect() as conn:
@@ -290,7 +291,8 @@ with st.sidebar:
                 st.session_state.page_mode = "report"
                 st.rerun()
     if st.button("🚪 退出登录"):
-        for k in list(st.session_state.keys()): del st.session_state[k]
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
         st.rerun()
 
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
@@ -690,7 +692,6 @@ elif st.session_state.page_mode == "quiz":
                 st.session_state.current_question_index += 1
                 st.rerun()
         else:
-
             if st.button("✅ 提交试卷", type="primary", use_container_width=True):
                 missing = [str(i + 1) for i in range(total) if not st.session_state.user_answers.get(i, "").strip()]
                 if missing:
@@ -700,7 +701,6 @@ elif st.session_state.page_mode == "quiz":
                     st.rerun()
 
 elif st.session_state.page_mode == "grading":
-
     st.markdown("<div style='margin-top: 100px;'></div>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center;'>🧠 系统正在阅卷中，请勿刷新或退出...</h2>", unsafe_allow_html=True)
     st.progress(100)
@@ -730,31 +730,84 @@ elif st.session_state.page_mode == "results":
             st.divider()
             if qid not in st.session_state.chat_histories:
                 st.session_state.chat_histories[qid] = []
-                if not data['is_correct']: st.session_state.chat_histories[qid].append(
-                    {"role": "assistant", "content": "智能辅导"})
+                if not data['is_correct']:
+                    st.session_state.chat_histories[qid].append({"role": "assistant", "content": "智能辅导"})
             for m in st.session_state.chat_histories[qid]:
-                with st.chat_message(m["role"]): st.markdown(m["content"])
+                with st.chat_message(m["role"]):
+                    st.markdown(format_math(m["content"]))
 
-            with st.expander("📐 点击展开公式键盘"):
+            composer_key = f"composer_{qid}"
+            latex_key = f"composer_latex_{qid}"
 
-                user_latex = math_input(default_value="", key=f"react_math_{qid}")
+            if composer_key not in st.session_state:
+                st.session_state[composer_key] = ""
 
-                if user_latex:
-                    st.caption(f"Python已接收到: {user_latex}")
+            if latex_key not in st.session_state:
+                st.session_state[latex_key] = ""
 
-            if query := st.chat_input("请求智能辅导..."):
-                st.session_state.chat_histories[qid].append({"role": "user", "content": query})
-                st.rerun()
+            st.markdown("#### ✍️ 请求智能辅导")
+
+            st.text_area(
+                "请输入你的问题（支持文字 + LaTeX 公式）",
+                key=composer_key,
+                height=110,
+                placeholder="例如：我不会做这题，能提示我第一步吗？"
+            )
+
+            with st.expander("📐 插入公式到输入框"):
+                user_latex = math_input(
+                    default_value=st.session_state.get(latex_key, ""),
+                    key=f"react_math_{qid}"
+                )
+
+                if user_latex is not None:
+                    st.session_state[latex_key] = user_latex
+
+                c1, c2 = st.columns(2)
+
+                with c1:
+                    if st.button("插入行内公式", key=f"insert_inline_{qid}", use_container_width=True):
+                        latex = st.session_state.get(latex_key, "").strip()
+                        if latex:
+                            current = st.session_state.get(composer_key, "")
+                            sep = "" if current == "" or current.endswith((" ", "\n")) else " "
+                            st.session_state[composer_key] = current + sep + f"${latex}$"
+                            st.session_state[latex_key] = ""
+                            st.rerun()
+
+                with c2:
+                    if st.button("插入独立公式", key=f"insert_block_{qid}", use_container_width=True):
+                        latex = st.session_state.get(latex_key, "").strip()
+                        if latex:
+                            current = st.session_state.get(composer_key, "")
+                            sep = "\n" if current and not current.endswith("\n") else ""
+                            st.session_state[composer_key] = current + sep + f"$${latex}$$"
+                            st.session_state[latex_key] = ""
+                            st.rerun()
+
+            send_col1, send_col2 = st.columns([5, 1])
+
+            with send_col2:
+                if st.button("发送", key=f"send_help_{qid}", type="primary", use_container_width=True):
+                    query = st.session_state.get(composer_key, "").strip()
+                    if query:
+                        st.session_state.chat_histories[qid].append({"role": "user", "content": query})
+                        st.session_state[composer_key] = ""
+                        st.rerun()
+                    else:
+                        st.warning("请输入辅导问题后再发送。")
+
             if st.session_state.chat_histories[qid] and st.session_state.chat_histories[qid][-1]["role"] == "user":
                 with st.chat_message("assistant"):
                     h = st.empty()
                     f = ""
+                    last_query = st.session_state.chat_histories[qid][-1]["content"]
                     std_ans = data['question_data'].get('answer', '')
                     std_sol = data['question_data'].get('solution', '')
                     if std_ans or std_sol:
-                        ctx = f"题目：{data['question_data']['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
+                        ctx = f"题目：{data['question_data']['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{last_query}"
                     else:
-                        ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{query}"
+                        ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{last_query}"
                     dynamic_prompt = SYSTEM_INSTRUCTION
                     try:
                         engine_tmp = get_database_engine()
@@ -765,9 +818,12 @@ elif st.session_state.page_mode == "results":
                                 dynamic_prompt = dyn_prompt_res[0]
                     except Exception as e:
                         logging.error(f"Fetch prompt error: {e}")
-                    stream = client.chat.completions.create(model="deepseek-chat",
-                                                            messages=[{"role": "system", "content": dynamic_prompt},
-                                                                      {"role": "user", "content": ctx}], stream=True)
+                    stream = client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[{"role": "system", "content": dynamic_prompt},
+                                  {"role": "user", "content": ctx}],
+                        stream=True
+                    )
                     for chunk in stream:
                         c = chunk.choices[0].delta.content
                         if c:
@@ -776,7 +832,7 @@ elif st.session_state.page_mode == "results":
                     final = format_math(f)
                     h.markdown(final)
                     st.session_state.chat_histories[qid].append({"role": "assistant", "content": final})
-                    log_interaction(qid, f"【辅导】{query}", final)
+                    log_interaction(qid, f"【辅导】{last_query}", final)
 
 elif st.session_state.page_mode == "report" and st.session_state.user_role == "student":
     st.markdown("<h1 style='text-align: center;'>📊 个人学情中心与错题记录</h1>", unsafe_allow_html=True)
