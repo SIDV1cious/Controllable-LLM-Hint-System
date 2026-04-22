@@ -17,18 +17,16 @@ declare global {
   }
 }
 
+const FRAME_HEIGHT = 620;
+
 const MyComponent = ({ args }: ComponentProps) => {
   const mfRef = useRef<any>(null);
   const vkRef = useRef<any>(null);
   const [latex, setLatex] = useState(args.default_value || "");
 
   const refreshFrameHeight = () => {
-    const height = Math.max(
-      document.body.scrollHeight,
-      document.documentElement.scrollHeight,
-      700
-    );
-    Streamlit.setFrameHeight(height + 20);
+    window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
+    window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 100);
   };
 
   useEffect(() => {
@@ -44,14 +42,11 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     mf.value = args.default_value || "";
     mf.mathVirtualKeyboardPolicy = "sandboxed";
-    mf.smartMode = true;
-    mf.inlineShortcuts = true;
 
     const handleInput = (e: any) => {
       const newValue = e.target.value;
       setLatex(newValue);
       Streamlit.setComponentValue(newValue);
-      refreshFrameHeight();
     };
 
     const handleGeometryChange = () => {
@@ -75,21 +70,10 @@ const MyComponent = ({ args }: ComponentProps) => {
   }, [args.default_value]);
 
   useEffect(() => {
-    const observer = new ResizeObserver(() => {
-      refreshFrameHeight();
-    });
-
-    observer.observe(document.body);
-    observer.observe(document.documentElement);
-
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
     const style = document.createElement("style");
     style.innerHTML = `
       html, body {
-        overflow: visible !important;
+        overflow: hidden !important;
       }
 
       math-virtual-keyboard {
@@ -103,12 +87,8 @@ const MyComponent = ({ args }: ComponentProps) => {
     `;
     document.head.appendChild(style);
 
-    const handleResize = () => refreshFrameHeight();
-    window.addEventListener("resize", handleResize);
-
     return () => {
       document.head.removeChild(style);
-      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
@@ -119,9 +99,9 @@ const MyComponent = ({ args }: ComponentProps) => {
         padding: "15px",
         borderRadius: "8px",
         border: "1px solid #ccc",
-        minHeight: "700px",
+        minHeight: "420px",
         position: "relative",
-        overflow: "visible",
+        overflow: "hidden",
       }}
     >
       <div
