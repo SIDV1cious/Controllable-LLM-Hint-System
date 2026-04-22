@@ -736,23 +736,26 @@ elif st.session_state.page_mode == "results":
                 with st.chat_message(m["role"]):
                     st.markdown(format_math(m["content"]))
 
-            composer_key = f"composer_{qid}"
+            composer_input_key = f"composer_input_{qid}"
             latex_key = f"composer_latex_{qid}"
+            composer_reset_key = f"composer_reset_{qid}"
 
-            if composer_key not in st.session_state:
-                st.session_state[composer_key] = ""
+            if composer_input_key not in st.session_state:
+                st.session_state[composer_input_key] = ""
 
             if latex_key not in st.session_state:
                 st.session_state[latex_key] = ""
 
+            if composer_reset_key not in st.session_state:
+                st.session_state[composer_reset_key] = False
+
+            if st.session_state[composer_reset_key]:
+                st.session_state[composer_input_key] = ""
+                st.session_state[composer_reset_key] = False
+
             st.markdown("#### ✍️ 请求智能辅导")
 
-            st.text_area(
-                "请输入你的问题（支持文字 + LaTeX 公式）",
-                key=composer_key,
-                height=110,
-                placeholder="例如：我不会做这题，能提示我第一步吗？"
-            )
+            composer_box = st.empty()
 
             with st.expander("📐 插入公式到输入框"):
                 user_latex = math_input(
@@ -763,36 +766,29 @@ elif st.session_state.page_mode == "results":
                 if user_latex is not None:
                     st.session_state[latex_key] = user_latex
 
-                c1, c2 = st.columns(2)
+                if st.button("插入公式到问题框", key=f"insert_formula_{qid}", use_container_width=True):
+                    latex = st.session_state.get(latex_key, "").strip()
+                    if latex:
+                        current = st.session_state.get(composer_input_key, "").strip()
+                        sep = "" if current == "" or current.endswith((" ", "\n")) else " "
+                        st.session_state[composer_input_key] = current + sep + f"${latex}$"
+                        st.session_state[latex_key] = ""
+                        st.rerun()
 
-                with c1:
-                    if st.button("插入行内公式", key=f"insert_inline_{qid}", use_container_width=True):
-                        latex = st.session_state.get(latex_key, "").strip()
-                        if latex:
-                            current = st.session_state.get(composer_key, "")
-                            sep = "" if current == "" or current.endswith((" ", "\n")) else " "
-                            st.session_state[composer_key] = current + sep + f"${latex}$"
-                            st.session_state[latex_key] = ""
-                            st.rerun()
-
-                with c2:
-                    if st.button("插入独立公式", key=f"insert_block_{qid}", use_container_width=True):
-                        latex = st.session_state.get(latex_key, "").strip()
-                        if latex:
-                            current = st.session_state.get(composer_key, "")
-                            sep = "\n" if current and not current.endswith("\n") else ""
-                            st.session_state[composer_key] = current + sep + f"$${latex}$$"
-                            st.session_state[latex_key] = ""
-                            st.rerun()
+            composer_box.text_area(
+                "请输入你的问题（支持文字 + LaTeX 公式）",
+                key=composer_input_key,
+                height=110
+            )
 
             send_col1, send_col2 = st.columns([5, 1])
 
             with send_col2:
                 if st.button("发送", key=f"send_help_{qid}", type="primary", use_container_width=True):
-                    query = st.session_state.get(composer_key, "").strip()
+                    query = st.session_state.get(composer_input_key, "").strip()
                     if query:
                         st.session_state.chat_histories[qid].append({"role": "user", "content": query})
-                        st.session_state[composer_key] = ""
+                        st.session_state[composer_reset_key] = True
                         st.rerun()
                     else:
                         st.warning("请输入辅导问题后再发送。")
