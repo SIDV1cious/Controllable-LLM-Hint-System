@@ -3,7 +3,7 @@ import {
   withStreamlitConnection,
   ComponentProps,
 } from "streamlit-component-lib";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 
 import { initVirtualKeyboardInCurrentBrowsingContext } from "mathlive";
 import "mathlive";
@@ -22,7 +22,6 @@ const FRAME_HEIGHT = 620;
 const MyComponent = ({ args }: ComponentProps) => {
   const mfRef = useRef<any>(null);
   const vkRef = useRef<any>(null);
-  const [latex, setLatex] = useState(args.default_value || "");
 
   const refreshFrameHeight = () => {
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
@@ -45,7 +44,6 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     const handleInput = (e: any) => {
       const newValue = e.target.value;
-      setLatex(newValue);
       Streamlit.setComponentValue(newValue);
     };
 
@@ -84,6 +82,11 @@ const MyComponent = ({ args }: ComponentProps) => {
         width: 100% !important;
         z-index: 2147483647 !important;
       }
+
+      math-field {
+        height: 100% !important;
+        min-height: 100% !important;
+      }
     `;
     document.head.appendChild(style);
 
@@ -99,9 +102,12 @@ const MyComponent = ({ args }: ComponentProps) => {
         padding: "15px",
         borderRadius: "8px",
         border: "1px solid #ccc",
-        minHeight: "420px",
+        height: "540px",
         position: "relative",
         overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
       }}
     >
       <div
@@ -110,35 +116,33 @@ const MyComponent = ({ args }: ComponentProps) => {
           color: "#666",
           marginBottom: "10px",
           fontWeight: "bold",
+          flexShrink: 0,
         }}
       >
         📐 MathLive 面板
       </div>
 
-      <math-field
-        ref={mfRef}
-        style={{
-          fontSize: "24px",
-          width: "100%",
-          minHeight: "180px",
-          outline: "none",
-          border: "1px solid #ddd",
-          borderRadius: "4px",
-          padding: "10px",
-          display: "block",
-        }}
-      ></math-field>
-
       <div
         style={{
-          marginTop: "15px",
-          fontSize: "12px",
-          color: "#333",
-          wordBreak: "break-all",
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
         }}
       >
-        <strong>✨ 对应的 LaTeX 代码:</strong>
-        <code style={{ marginLeft: "8px", color: "#4a90e2" }}>{latex}</code>
+        <math-field
+          ref={mfRef}
+          style={{
+            fontSize: "28px",
+            width: "100%",
+            height: "100%",
+            outline: "none",
+            border: "1px solid #ddd",
+            borderRadius: "4px",
+            padding: "12px",
+            display: "block",
+            boxSizing: "border-box",
+          }}
+        ></math-field>
       </div>
     </div>
   );

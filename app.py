@@ -757,7 +757,7 @@ elif st.session_state.page_mode == "results":
 
             composer_box = st.empty()
 
-            with st.expander("📐 插入公式到输入框"):
+            with st.expander("📐 插入公式到智能辅导提示词输入框"):
                 user_latex = math_input(
                     default_value=st.session_state.get(latex_key, ""),
                     key=f"react_math_{qid}"
@@ -766,7 +766,7 @@ elif st.session_state.page_mode == "results":
                 if user_latex is not None:
                     st.session_state[latex_key] = user_latex
 
-                if st.button("插入公式到问题框", key=f"insert_formula_{qid}", use_container_width=True):
+                if st.button("插入公式到智能辅导提示词输入框", key=f"insert_formula_{qid}", use_container_width=True):
                     latex = st.session_state.get(latex_key, "").strip()
                     if latex:
                         current = st.session_state.get(composer_input_key, "").strip()
@@ -776,7 +776,7 @@ elif st.session_state.page_mode == "results":
                         st.rerun()
 
             composer_box.text_area(
-                "请输入你的问题（支持文字 + LaTeX 公式）",
+                "请输入智能辅导提示词（支持文字 + LaTeX 公式）",
                 key=composer_input_key,
                 height=110
             )
