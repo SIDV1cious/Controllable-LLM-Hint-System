@@ -5,6 +5,7 @@ import {
 } from "streamlit-component-lib";
 import React, { useEffect, useRef, useState } from "react";
 
+import { initVirtualKeyboardInCurrentBrowsingContext } from "mathlive";
 import "mathlive";
 import "mathlive/static.css";
 
@@ -18,6 +19,7 @@ declare global {
 
 const MyComponent = ({ args }: ComponentProps) => {
   const mfRef = useRef<any>(null);
+  const vkRef = useRef<any>(null);
   const [latex, setLatex] = useState(args.default_value || "");
 
   const refreshFrameHeight = () => {
@@ -27,21 +29,20 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   useEffect(() => {
+    vkRef.current = initVirtualKeyboardInCurrentBrowsingContext();
+    refreshFrameHeight();
+  }, []);
+
+  useEffect(() => {
     const mf = mfRef.current;
-    const vk = (window as any).mathVirtualKeyboard;
+    const vk = vkRef.current;
 
     if (!mf) return;
 
     mf.value = args.default_value || "";
-
     mf.mathVirtualKeyboardPolicy = "sandboxed";
-
     mf.smartMode = true;
     mf.inlineShortcuts = true;
-
-    if (vk) {
-      vk.container = document.body;
-    }
 
     const handleInput = (e: any) => {
       const newValue = e.target.value;
@@ -50,12 +51,23 @@ const MyComponent = ({ args }: ComponentProps) => {
       refreshFrameHeight();
     };
 
+    const handleGeometryChange = () => {
+      refreshFrameHeight();
+    };
+
     mf.addEventListener("input", handleInput);
+
+    if (vk) {
+      vk.addEventListener("geometrychange", handleGeometryChange);
+    }
 
     refreshFrameHeight();
 
     return () => {
       mf.removeEventListener("input", handleInput);
+      if (vk) {
+        vk.removeEventListener("geometrychange", handleGeometryChange);
+      }
     };
   }, [args.default_value]);
 
@@ -77,12 +89,8 @@ const MyComponent = ({ args }: ComponentProps) => {
     `;
     document.head.appendChild(style);
 
-    const handleResize = () => {
-      refreshFrameHeight();
-    };
-
+    const handleResize = () => refreshFrameHeight();
     window.addEventListener("resize", handleResize);
-    refreshFrameHeight();
 
     return () => {
       document.head.removeChild(style);
@@ -92,7 +100,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const toggleKeyboard = () => {
     const mf = mfRef.current;
-    const vk = (window as any).mathVirtualKeyboard;
+    const vk = vkRef.current;
 
     if (!mf || !vk) return;
 
