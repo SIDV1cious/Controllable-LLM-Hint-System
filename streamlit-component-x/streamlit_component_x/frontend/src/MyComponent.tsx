@@ -23,9 +23,8 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (mf) {
       mf.value = args.default_value || ""
       
-      mf.setOptions({
-        virtualKeyboardMode: "manual",
-      })
+      // 罪魁祸首已修正：直接赋值，彻底抛弃 setOptions
+      mf.mathVirtualKeyboardPolicy = "manual"
 
       const handleInput = (e: any) => {
         const newValue = e.target.value
