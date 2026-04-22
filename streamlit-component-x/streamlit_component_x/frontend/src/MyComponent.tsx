@@ -4,7 +4,6 @@ import {
   ComponentProps,
 } from "streamlit-component-lib";
 import React, { useEffect, useRef } from "react";
-
 import { initVirtualKeyboardInCurrentBrowsingContext } from "mathlive";
 import "mathlive";
 import "mathlive/static.css";
@@ -17,7 +16,7 @@ declare global {
   }
 }
 
-const FRAME_HEIGHT = 620;
+const FRAME_HEIGHT = 640;
 
 const MyComponent = ({ args }: ComponentProps) => {
   const mfRef = useRef<any>(null);
@@ -25,7 +24,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const refreshFrameHeight = () => {
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
-    window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 100);
+    window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 80);
   };
 
   useEffect(() => {
@@ -39,12 +38,14 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     if (!mf) return;
 
-    mf.value = args.default_value || "";
+    if ((args.default_value || "") !== mf.value) {
+      mf.value = args.default_value || "";
+    }
+
     mf.mathVirtualKeyboardPolicy = "sandboxed";
 
     const handleInput = (e: any) => {
-      const newValue = e.target.value;
-      Streamlit.setComponentValue(newValue);
+      Streamlit.setComponentValue(e.target.value);
     };
 
     const handleGeometryChange = () => {
@@ -71,7 +72,14 @@ const MyComponent = ({ args }: ComponentProps) => {
     const style = document.createElement("style");
     style.innerHTML = `
       html, body {
+        margin: 0;
+        padding: 0;
         overflow: hidden !important;
+        background: white;
+      }
+
+      #root {
+        height: 100%;
       }
 
       math-virtual-keyboard {
@@ -81,11 +89,6 @@ const MyComponent = ({ args }: ComponentProps) => {
         bottom: 0 !important;
         width: 100% !important;
         z-index: 2147483647 !important;
-      }
-
-      math-field {
-        height: 100% !important;
-        min-height: 100% !important;
       }
     `;
     document.head.appendChild(style);
@@ -99,51 +102,31 @@ const MyComponent = ({ args }: ComponentProps) => {
     <div
       style={{
         background: "white",
-        padding: "15px",
+        border: "1px solid #ddd",
         borderRadius: "8px",
-        border: "1px solid #ccc",
-        height: "540px",
-        position: "relative",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
+        padding: "12px",
+        height: "520px",
         boxSizing: "border-box",
+        overflow: "hidden",
       }}
     >
-      <div
+      <math-field
+        ref={mfRef}
         style={{
-          fontSize: "14px",
-          color: "#666",
-          marginBottom: "10px",
-          fontWeight: "bold",
-          flexShrink: 0,
+          width: "100%",
+          height: "300px",
+          minHeight: "300px",
+          display: "block",
+          boxSizing: "border-box",
+          fontSize: "28px",
+          border: "1px solid #ddd",
+          borderRadius: "6px",
+          padding: "12px",
+          outline: "none",
+          overflow: "auto",
+          background: "white",
         }}
-      >
-        📐 MathLive 面板
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-        }}
-      >
-        <math-field
-          ref={mfRef}
-          style={{
-            fontSize: "28px",
-            width: "100%",
-            height: "100%",
-            outline: "none",
-            border: "1px solid #ddd",
-            borderRadius: "4px",
-            padding: "12px",
-            display: "block",
-            boxSizing: "border-box",
-          }}
-        ></math-field>
-      </div>
+      ></math-field>
     </div>
   );
 };
