@@ -4,6 +4,7 @@ import {
   ComponentProps,
 } from "streamlit-component-lib"
 import React, { useEffect, useRef, useState } from "react"
+import "mathlive" // 👑 最致命的一行：激活 MathLive 渲染引擎！
 import { MathfieldElement } from "mathlive"
 
 declare global {
@@ -23,7 +24,6 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (mf) {
       mf.value = args.default_value || ""
       
-      // 罪魁祸首已修正：直接赋值，彻底抛弃 setOptions
       mf.mathVirtualKeyboardPolicy = "manual"
 
       const handleInput = (e: any) => {
