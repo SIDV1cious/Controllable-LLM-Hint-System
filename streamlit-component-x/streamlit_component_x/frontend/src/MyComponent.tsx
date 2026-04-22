@@ -16,7 +16,6 @@ declare global {
 
 const MyComponent = ({ args }: ComponentProps) => {
   const mfRef = useRef<any>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   const [latex, setLatex] = useState(args.default_value || "")
 
   useEffect(() => {
@@ -24,10 +23,6 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (mf) {
       mf.value = args.default_value || ""
       mf.mathVirtualKeyboardPolicy = "manual"
-
-      if ((window as any).mathVirtualKeyboard) {
-        (window as any).mathVirtualKeyboard.container = containerRef.current
-      }
 
       const handleInput = (e: any) => {
         const newValue = e.target.value
@@ -48,7 +43,7 @@ const MyComponent = ({ args }: ComponentProps) => {
   }, [])
 
   return (
-    <div ref={containerRef} style={{ background: "white", padding: "15px", borderRadius: "8px", border: "1px solid #ccc", minHeight: "450px", position: "relative" }}>
+    <div style={{ background: "white", padding: "15px", borderRadius: "8px", border: "1px solid #ccc", minHeight: "450px" }}>
       <div style={{ fontSize: "14px", color: "#666", marginBottom: "10px", fontWeight: "bold" }}>
         📐 MathLive 面板
       </div>
