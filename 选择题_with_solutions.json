@@ -1,0 +1,566 @@
+[
+    {
+        "question": "设 $\\alpha = \\ln \\frac{1+x}{1+x^3}, \\beta = x^2 - \\ln^2(1+x)$，则当 $x \\to 0$ 时，( ).",
+        "choices": [
+            "A. $\\alpha$ 是 $\\beta$ 的高阶无穷小 \\quad",
+            "B. $\\alpha$ 是 $\\beta$ 的低阶无穷小.",
+            "C. $\\alpha$ 是 $\\beta$ 的等价无穷小",
+            "D. $\\alpha$ 是 $\\beta$ 的同阶而非等价的无穷小"
+        ],
+        "answer": "B",
+        "solution": "解：当 $x \\to 0$ 时，$\\alpha = \\ln \\frac{1+x^2}{1+x^3} = \\ln\\left(1+\\frac{x^2-x^3}{1+x^3}\\right) \\sim \\frac{x^2-x^3}{1+x^3} \\sim x^2 - x^3 \\sim x^2$，由 $\\lim_{x \\to 0} \\frac{\\beta}{x^3} = \\lim_{x \\to 0} \\frac{x+\\ln(1+x)}{x} \\cdot \\frac{x-\\ln(1+x)}{x^2} = 2\\lim_{x \\to 0} \\frac{x-\\ln(1+x)}{x^2} = \\lim_{x \\to 0} \\frac{1-\\frac{1}{1+x}}{x} = 1$ 得 $\\beta \\sim x^3$，则 $\\alpha$ 是 $\\beta$ 的低阶无穷小，选 (B).",
+        "id": 0
+    },
+    {
+        "question": "$\\lim_{n \\to \\infty} \\left( \\frac{1}{n^2 + 2} + \\frac{2}{n^2 + 4} + \\cdots + \\frac{n}{n^2 + 2n} \\right) = \\ ?$",
+        "choices": [
+            "A. 2",
+            "B. $\\frac{3}{2}$",
+            "C. 1",
+            "D. $\\frac{1}{2}$"
+        ],
+        "answer": "D",
+        "solution": "解：令 $\\frac{1}{n^2+2} + \\frac{2}{n^2+4} + \\cdots + \\frac{n}{n^2+2n} = b_n$，则 $b_n \\ge \\frac{1+2+\\cdots+n}{n^2+2n} = \\frac{1}{2} \\cdot \\frac{n(n+1)}{n^2+2n}$，且 $b_n \\le \\frac{1+2+\\cdots+n}{n^2+2} = \\frac{1}{2} \\cdot \\frac{n(n+1)}{n^2+2}$，即 $\\frac{1}{2} \\cdot \\frac{n(n+1)}{n^2+2n} \\le b_n \\le \\frac{1}{2} \\cdot \\frac{n(n+1)}{n^2+2}$，因为 $\\lim_{n \\to \\infty} \\frac{1}{2} \\cdot \\frac{n(n+1)}{n^2+2n} = \\lim_{n \\to \\infty} \\frac{1}{2} \\cdot \\frac{n(n+1)}{n^2+2} = \\frac{1}{2}$，根据夹逼准则，得 $\\lim_{n \\to \\infty} b_n = \\frac{1}{2}$，选 (D).",
+        "id": 1
+    },
+    {
+        "question": "$\\lim_{x \\to 0} \\frac{ax + |x|}{x} \\arctan \\frac{1}{x} = b \\ (b \\neq 0 \\text{ 且 } b \\neq \\infty)$",
+        "choices": [
+            "A. a=0, b=$-\\frac{\\pi}{2}$",
+            "B. a=0, b=$\\frac{\\pi}{2}$",
+            "C. a=1, b=$\\frac{\\pi}{2}$",
+            "D. a=-1, b=$\\frac{\\pi}{2}$"
+        ],
+        "answer": "B",
+        "solution": "解：$\\lim_{x \\to 0^-} \\frac{ax+|x|}{x}\\arctan\\frac{1}{x} = -\\frac{\\pi}{2}(a-1)$，$\\lim_{x \\to 0^+} \\frac{ax+|x|}{x}\\arctan\\frac{1}{x} = \\frac{\\pi}{2}(a+1)$，因为 $\\lim_{x \\to 0} \\frac{ax+|x|}{x}\\arctan\\frac{1}{x}$ 存在，所以 $-\\frac{\\pi}{2}(a-1) = \\frac{\\pi}{2}(a+1)$，解得 $a=0$，$b=\\frac{\\pi}{2}$，选 (B).",
+        "id": 2
+    },
+    {
+        "question": "$\\lim_{x \\to 0} \\frac{\\sqrt{1 + a\\sin x} - \\sqrt{1 + \\tan x}}{x^3} = b \\ (b \\neq 0 \\text{ 且 } b \\neq \\infty)$",
+        "choices": [
+            "A. a = 1, b = $-\\frac{1}{4}$",
+            "B. a = 1, b = $\\frac{1}{4}$",
+            "C. a = -1, b = $-\\frac{1}{4}$",
+            "D. a = -1, b = $\\frac{1}{4}$"
+        ],
+        "answer": "A",
+        "solution": "解：$\\lim_{x \\to 0} \\frac{\\sqrt{1+a\\sin x}-\\sqrt{1+\\tan x}}{x^3} = \\lim_{x \\to 0} \\frac{1}{\\sqrt{1+a\\sin x}+\\sqrt{1+\\tan x}} \\cdot \\frac{a\\sin x - \\tan x}{x^3} = \\frac{1}{2}\\lim_{x \\to 0} \\frac{\\tan x}{x} \\cdot \\frac{a\\cos x - 1}{x^2} = \\frac{1}{2}\\lim_{x \\to 0} \\frac{a\\cos x - 1}{x^2}$，显然 $a=1$，$b = \\frac{1}{2}\\lim_{x \\to 0} \\frac{\\cos x - 1}{x^2} = -\\frac{1}{4}$，选 (A).",
+        "id": 3
+    },
+    {
+        "question": "$\\lim_{x \\to \\infty} \\left( \\frac{2x^2 + 1}{x + 1} - ax - b \\right)$ = 0",
+        "choices": [
+            "A. a = 1, b = -1",
+            "B. a = 2, b = 1",
+            "C. a = 2, b = -2",
+            "D. a = -2, b = 2"
+        ],
+        "answer": "C",
+        "solution": "解：$\\frac{2x^2+1}{x+1} - ax - b = \\frac{2x^2+1-(x+1)(ax+b)}{x+1} = \\frac{(2-a)x^2-(a+b)x+1-b}{x+1}$，由 $\\lim_{x \\to \\infty} \\frac{(2-a)x^2-(a+b)x+1-b}{x+1} = 0$ 得 $2-a=0, a+b=0$，即 $a=2, b=-2$，选 (C).",
+        "id": 4
+    },
+    {
+        "question": "$f(x)=\\begin{cases}\\dfrac{4\\arctan x + a\\sin\\left(\\mathrm{e}^{2x} - 1\\right)}{x}, & x < 0, \\\\ b, & x = 0, \\\\ \\dfrac{2x - \\ln(1 + 2x)}{x^2}, & x > 0\\end{cases} \\text{ 且 } f(x) \\text{ 在 } x=0 \\text{ 处连续，则( )}$.",
+        "choices": [
+            "A. a = -1, b = 2",
+            "B. a = -1, b = -2",
+            "C. a = 1, b = -2",
+            "D. a = 1, b = 2"
+        ],
+        "answer": "A",
+        "solution": "解：$f(0-0)=4\\lim_{x \\to 0^-} \\frac{\\arctan x}{x} + a\\lim_{x \\to 0^-} \\frac{\\sin(e^{2x}-1)}{x} = 4+2a$，$f(0+0)=\\lim_{x \\to 0^+} \\frac{2x-\\ln(1+2x)}{x^2} = 4\\lim_{x \\to 0^+} \\frac{2x-\\ln(1+2x)}{(2x)^2} \\xlongequal{2x=t} 4\\lim_{t \\to 0^+} \\frac{t-\\ln(1+t)}{t^2} = 2$，因为 $f(x)$ 在 $x=0$ 处连续，所以 $f(0-0)=f(0)=f(0+0)$，则 $a=-1,b=2$，选 (A).",
+        "id": 5
+    },
+    {
+        "question": "$\\text{ 设 } f(x)=\\begin{cases}\\dfrac{2 - 2^{\\frac{1}{x-1}}}{1 + 2^{\\frac{1}{x-1}}}, & x \\neq 1, \\\\ 1, & x = 1\\end{cases} \\text{，则( )}.$",
+        "choices": [
+            "A. f(x) \\text{ 在 } x=1 \\text{ 处连续}",
+            "B. x=1 \\text{ 为 } f(x) \\text{ 的可去间断点}",
+            "C. x=1 \\text{ 为 } f(x) \\text{ 的跳跃间断点}",
+            "D. x=1 \\text{ 为 } f(x) \\text{ 的第二类间断点}"
+        ],
+        "answer": "C",
+        "solution": "解：由 $f(1-0)=\\lim_{x \\to 1^-} \\frac{2-2^{\\frac{1}{x-1}}}{1+2^{\\frac{1}{x-1}}}=2$，$f(1+0)=\\lim_{x \\to 1^+} \\frac{2-2^{\\frac{1}{x-1}}}{1+2^{\\frac{1}{x-1}}}=-1$ 得 $x=1$ 为 $f(x)$ 的跳跃间断点，选 (C).",
+        "id": 6
+    },
+    {
+        "question": "$\\text{ 设 } f(x) = \\frac{|\\ln|x||}{x^2 - 1} \\text{，则 } f(x) \\text{ 有( )}.$",
+        "choices": [
+            "A. 两个跳跃间断点，一个第二类间断点",
+            "B. 两个可去间断点，一个第二类间断点",
+            "C. 一个可去间断点，一个跳跃间断点，一个第二类间断点",
+            "D. 三个第二类间断点"
+        ],
+        "answer": "A",
+        "solution": "解：显然函数 $f(x)$ 的间断点为 $x=-1,x=0,x=1$。由 $\\lim_{x \\to -1^-} f(x) = \\lim_{x \\to -1^-} \\frac{\\ln(-x)}{x^2-1} = \\lim_{x \\to -1^-} \\frac{1}{x-1} \\cdot \\frac{\\ln[1-(x+1)]}{x+1} = \\frac{1}{2}$，$\\lim_{x \\to -1^+} f(x) = \\lim_{x \\to -1^+} \\frac{-\\ln(-x)}{x^2-1} = -\\lim_{x \\to -1^+} \\frac{1}{x-1} \\cdot \\frac{\\ln[1-(x+1)]}{x+1} = -\\frac{1}{2}$ 得 $x=-1$ 为 $f(x)$ 的跳跃间断点；由 $\\lim_{x \\to 0} f(x) = -\\infty$ 得 $x=0$ 为 $f(x)$ 的第二类间断点；由 $\\lim_{x \\to 1^-} f(x) = -\\lim_{x \\to 1^-} \\frac{\\ln x}{x^2-1} = -\\lim_{x \\to 1^-} \\frac{1}{x+1} \\cdot \\frac{\\ln[1+(x-1)]}{x-1} = -\\frac{1}{2}$，$\\lim_{x \\to 1^+} f(x) = \\lim_{x \\to 1^+} \\frac{\\ln x}{x^2-1} = \\lim_{x \\to 1^+} \\frac{1}{x+1} \\cdot \\frac{\\ln[1+(x-1)]}{x-1} = \\frac{1}{2}$ 得 $x=1$ 为 $f(x)$ 的跳跃间断点，选 (A).",
+        "id": 7
+    },
+    {
+        "question": "\\text{ 设 } f(x)=\\begin{cases}1, & |x| \\le 1, \\\\ 0, & |x| > 1\\end{cases} \\text{，则 } f\\{f[f(x)]\\} = \\text{( )}.",
+        "choices": [
+            "A. 0",
+            "B. 1",
+            "C. \\begin{cases}1, & |x| \\le 1, \\\\ 0, & |x| > 1\\end{cases}",
+            "D. \\begin{cases}0, & |x| \\le 1, \\\\ 1, & |x| > 1\\end{cases}"
+        ],
+        "answer": "B",
+        "solution": "解：$f[f(x)] = \\begin{cases} 1, & |f(x)| \\le 1 \\\\ 0, & |f(x)| > 1 \\end{cases}$，因为 $|f(x)| \\le 1$，所以 $f[f(x)] = 1$，于是 $f\\{f[f(x)]\\} = 1$，选 (B).",
+        "id": 8
+    },
+    {
+        "question": "\\text{函数 } f(x) = |x \\sin x| \\mathrm{e}^{\\cos x},\\ -\\infty < x < +\\infty \\text{ 是( )}.",
+        "choices": [
+            "A. 有界函数",
+            "B. 单调函数",
+            "C. 周期函数",
+            "D. 偶函数"
+        ],
+        "answer": "D",
+        "solution": "解：显然题目中函数为偶函数，选 (D).",
+        "id": 9
+    },
+    {
+        "question": "\\text{当 } x \\to 0 \\text{ 时，下列无穷小中，哪个是比其他三个更高阶的无穷小( )}.",
+        "choices": [
+            "A. x^2",
+            "B. 1 - \\cos x",
+            "C. \\sqrt{1 - x^2} - 1",
+            "D. x - \\tan x"
+        ],
+        "answer": "D",
+        "solution": "解：当 $x \\to 0$ 时，$1-\\cos x \\sim \\frac{x^2}{2}$，$\\sqrt{1-x^2}-1 \\sim -\\frac{x^2}{2}$，因为 $\\lim_{x \\to 0} \\frac{x-\\tan x}{x^3} = \\lim_{x \\to 0} \\frac{1-\\sec^2 x}{3x^2} = -\\frac{1}{3}$，所以 $x-\\tan x$ 是比其他三个无穷小阶数更高的无穷小，选 (D).",
+        "id": 10
+    },
+    {
+        "question": "\\text{当 } x \\to 0^+ \\text{ 时，下列无穷小中，阶数最高的是( )}.",
+        "choices": [
+            "A. \\ln(1 + x^2) - x^2",
+            "B. \\sqrt{1 + x^2} + \\cos x - 2",
+            "C. \\int_{0}^{x^2} \\ln(1 + t^2) \\, dt",
+            "D. \\mathrm{e}^{x^2} - 1 - x^2"
+        ],
+        "answer": "C",
+        "solution": "解：当 $x \\to 0^+$ 时，$\\ln(1+x^2)-x^2 \\sim -\\frac{1}{2}x^4$；$\\sqrt{1+x^2}+\\cos x-2 = 1+\\frac{1}{2}x^2-\\frac{1}{8}x^4+o(x^4)+1-\\frac{1}{2}x^2+\\frac{1}{4!}x^4+o(x^4)-2 \\sim -\\frac{1}{12}x^4$；由 $\\lim_{x \\to 0} \\frac{\\int_0^{x^2} \\ln(1+t^2)\\mathrm{d}t}{x^6} = \\lim_{x \\to 0} \\frac{2x\\ln(1+x^4)}{6x^5} = \\frac{1}{3}$，得当 $x \\to 0$ 时，$\\int_0^{x^2} \\ln(1+t^2)\\mathrm{d}t \\sim \\frac{1}{3}x^6$；$\\mathrm{e}^{x^2}-1-x^2 = 1+x^2+\\frac{x^4}{2}+o(x^4)-1-x^2 \\sim \\frac{x^4}{2}$，则 $\\int_0^{x^2} \\ln(1+t^2)\\mathrm{d}t$ 为最高阶无穷小，选 (C).",
+        "id": 11
+    },
+    {
+        "question": "\\text{当 } x \\to 0^+ \\text{ 时，无穷小 } \\alpha = (1+x)^{\\frac{2}{x}} - \\mathrm{e}^2,\\ \\beta = \\mathrm{e}^{\\sin^2 x} - \\mathrm{e}^{x^2},\\ \\gamma = x^2 - \\ln^2(1+x) \\text{ 的阶数由低到高的次序为( )}.",
+        "choices": [
+            "A. \\alpha, \\gamma, \\beta",
+            "B. \\alpha, \\beta, \\gamma",
+            "C. \\beta, \\alpha, \\gamma",
+            "D. \\beta, \\gamma, \\alpha"
+        ],
+        "answer": "A",
+        "solution": "解：当 $x \\to 0^+$ 时，有 $\\alpha = (1+x)^{\\frac{2}{x}} - e^2 = e^{\\frac{2\\ln(1+x)}{x}} - e^2 = e^2\\left[e^{\\frac{2\\ln(1+x)}{x}-2} - 1\\right] \\sim 2e^2 \\frac{\\ln(1+x)-x}{x} \\sim -e^2 x$；$\\beta = e^{\\sin^2 x} - e^{x^2} = e^{x^2} \\cdot \\left(e^{\\sin^2 x - x^2} - 1\\right) \\sim (\\sin^2 x - x^2) = (\\sin x + x)(\\sin x - x) \\sim -\\frac{x^4}{3}$；$\\gamma = x^2 - \\ln^2(1+x) = [x+\\ln(1+x)][x-\\ln(1+x)] \\sim x^3$，选 (A).",
+        "id": 12
+    },
+    {
+        "question": "\\text{设当 } x \\to 0 \\text{ 时}, (x - \\sin x)\\ln(1+x) \\text{ 是比 } \\mathrm{e}^{x^n} - 1 \\text{ 高阶的无穷小，而 } \\mathrm{e}^{x^n} - 1 \\text{ 是比 } \\frac{1}{x}\\int_{0}^{x} (1 - \\cos^2 t)\\,\\mathrm{d}t \\text{ 高阶的无穷小，则 } n \\text{ 为( )}.",
+        "choices": [
+            "A. 1",
+            "B. 2",
+            "C. 3",
+            "D. 4"
+        ],
+        "answer": "C",
+        "solution": "解：当 $x \\to 0$ 时，$e^{x^n}-1 \\sim x^n$，因为 $\\sin x = x - \\frac{x^3}{3!} + o(x^3)$，所以 $(x-\\sin x)\\ln(1+x) \\sim \\frac{x^4}{6}$；又因为 $\\lim_{x \\to 0} \\frac{\\frac{1}{x}\\int_0^x (1-\\cos^2 t)\\mathrm{d}t}{x^2} = \\lim_{x \\to 0} \\frac{\\int_0^x (1-\\cos^2 t)\\mathrm{d}t}{x^3} = \\lim_{x \\to 0} \\frac{1-\\cos^2 x}{3x^2} = \\lim_{x \\to 0} \\frac{(1+\\cos x)(1-\\cos x)}{3x^2} = \\frac{1}{3}$，所以当 $x \\to 0$ 时，$\\frac{1}{x}\\int_0^x (1-\\cos^2 t)\\mathrm{d}t \\sim \\frac{x^2}{3}$，于是 $n=3$，选 (C).",
+        "id": 13
+    },
+    {
+        "question": "\\lim_{x \\to \\infty} \\left( \\frac{2x^2 + 4x + 3}{2x - 1} - ax - b \\right) = 1 \\text{，则( )}.",
+        "choices": [
+            "A. a = -1,\\ b = \\frac{3}{2}",
+            "B. a = 1,\\ b = \\frac{3}{2}",
+            "C. a = 1,\\ b = -\\frac{3}{2}",
+            "D. a = -1,\\ b = -\\frac{3}{2}"
+        ],
+        "answer": "B",
+        "solution": "解：由 $\\lim_{x \\to \\infty} \\frac{2x^2+4x+3}{2x-1} - ax - b = \\lim_{x \\to \\infty} \\frac{(2-2a)x^2 + (4+a-2b)x + 3+b}{2x-1}$ 得 $\\begin{cases} 2-2a=0, \\\\ \\frac{4+a-2b}{2}=1, \\end{cases}$ 解得 $a=1, b=\\frac{3}{2}$，选 (B).",
+        "id": 14
+    },
+    {
+        "question": "\\lim_{x \\to 0} \\frac{1 - \\cos^2 2x}{x^a \\arctan x} = b \\ (b \\neq 0 \\text{ 且 } b \\neq \\infty) \\text{，则( )}.",
+        "choices": [
+            "A. a = 1, b = 1",
+            "B. a = 1, b = -1",
+            "C. a = 1, b = 4",
+            "D. a = 1, b = -4"
+        ],
+        "answer": "C",
+        "solution": "解：由 $\\lim_{x \\to 0} \\frac{1-\\cos^2 2x}{x^2} = \\lim_{x \\to 0} (1+\\cos 2x) \\cdot \\frac{1-\\cos 2x}{x^2} = 2\\lim_{x \\to 0} \\frac{\\frac{1}{2}(2x)^2}{x^2} = 4$ 得 $1-\\cos^2 2x \\sim 4x^2$；由 $x^a \\arctan x \\sim x^{a+1}$ 得 $a+1=2$，故 $a=1,b=4$，选 (C).",
+        "id": 15
+    },
+    {
+        "question": "\\lim_{x \\to 0} \\frac{\\sqrt{\\cos 2x} - \\sqrt[3]{\\cos 3x}}{x^a} = b \\ (b \\neq 0 \\text{ 且 } b \\neq \\infty) \\text{，则( )}.",
+        "choices": [
+            "A. a = 2,\\ b = \\frac{1}{2}",
+            "B. a = -2,\\ b = -\\frac{1}{2}",
+            "C. a = 2,\\ b = -\\frac{1}{2}",
+            "D. a = -2,\\ b = \\frac{1}{2}"
+        ],
+        "answer": "A",
+        "solution": "解：当 $x \\to 0$ 时，由 $1-\\sqrt{\\cos 2x} = \\frac{1-\\cos 2x}{1+\\sqrt{\\cos 2x}} \\sim \\frac{1}{2} \\cdot \\frac{1}{2}(2x)^2 = x^2$，$1-\\sqrt[3]{\\cos 3x} = \\frac{1-\\cos 3x}{1+\\sqrt[3]{\\cos 3x}+\\sqrt[3]{\\cos^2 3x}} \\sim \\frac{1}{3} \\cdot \\frac{1}{2}(3x)^2 = \\frac{3}{2}x^2$，得 $\\sqrt{\\cos 2x}-\\sqrt[3]{\\cos 3x} = (1-\\sqrt[3]{\\cos 3x})-(1-\\sqrt{\\cos 2x}) \\sim \\frac{1}{2}x^2$，则 $a=2,b=\\frac{1}{2}$，选 (A).",
+        "id": 16
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 连续，且 } \\lim_{x \\to 0} \\frac{\\ln(1+2x) + x f(x)}{x^2} = 2 \\text{，则 } \\lim_{x \\to 0} \\frac{2 + f(x)}{x} = \\text{( )}.",
+        "choices": [
+            "A. 2",
+            "B. -2",
+            "C. 4",
+            "D. -4"
+        ],
+        "answer": "C",
+        "solution": "解：由 $2 = \\lim_{x \\to 0} \\frac{\\ln(1+2x)+xf(x)}{x^2} = \\lim_{x \\to 0} \\frac{\\ln(1+2x)-2x}{x^2} + \\lim_{x \\to 0} \\frac{2x+xf(x)}{x^2} = 4\\lim_{x \\to 0} \\frac{\\ln(1+2x)-2x}{(2x)^2} + \\lim_{x \\to 0} \\frac{2+f(x)}{x} = -2 + \\lim_{x \\to 0} \\frac{2+f(x)}{x}$，得 $\\lim_{x \\to 0} \\frac{2+f(x)}{x} = 4$，选 (C).",
+        "id": 17
+    },
+    {
+        "question": "\\lim_{x \\to +\\infty} \\frac{[x]}{2x + 1} = \\text{( )}.",
+        "choices": [
+            "A. 0",
+            "B. \\frac{1}{2}",
+            "C. 1",
+            "D. \\infty"
+        ],
+        "answer": "B",
+        "solution": "解：对任意的 $x>0$，存在 $n \\in \\mathbf{N}$，使得 $x=n+\\theta$，其中 $0 \\leqslant \\theta < 1$，且当 $x \\to +\\infty$ 时 $n \\to \\infty$，由 $\\frac{1}{2n+3} \\leqslant \\frac{1}{2x+1} \\leqslant \\frac{1}{2n+1}$ 得 $\\frac{n}{2n+3} \\leqslant \\frac{[x]}{2x+1} \\leqslant \\frac{n}{2n+1}$，再由夹逼定理得 $\\lim_{x \\to +\\infty} \\frac{[x]}{2x+1} = \\frac{1}{2}$，应选 (B).",
+        "id": 18
+    },
+    {
+        "question": "\\text{极限 } \\lim_{x \\to 0} \\frac{1}{x} \\sin \\frac{1}{x} \\text{ ( )}.",
+        "choices": [
+            "A. 等于1",
+            "B. 为 \\infty",
+            "C. 不存在但不是 \\infty",
+            "D. 等于0"
+        ],
+        "answer": "C",
+        "solution": "解：因为当 $x_n = \\frac{1}{2n\\pi+\\frac{\\pi}{2}}\\ (n=1,2,\\cdots)$ 时，$\\lim_{n \\to \\infty} \\frac{1}{x_n}\\sin\\frac{1}{x_n} = \\infty$；当 $y_n = \\frac{1}{2n\\pi}\\ (n=1,2,\\cdots)$ 时，$\\lim_{n \\to \\infty} \\frac{1}{y_n}\\sin\\frac{1}{y_n} = 0$，所以 $\\lim_{x \\to 0} \\frac{1}{x}\\sin\\frac{1}{x}$ 极限不存在但不是 $\\infty$，选 (C).",
+        "id": 19
+    },
+    {
+        "question": "\\text{当 } x \\to 1 \\text{ 时}, f(x) = \\frac{x^2 - 1}{x - 1} \\mathrm{e}^{\\frac{1}{x-1}} \\text{ 的极限为( )}.",
+        "choices": [
+            "A. 2",
+            "B. 0",
+            "C. \\infty",
+            "D. 不存在但不是\\infty"
+        ],
+        "answer": "D",
+        "solution": "解：显然 $\\lim_{x \\to 1} \\frac{x^2 - 1}{x - 1} = 2$，因为 $\\lim_{x \\to 1^+} f(x) = 2\\lim_{x \\to 1^+} e^{\\frac{1}{x-1}} = +\\infty$，而 $\\lim_{x \\to 1^-} f(x) = 2\\lim_{x \\to 1^-} e^{\\frac{1}{x-1}} = 0$，所以 $\\lim_{x \\to 1} f(x)$ 不存在但不是 $\\infty$，选 (D).",
+        "id": 20
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 一阶连续可导，且 } f(0)=0,\\ f'(0)=1 \\text{，则 } \\lim_{x \\to 0} [1 + f(x)]^{\\frac{1}{\\arcsin x}} = \\text{( )}.",
+        "choices": [
+            "A. \\mathrm{e}^{-1}",
+            "B. \\mathrm{e}",
+            "C. \\mathrm{e}^{2}",
+            "D. \\mathrm{e}^{3}"
+        ],
+        "answer": "B",
+        "solution": "解：$\\lim_{x \\to 0} [1+f(x)]^{\\frac{1}{\\arcsin x}} = \\lim_{x \\to 0} \\left\\{ [1+f(x)]^{\\frac{1}{f(x)}} \\right\\}^{\\frac{f(x)}{\\arcsin x}} = e^{\\lim_{x \\to 0} \\frac{f(x)}{x}} = e^{\\lim_{x \\to 0} \\frac{f(x)-f(0)}{x}} = e^{f'(0)} = e$，选 (B).",
+        "id": 21
+    },
+    {
+        "question": "\\text{设 } f(x) = \\lim_{t \\to +\\infty} \\frac{x + \\mathrm{e}^{tx}}{1 + \\mathrm{e}^{tx}} \\text{，则 } x=0 \\text{ 是 } f(x) \\text{ 的( )}.",
+        "choices": [
+            "A. 连续点",
+            "B. 第一类间断点",
+            "C. 第二类间断点",
+            "D. 不能判断连续性的点"
+        ],
+        "answer": "B",
+        "solution": "解：当 $x>0$ 时，$f(x)=\\lim_{t \\to +\\infty} \\frac{x+e^{tx}}{1+e^{tx}}=1$；当 $x=0$ 时，$f(x)=\\frac{1}{2}$；当 $x<0$ 时，$f(x)=x$。因为 $f(0+0)=1$，$f(0)=\\frac{1}{2}$，$f(0-0)=0$，所以 $x=0$ 为 $f(x)$ 的第一类间断点，选 (B)。",
+        "id": 22
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 是不恒为零的奇函数，且 } f'(0) \\text{ 存在，若 } g(x) = \\frac{f(x)}{x} \\text{，则( )}.",
+        "choices": [
+            "A. g(x) \\text{ 在 } x=0 \\text{ 处无极限}",
+            "B. x=0 \\text{ 为 } g(x) \\text{ 的可去间断点}",
+            "C. x=0 \\text{ 为 } g(x) \\text{ 的跳跃间断点}",
+            "D. x=0 \\text{ 为 } g(x) \\text{ 的第二类间断点}"
+        ],
+        "answer": "B",
+        "solution": "解：因为 $f'(0)$ 存在，所以 $f(x)$ 在 $x=0$ 处连续，又因为 $f(x)$ 为奇函数，所以 $f(0)=0$。显然 $x=0$ 为 $g(x)$ 的间断点，因为 $\\lim_{x \\to 0} g(x) = \\lim_{x \\to 0} \\frac{f(x)}{x} = \\lim_{x \\to 0} \\frac{f(x)-f(0)}{x} = f'(0)$，所以 $x=0$ 为 $g(x)$ 的可去间断点，选 (B)。",
+        "id": 23
+    },
+    {
+        "question": "\\text{设 } f(x) = \\lim_{n \\to \\infty} \\frac{1 + x}{1 + x^{2n}} \\text{，则 } f(x) \\text{ ( )}.",
+        "choices": [
+            "A. 无间断点",
+            "B. 有间断点 x = 1",
+            "C. 有间断点 x = -1",
+            "D. 有间断点 x = 0"
+        ],
+        "answer": "B",
+        "solution": "解：当 $|x|<1$ 时，$f(x)=1+x$；当 $|x|>1$ 时，$f(x)=0$；当 $x=-1$ 时，$f(x)=0$；当 $x=1$ 时，$f(x)=1$。于是 $f(x)=\\begin{cases}1+x, & |x|<1, \\\\ 0, & |x|>1, \\\\ 0, & x=-1, \\\\ 1, & x=1,\\end{cases}$ 显然 $x=1$ 为函数 $f(x)$ 的间断点，选 (B)。",
+        "id": 24
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 在 } [-1,1] \\text{ 上连续，则 } x=0 \\text{ 是函数 } g(x) = \\frac{\\int_{0}^{x} f(t)\\,\\mathrm{d}t}{x} \\text{ 的( )}.",
+        "choices": [
+            "A. 可去间断点",
+            "B. 跳跃间断点",
+            "C. 连续点",
+            "D. 第二类间断点"
+        ],
+        "answer": "A",
+        "solution": "解：显然 $x=0$ 为 $g(x)$ 的间断点，因为 $\\lim_{x \\to 0} g(x) = \\lim_{x \\to 0} \\frac{\\int_{0}^{x} f(t) dt}{x} = \\lim_{x \\to 0} f(x) = f(0)$，所以 $x=0$ 为 $g(x)$ 的可去间断点，选 (A)。",
+        "id": 25
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 以 } 2 \\text{ 为周期且 } f'(1) = \\pi \\text{，则 } \\lim_{x \\to 0} \\frac{f(3 + 2x) - f(-1 - \\sin x)}{x} = \\text{( )}.",
+        "choices": [
+            "A. \\pi",
+            "B. 2\\pi",
+            "C. 3\\pi",
+            "D. 4\\pi"
+        ],
+        "answer": "C",
+        "solution": "解：由 $f(3+2x)=f(2+1+2x)=f(1+2x)$，$f(-1-\\sin x)=f(-2+1-\\sin x)=f(1-\\sin x)$ 得 $\\lim_{x \\to 0} \\frac{f(3+2x)-f(-1-\\sin x)}{x} = \\lim_{x \\to 0} \\frac{f(1+2x)-f(1-\\sin x)}{x} = 2\\lim_{x \\to 0} \\frac{f(1+2x)-f(1)}{2x} + \\lim_{x \\to 0} \\frac{f(1-\\sin x)-f(1)}{-\\sin x} \\cdot \\frac{\\sin x}{x} = 3f'(1)=3\\pi$，选 (C)。",
+        "id": 26
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 连续，且 } \\lim_{x \\to 1} \\frac{f(x^3) - 2}{x - 1} = -1 \\text{，则 } \\lim_{x \\to 0} \\frac{f(1 + 2x) - f(1 - x)}{x + x^2} = \\text{( )}.",
+        "choices": [
+            "A. -1",
+            "B. 1",
+            "C. -3",
+            "D. 3"
+        ],
+        "answer": "A",
+        "solution": "解：由 $\\lim_{x \\to 1} \\frac{f(x^3)-2}{x-1}=-1$ 得 $f(1)=2$，再由 $-1=\\lim_{x \\to 1} \\frac{f[1+(x^3-1)]-f(1)}{x^3-1} \\cdot \\frac{x^3-1}{x-1}=3f'(1)$ 得 $f'(1)=-\\frac{1}{3}$，则 $\\lim_{x \\to 0} \\frac{f(1+2x)-f(1-x)}{x+x^2}=\\lim_{x \\to 0} \\frac{1}{1+x} \\cdot \\frac{f(1+2x)-f(1-x)}{x}=\\lim_{x \\to 0}\\left[2 \\cdot \\frac{f(1+2x)-f(1)}{2x}+\\frac{f(1-x)-f(1)}{-x}\\right]=3f'(1)=-1$，选 (A).",
+        "id": 27
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 在 } x=a \\text{ 处连续，} \\varphi(x) = |x-a|f(x) \\text{，若 } \\varphi(x) \\text{ 在 } x=a \\text{ 处可导，则( )}.",
+        "choices": [
+            "A. f(a) = 0",
+            "B. f(a) \\neq 0",
+            "C. f'(a) = 0",
+            "D. f'(a) \\neq 0"
+        ],
+        "answer": "A",
+        "solution": "解：$\\varphi'_-(a)=\\lim_{x \\to a^-}\\frac{\\varphi(x)-\\varphi(a)}{x-a}=\\lim_{x \\to a^-}\\frac{|x-a|}{x-a}\\cdot f(x)=-f(a)$，$\\varphi'_+(a)=\\lim_{x \\to a^+}\\frac{\\varphi(x)-\\varphi(a)}{x-a}=\\lim_{x \\to a^+}\\frac{|x-a|}{x-a}\\cdot f(x)=f(a)$。若 $\\varphi(x)$ 在 $x=a$ 处可导，则 $\\varphi'_-(a)=\\varphi'_+(a)$，从而 $f(a)=0$，选 (A)。",
+        "id": 28
+    },
+    {
+        "question": "\\text{设函数 } y = f(x) \\text{ 连续，} \\Delta y = 2x\\Delta x + o(\\Delta x) \\text{，且 } f(1) = 2 \\text{，则函数 } y = f(x^3) \\text{ 在 } x=1 \\text{ 处的微分为( )}.",
+        "choices": [
+            "A. 2\\mathrm{d}x",
+            "B. 3\\mathrm{d}x",
+            "C. 6\\mathrm{d}x",
+            "D. 9\\mathrm{d}x"
+        ],
+        "answer": "C",
+        "solution": "解：由 $\\Delta y=2x\\Delta x+o(\\Delta x)$ 得 $f(x)$ 可导，且 $f'(x)=2x$，则 $f(x)=x^2+C$。由 $f(1)=2$ 得 $C=1$，从而 $f(x)=x^2+1$，于是 $y=f(x^3)=x^6+1$，$y'=6x^5$，则 $y=f(x^3)$ 在 $x=1$ 处的微分为 $6dx$，选 (C)。",
+        "id": 29
+    },
+    {
+        "question": "\\text{下列函数中，在 } x=0 \\text{ 处可导的是( )}.",
+        "choices": [
+            "A. f(x) = \\frac{|x|}{x + 1}",
+            "B. f(x) = \\sqrt{\\cos x}",
+            "C. f(x) = x \\arctan \\frac{1}{x}",
+            "D. f(x) = \\cos \\sqrt{|x|}"
+        ],
+        "answer": "B",
+        "solution": "解：(A) $f(x)=\\frac{|x|}{x+1}$，$f'_-(0)=\\lim_{x \\to 0^-}\\frac{-x}{x(x+1)}=-1$，$f'_+(0)=\\lim_{x \\to 0^+}\\frac{x}{x(x+1)}=1$，不可导；(B) $f(x)=\\sqrt{\\cos x}$，$\\lim_{x \\to 0}\\frac{\\sqrt{\\cos x}-1}{x}=\\lim_{x \\to 0}\\frac{\\cos x-1}{x(\\sqrt{\\cos x}+1)}=0$，可导；(C) $f(x)=x\\arctan\\frac{1}{x}$，$f'_-(0)=-\\frac{\\pi}{2}$，$f'_+(0)=\\frac{\\pi}{2}$，不可导；(D) $f(x)=\\cos\\sqrt{|x|}$，$\\lim_{x \\to 0}\\frac{\\cos\\sqrt{|x|}-1}{x}=\\lim_{x \\to 0}\\frac{-\\frac{1}{2}|x|}{x}$ 极限不存在，不可导；综上选 (B)。",
+        "id": 30
+    },
+    {
+        "question": "\\text{设 } f(x) = \\begin{cases} x^2 + 2x + a, & x < 0, \\\\ \\ln(1 + bx), & x \\ge 0 \\end{cases} \\text{ 在 } x=0 \\text{ 处可导，则( )}.",
+        "choices": [
+            "A. a = 1, b = 1",
+            "B. a = 1, b = 2",
+            "C. a = 0, b = 1",
+            "D. a = 0, b = 2"
+        ],
+        "answer": "D",
+        "solution": "解：$f(0-0)=a$，$f(0)=f(0+0)=0$，因为 $f(x)$ 在 $x=0$ 处连续，所以 $a=0$；$f'_-(0)=\\lim_{x \\to 0^-}\\frac{f(x)-f(0)}{x}=\\lim_{x \\to 0^-}\\frac{x^2+2x}{x}=2$，$f'_+(0)=\\lim_{x \\to 0^+}\\frac{f(x)-f(0)}{x}=\\lim_{x \\to 0^+}\\frac{\\ln(1+bx)}{x}=b$，因为 $f(x)$ 在 $x=0$ 处可导，所以 $f'_-(0)=f'_+(0)$，故 $b=2$，选 (D)。",
+        "id": 31
+    },
+    {
+        "question": "\\text{设 } f(x)=\\begin{cases}\\dfrac{x\\left(1 - 2^{\\frac{1}{x}}\\right)}{1 + 2^{\\frac{1}{x}}}, & x \\neq 0, \\\\ 0, & x = 0\\end{cases}\\text{，则( )}.",
+        "choices": [
+            "A. f(x) \\text{ 在 } x=0 \\text{ 处连续可导}",
+            "B. f(x) \\text{ 在 } x=0 \\text{ 处可导，但导数不连续}",
+            "C. f(x) \\text{ 在 } x=0 \\text{ 处不可导但连续}",
+            "D. f(x) \\text{ 在 } x=0 \\text{ 处不连续}"
+        ],
+        "answer": "C",
+        "solution": "解：$f(0-0)=\\lim_{x \\to 0^-}x \\cdot \\frac{1-2^{\\frac{1}{x}}}{1+2^{\\frac{1}{x}}}=\\lim_{x \\to 0^-}x=0$，$f(0+0)=\\lim_{x \\to 0^+}x \\cdot \\frac{1-2^{\\frac{1}{x}}}{1+2^{\\frac{1}{x}}}=\\lim_{x \\to 0^+}(-x)=0$，由 $f(0-0)=f(0)=f(0+0)=0$ 得 $f(x)$ 在 $x=0$ 处连续；又因为 $\\lim_{x \\to 0}\\frac{f(x)-f(0)}{x}=\\lim_{x \\to 0}\\frac{1-2^{\\frac{1}{x}}}{1+2^{\\frac{1}{x}}}$，而由 $\\lim_{x \\to 0^-}\\frac{1-2^{\\frac{1}{x}}}{1+2^{\\frac{1}{x}}}=1$ 得 $f'_-(0)=1$，再由 $\\lim_{x \\to 0^+}\\frac{1-2^{\\frac{1}{x}}}{1+2^{\\frac{1}{x}}}=-1$ 得 $f'_+(0)=-1$，因此 $f'_-(0) \\neq f'_+(0)$，所以 $f(x)$ 在 $x=0$ 处不可导，选 (C)。",
+        "id": 32
+    },
+    {
+        "question": "\\text{设 } g(x) \\text{ 为有界函数，} f(x)=\\begin{cases}\\dfrac{x - \\ln(1+x)}{\\sqrt{x}}, & x>0, \\\\ x^2 g(x), & x \\le 0\\end{cases}\\text{，则( )}.",
+        "choices": [
+            "A. f(x) \\text{ 在 } x=0 \\text{ 处可导}",
+            "B. f(x) \\text{ 在 } x=0 \\text{ 连续，但不可导}",
+            "C. \\lim_{x \\to 0} f(x)=0 \\text{，但 } f(x) \\text{ 在 } x=0 \\text{ 处不连续}",
+            "D. \\lim_{x \\to 0} f(x) \\text{ 不存在}"
+        ],
+        "answer": "A",
+        "solution": "解：因为 $f(0+0)=\\lim_{x \\to 0^+}\\frac{x-\\ln(1+x)}{\\sqrt{x}}=\\lim_{x \\to 0^+}\\frac{\\frac{1}{2}x^2}{\\sqrt{x}}=0$，且 $f(0)=f(0-0)=\\lim_{x \\to 0^-}x^2g(x)=0$，所以 $f(x)$ 在 $x=0$ 处连续；$f'_+(0)=\\lim_{x \\to 0^+}\\frac{f(x)-f(0)}{x}=\\lim_{x \\to 0^+}\\frac{\\frac{1}{2}x^2}{x\\sqrt{x}}=0$，$f'_-(0)=\\lim_{x \\to 0^-}\\frac{f(x)-f(0)}{x}=\\lim_{x \\to 0^-}\\frac{x^2g(x)}{x}=\\lim_{x \\to 0^-}xg(x)=0$，由 $f'_+(0)=f'_-(0)=0$ 得 $f(x)$ 在 $x=0$ 处可导，选 (A)。",
+        "id": 33
+    },
+    {
+        "question": "\\text{设函数 } f(x) \\text{ 连续，} \\varphi(x)=|x-a|\\,[f(x)+|f(x)|], \\text{ 则 } \\varphi(x) \\text{ 在 } x=a \\text{ 处可导的充分必要条件是( )}.",
+        "choices": [
+            "A. f(a) \\neq 0",
+            "B. f(a) = 0",
+            "C. |f(a)| = f(a)",
+            "D. |f(a)| = -f(a)"
+        ],
+        "answer": "D",
+        "solution": "解：$\\varphi'_-(a)=\\lim_{x \\to a^-}\\frac{\\varphi(x)-\\varphi(a)}{x-a}=-f(a)-|f(a)|$，$\\varphi'_+(a)=\\lim_{x \\to a^+}\\frac{\\varphi(x)-\\varphi(a)}{x-a}=f(a)+|f(a)|$，故 $\\varphi(x)$ 在 $x=a$ 处可导的充分必要条件是 $\\varphi'_-(a)=\\varphi'_+(a)$，即 $|f(a)|=-f(a)$，选 (D)。",
+        "id": 34
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 在 } x=a \\text{ 处导函数连续，则 } |f(x)| \\text{ 在 } x=a \\text{ 处( )}.",
+        "choices": [
+            "A. 不一定连续",
+            "B. 连续，但不一定可导",
+            "C. 可导",
+            "D. 导函数连续"
+        ],
+        "answer": "B",
+        "solution": "解：因为 $f(x)$ 在 $x=a$ 处连续可导，所以 $f(x)$ 在 $x=a$ 处连续，即 $\\lim_{x \\to a}f(x)=f(a)$；因为 $0 \\leq ||f(x)|-|f(a)|| \\leq |f(x)-f(a)|$，所以由夹逼定理得 $\\lim_{x \\to a}|f(x)|=|f(a)|$，即 $|f(x)|$ 在 $x=a$ 处连续。取 $f(x)=x^2-4$，其在 $x=2$ 处连续可导，$\\lim_{x \\to 2^-}\\frac{|f(x)|-|f(2)|}{x-2}=\\lim_{x \\to 2^-}\\frac{|x^2-4|}{x-2}=-\\lim_{x \\to 2^-}\\frac{x^2-4}{x-2}=-4$，$\\lim_{x \\to 2^+}\\frac{|f(x)|-|f(2)|}{x-2}=\\lim_{x \\to 2^+}\\frac{|x^2-4|}{x-2}=\\lim_{x \\to 2^+}\\frac{x^2-4}{x-2}=4$，显然 $|f(x)|$ 在 $x=2$ 处不可导，选 (B)。",
+        "id": 35
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 是以 } 2 \\text{ 为周期的可导函数，且 } \\lim_{x \\to 1} \\frac{f(2x-1)-2f(3-2x)}{\\ln x}=3\\text{，则 } \\lim_{x \\to 1} \\frac{f(2-3x)+f(-x)}{2^x-2}=(\\quad).",
+        "choices": [
+            "A. \\frac{1}{\\ln 2}",
+            "B. -\\frac{1}{\\ln 2}",
+            "C. \\frac{2}{\\ln 2}",
+            "D. -\\frac{2}{\\ln 2}"
+        ],
+        "answer": "B",
+        "solution": "解：由 $\\lim_{x \\to 1}\\frac{f(2x-1)-2f(3-2x)}{\\ln x}=3$ 得 $f(1)-2f(1)=0$，即 $f(1)=0$；由 $3=\\lim_{x \\to 1}\\frac{f(2x-1)-2f(3-2x)}{\\ln x}=\\lim_{x \\to 1}\\frac{f(2x-1)-2f(3-2x)}{x-1}=2\\lim_{x \\to 1}\\frac{f[1+2(x-1)]-f(1)}{2(x-1)}+4\\lim_{x \\to 1}\\frac{f[1-2(x-1)]-f(1)}{-2(x-1)}=6f'(1)$ 得 $f'(1)=\\frac{1}{2}$；$\\lim_{x \\to 1}\\frac{f(2-3x)+f(-x)}{2^x-2}=\\frac{1}{2}\\lim_{x \\to 1}\\frac{f(2-3x)+f(-x)}{e^{(x-1)\\ln 2}-1}=\\frac{1}{2\\ln 2}\\lim_{x \\to 1}\\frac{f(4-3x)+f(2-x)}{x-1}=\\frac{1}{2\\ln 2}\\left\\{-3\\lim_{x \\to 1}\\frac{f[1-3(x-1)]-f(1)}{-3(x-1)}-\\lim_{x \\to 1}\\frac{f[1-(x-1)]-f(1)}{-(x-1)}\\right\\}=-\\frac{2}{\\ln 2}f'(1)=-\\frac{1}{\\ln 2}$，选 (B)。",
+        "id": 36
+    },
+    {
+        "question": "\\text{设函数 } f(x) \\text{ 在 } |x| < \\delta \\text{ 内有定义且 } |f(x)| \\le x^2, \\text{ 则 } f(x) \\text{ 在 } x=0 \\text{ 处( )}.",
+        "choices": [
+            "A. 不连续",
+            "B. 连续但不可微",
+            "C. 可微且f'(0)=0",
+            "D. 可微但f'(0) \\neq 0"
+        ],
+        "answer": "C",
+        "solution": "解：显然 $f(0)=0$，且 $\\lim_{x \\to 0}f(x)=0$，所以 $f(x)$ 在 $x=0$ 处连续。又由 $|f(x)| \\leq x^2$ 得 $0 \\leq \\left|\\frac{f(x)-f(0)}{x}\\right| \\leq |x|$，根据夹逼定理得 $\\lim_{x \\to 0}\\frac{f(x)-f(0)}{x}=0$，即 $f'(0)=0$，选 (C)。",
+        "id": 37
+    },
+    {
+        "question": "\\text{下列结论正确的是( )}.",
+        "choices": [
+            "A. \\text{ 若 } f(x),g(x) \\text{ 在 } x=a \\text{ 处不可导，则 } f(x)g(x) \\text{ 在 } x=a \\text{ 处一定不可导}",
+            "B. \\text{ 若 } f(x),g(x) \\text{ 在 } x=a \\text{ 处不可导，则 } f[g(x)] \\text{ 在 } x=a \\text{ 处一定不可导}",
+            "C. \\text{ 若 } f(x),g(x) \\text{ 在 } x=a \\text{ 处不可导，则 } f(x)+g(x) \\text{ 在 } x=a \\text{ 处一定不可导}",
+            "D. \\text{ 若 } f(x) \\text{ 在 } x=a \\text{ 处可导且 } f(a) \\neq 0, \\text{ 则 } |f(x)| \\text{ 在 } x=a \\text{ 处一定可导}"
+        ],
+        "answer": "D",
+        "solution": "解：取 $f(x)=x^{\\frac{1}{3}},g(x)=x^{\\frac{2}{3}}$，显然 $f(x),g(x)$ 在 $x=0$ 处不可导，但 $f(x)g(x)=x$ 在 $x=0$ 处可导；取 $f(x)=\\begin{cases}1, & x \\in \\mathbb{Q} \\\\ 0, & x \\in \\mathbb{R}\\setminus\\mathbb{Q}\\end{cases},g(x)=\\begin{cases}-1, & x<0 \\\\ 1, & x \\geq 0\\end{cases}$，显然 $f(x),g(x)$ 在 $x=0$ 处不可导，但 $f[g(x)] \\equiv 1$ 在 $x=0$ 处可导；取 $f(x)=x+|x|,g(x)=x-|x|$，显然 $f(x),g(x)$ 在 $x=0$ 处不可导，但 $f(x)+g(x)=2x$ 在 $x=0$ 处可导。事实上，设 $f(a)>0$，因为 $\\lim_{x \\to a}f(x)=f(a)$，所以存在 $\\delta>0$，当 $x \\in (a-\\delta,a+\\delta)$ 时，$f(x)>0$，则 $\\lim_{x \\to a}\\frac{|f(x)|-|f(a)|}{x-a}=\\lim_{x \\to a}\\frac{f(x)-f(a)}{x-a}=f'(a)$，即 $|f(x)|$ 在 $x=a$ 处可导。同理若 $f(a)<0$，$|f(x)|$ 在 $x=a$ 处可导，选 (D)。",
+        "id": 38
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 在 } x=a \\text{ 处连续，则 } \\lim_{h \\to 0} \\frac{f(a+h)-f(a-h)}{h} \\text{ 存在是 } f(x) \\text{ 在 } x=a \\text{ 处可导的( )}.",
+        "choices": [
+            "A. 充分条件",
+            "B. 必要条件",
+            "C. 充要条件",
+            "D. 既非充分又非必要条件"
+        ],
+        "answer": "B",
+        "solution": "解：取 $f(x)=|x|,a=0$，$\\lim_{h \\to 0}\\frac{f(a+h)-f(a-h)}{h}=\\lim_{h \\to 0}\\frac{|h|-|-h|}{h}=0$，但 $f(x)$ 在 $x=0$ 处不可导；若 $f(x)$ 在 $x=a$ 处可导，则 $\\lim_{h \\to 0}\\frac{f(a+h)-f(a-h)}{h}=\\lim_{h \\to 0}\\frac{f(a+h)-f(a)}{h}+\\lim_{h \\to 0}\\frac{f(a-h)-f(a)}{-h}=2f'(a)$，选 (B)。",
+        "id": 39
+    },
+    {
+        "question": "\\text{设 } \\varphi(x) \\text{ 连续，} f(x)=|x-a|\\varphi(x), \\text{ 则 } f(x) \\text{ 在 } x=a \\text{ 处可导的充要条件是( )}.",
+        "choices": [
+            "A. \\varphi(a)=1",
+            "B. \\varphi(a)=-1",
+            "C. \\varphi(a)=0",
+            "D. \\varphi'(a)=0"
+        ],
+        "answer": "C",
+        "solution": "解：$f'_-(a)=\\lim_{x \\to a^-}\\frac{f(x)-f(a)}{x-a}=\\lim_{x \\to a^-}\\frac{|x-a|\\varphi(x)}{x-a}=-\\lim_{x \\to a^-}\\varphi(x)=-\\varphi(a)$，$f'_+(a)=\\lim_{x \\to a^+}\\frac{f(x)-f(a)}{x-a}=\\lim_{x \\to a^+}\\frac{|x-a|\\varphi(x)}{x-a}=\\lim_{x \\to a^+}\\varphi(x)=\\varphi(a)$，$f(x)$ 在 $x=a$ 处可导的充要条件是 $f'_-(a)=f'_+(a)$，即 $\\varphi(a)=0$，选 (C)。",
+        "id": 40
+    },
+    {
+        "question": "\\text{设函数 } f(x)=\\begin{cases}x^3\\sin\\frac{1}{x}, & x>0, \\\\ x^2, & x \\le 0\\end{cases}\\text{，则在 } x=0 \\text{ 处 } f(x)\\text{( )}.",
+        "choices": [
+            "A. 不连续",
+            "B. 连续但不可导",
+            "C. 可导但导数不连续",
+            "D. 导数连续"
+        ],
+        "answer": "D",
+        "solution": "解：因为 $\\lim_{x \\to 0^+}f(x)=0$，$\\lim_{x \\to 0^-}f(x)=f(0)=0$，所以 $f(x)$ 在 $x=0$ 处连续；由 $\\lim_{x \\to 0^+}\\frac{f(x)-f(0)}{x}=\\lim_{x \\to 0^+}x^2\\sin\\frac{1}{x}=0$，$\\lim_{x \\to 0^-}\\frac{f(x)-f(0)}{x}=\\lim_{x \\to 0^-}x=0$，得 $f(x)$ 在 $x=0$ 处可导，且 $f'(0)=0$；当 $x>0$ 时，$f'(x)=3x^2\\sin\\frac{1}{x}-x\\cos\\frac{1}{x}$；当 $x<0$ 时，$f'(x)=2x$；因为 $\\lim_{x \\to 0^+}f'(x)=\\lim_{x \\to 0^-}f'(x)=f'(0)$，所以 $f(x)$ 在 $x=0$ 处导数连续，选 (D)。",
+        "id": 41
+    },
+    {
+        "question": "\\text{设 } y = y(x) \\text{ 由 } x - \\int_{1}^{x+y} \\mathrm{e}^{-t^2} \\mathrm{d}t = 0 \\text{ 确定，则 } y''(0) = (\\quad).",
+        "choices": [
+            "A. 2\\mathrm{e}^2",
+            "B. 2\\mathrm{e}^{-2}",
+            "C. \\mathrm{e}^2 - 1",
+            "D. \\mathrm{e}^{-2} - 1"
+        ],
+        "answer": "A",
+        "solution": "解：当 $x=0$ 时，由 $-\\int_{1}^{y}e^{-t^2}\\mathrm{d}t=0$ 得 $y=1$；$x-\\int_{1}^{x+y}e^{-t^2}\\mathrm{d}t=0$ 两边对 $x$ 求导得 $1-e^{-(x+y)^2}\\cdot\\left(1+\\frac{\\mathrm{d}y}{\\mathrm{d}x}\\right)=0$，解得 $\\frac{\\mathrm{d}y}{\\mathrm{d}x}=e^{(x+y)^2}-1$，$\\left.\\frac{\\mathrm{d}y}{\\mathrm{d}x}\\right|_{\\substack{x=0\\\\y=1}}=e-1$；由 $\\frac{\\mathrm{d}^2y}{\\mathrm{d}x^2}=e^{(x+y)^2}\\cdot2(x+y)\\cdot\\left(1+\\frac{\\mathrm{d}y}{\\mathrm{d}x}\\right)$ 得 $y''(0)=\\left.\\frac{\\mathrm{d}^2y}{\\mathrm{d}x^2}\\right|_{\\substack{x=0\\\\y=1}}=2e^2$，选 (A)。",
+        "id": 42
+    },
+    {
+        "question": "\\text{若 } f(-x) = -f(x), \\text{ 且在 } (0, +\\infty) \\text{ 内 } f'(x) > 0, f''(x) > 0, \\text{ 则在 } (-\\infty, 0) \\text{ 内( )}.",
+        "choices": [
+            "A. f'(x) < 0, f''(x) < 0",
+            "B. f'(x) < 0, f''(x) > 0",
+            "C. f'(x) > 0, f''(x) < 0",
+            "D. f'(x) > 0, f''(x) > 0"
+        ],
+        "answer": "C",
+        "solution": "解：因为 $f(x)$ 为奇函数，所以 $f'(x)$ 为偶函数，$f''(x)$ 为奇函数，故在 $(-\\infty,0)$ 内有 $f'(x)>0$，在 $(-\\infty,0)$ 内有 $f''(x)<0$，选 (C)。",
+        "id": 43
+    },
+    {
+        "question": "\\text{设 } f(x) \\text{ 在 } [0, +\\infty) \\text{ 上连续，在 } (0, +\\infty) \\text{ 内可导，则( )}.",
+        "choices": [
+            "A. \\text{ 若 } \\lim_{x \\to 0^+} f(x) = 0, \\text{ 则 } \\lim_{x \\to 0^+} f'(x) = 0",
+            "B. \\text{ 若 } \\lim_{x \\to 0^+} f'(x) = 0, \\text{ 则 } \\lim_{x \\to 0^+} f(x) = 0",
+            "C. \\text{ 若 } \\lim_{x \\to +\\infty} f(x) = +\\infty, \\text{ 则 } \\lim_{x \\to +\\infty} f'(x) = +\\infty",
+            "D. \\text{ 若 } \\lim_{x \\to +\\infty} f'(x) = A > 0, \\text{ 则 } \\lim_{x \\to +\\infty} f(x) = +\\infty"
+        ],
+        "answer": "D",
+        "solution": "解：取 $f(x)=\\sqrt{x}$，显然 $\\lim_{x \\to 0^+}f(x)=0$，但 $\\lim_{x \\to 0^+}f'(x)=\\lim_{x \\to 0^+}\\frac{1}{2\\sqrt{x}}=+\\infty$，排除 (A) 项；取 $f(x)=\\cos x$，显然 $\\lim_{x \\to 0^+}f'(x)=\\lim_{x \\to 0^+}(-\\sin x)=0$，但 $\\lim_{x \\to 0^+}f(x)=1 \\neq 0$，排除 (B) 项；取 $f(x)=x$，显然 $\\lim_{x \\to +\\infty}f(x)=+\\infty$，但 $\\lim_{x \\to +\\infty}f'(x)=1$，排除 (C) 项。事实上，取 $\\varepsilon=\\frac{A}{2}>0$，因为 $\\lim_{x \\to +\\infty}f'(x)=A$，所以存在 $X>0$，当 $x>X$ 时，$|f'(x)-A|<\\frac{A}{2}$，从而 $f'(x)>\\frac{A}{2}$；当 $x>X$ 时，$f(x)-f(X)=f'(\\xi)(x-X)>\\frac{A}{2}(x-X)\\ (X<\\xi<x)$，从而 $f(x)>f(X)+\\frac{A}{2}(x-X)$，两边取极限得 $\\lim_{x \\to +\\infty}f(x)=+\\infty$，选 (D)。",
+        "id": 44
+    },
+    {
+        "question": "\\text{曲线 } \\begin{cases} x = 2(t - \\sin t), \\\\ y = 2(1 - \\cos t) \\end{cases} \\text{ 在 } t = \\frac{3\\pi}{2} \\text{ 对应的点处的曲率为( )}.",
+        "choices": [
+            "A. \\frac{1}{4\\sqrt{2}}",
+            "B. \\frac{1}{3\\sqrt{2}}",
+            "C. \\frac{1}{2\\sqrt{2}}",
+            "D. \\frac{1}{\\sqrt{2}}"
+        ],
+        "answer": "A",
+        "solution": "解：$\\frac{\\mathrm{d}y}{\\mathrm{d}x}=\\frac{\\mathrm{d}y/\\mathrm{d}t}{\\mathrm{d}x/\\mathrm{d}t}=\\frac{\\sin t}{1-\\cos t}$，$\\left.\\frac{\\mathrm{d}y}{\\mathrm{d}x}\\right|_{t=\\frac{3\\pi}{2}}=-1$，则 $\\frac{\\mathrm{d}^2y}{\\mathrm{d}x^2}=\\frac{\\mathrm{d}\\left(\\frac{\\sin t}{1-\\cos t}\\right)/\\mathrm{d}t}{\\mathrm{d}x/\\mathrm{d}t}=-\\frac{1}{2(1-\\cos t)^2}$，$\\left.\\frac{\\mathrm{d}^2y}{\\mathrm{d}x^2}\\right|_{t=\\frac{3\\pi}{2}}=-\\frac{1}{2(1-\\cos t)^2}\\Bigg|_{t=\\frac{3\\pi}{2}}=-\\frac{1}{2}$，故 $t=\\frac{3\\pi}{2}$ 对应曲线上点的曲率为 $K=\\frac{\\left|\\frac{1}{2}\\right|}{(1+1)^{\\frac{3}{2}}}=\\frac{1}{4\\sqrt{2}}$，选 (A)。",
+        "id": 45
+    },
+    {
+        "question": "\\text{设 } f(x) = \\arcsin x, \\text{ 对 } x \\neq 0, f(x) - f(0) = x f'(\\theta x) \\ (0 < \\theta < 1), \\text{ 则 } \\lim_{x \\to 0} \\theta = (\\quad).",
+        "choices": [
+            "A. \\frac{1}{2}",
+            "B. \\frac{\\sqrt{2}}{2}",
+            "C. \\frac{\\sqrt{3}}{3}",
+            "D. \\frac{1}{3}"
+        ],
+        "answer": "C",
+        "solution": "解：由 $f(x)-f(0)=xf'(\\theta x)$ 得 $\\frac{1}{\\sqrt{1-(\\theta x)^2}}=\\frac{\\arcsin x}{x}$，解得 $\\theta^2=\\frac{\\arcsin^2 x - x^2}{x^2\\arcsin^2 x}$。$\\lim_{x \\to 0}\\theta^2=\\lim_{x \\to 0}\\frac{\\arcsin^2 x - x^2}{x^2\\arcsin^2 x}=\\lim_{x \\to 0}\\frac{\\arcsin x + x}{x}\\cdot\\frac{\\arcsin x - x}{x^3}=2\\lim_{x \\to 0}\\frac{\\arcsin x - x}{x^3}=\\frac{2}{3}\\lim_{x \\to 0}\\frac{(1-x^2)^{-\\frac{1}{2}}-1}{x^2}=\\frac{2}{3}\\lim_{x \\to 0}\\frac{-\\frac{1}{2}(-x^2)}{x^2}=\\frac{1}{3}$，则 $\\lim_{x \\to 0}\\theta=\\frac{\\sqrt{3}}{3}$，选 (C)。",
+        "id": 46
+    }
+]

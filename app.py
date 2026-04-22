@@ -17,6 +17,7 @@ from datetime import datetime
 import pytz
 from werkzeug.security import generate_password_hash, check_password_hash
 from prompts import SYSTEM_INSTRUCTION, JUDGE_PROMPT_SYSTEM
+from math_comp import math_input
 
 load_dotenv()
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -113,59 +114,6 @@ def init_session_state():
 
 
 init_session_state()
-
-
-def render_mathlive_input(default_value=''):
-    html_code = f'''
-    <!DOCTYPE html>
-    <html lang='zh-CN'>
-    <head>
-      <meta charset='utf-8'>
-      <script src="https://unpkg.com/mathlive"></script>
-      <style>
-        body {{ margin: 0; padding: 10px; font-family: sans-serif; background: #f9f9f9; }}
-        * {{ box-sizing: border-box !important; }}
-        .main-container {{
-            border: 1px solid #ccc; border-radius: 8px; padding: 15px; background: #fff;
-            min-height: 550px; display: flex; flex-direction: column;
-        }}
-        math-field {{
-            font-size: 24px; width: 100%; min-height: 150px; padding: 10px;
-            border: 1px solid #ddd; border-radius: 4px; background: #fff; outline: none;
-        }}
-      </style>
-    </head>
-    <body>
-      <div class='main-container'>
-          <div style='font-size: 14px; color: #666; font-weight: bold; margin-bottom:10px;'>📐 MathLive公式编辑面板</div>
-          <math-field id='mf'>{default_value}</math-field>
-          <div style='font-size: 12px; color: #333; margin-top: 15px;'>
-            <strong>✨ LaTeX 代码:</strong>
-            <div id='latex-output' style='padding: 8px; background: #e0e0e0; border-radius: 4px; word-break: break-all; min-height: 30px; border: 1px dashed #999; margin-top:5px;'></div>
-          </div>
-          <div style='margin-top: 20px; font-size: 12px; color: #999;'>💡 提示：点击输入框右侧键盘图标可唤起完整符号库</div>
-      </div>
-      <script>
-        customElements.whenDefined('math-field').then(() => {{
-            const mf = document.getElementById('mf');
-            const output = document.getElementById('latex-output');
-            mf.locale = 'zh-cn';
-
-            const updateOutput = () => {{
-                const tex = mf.value;
-                const wrappedTex = tex ? '$$' + tex + '$$' : '';
-                if (output.textContent !== wrappedTex) {{
-                    output.textContent = wrappedTex;
-                }}
-            }};
-            mf.addEventListener('input', updateOutput);
-            setInterval(updateOutput, 200);
-        }});
-      </script>
-    </body>
-    </html>
-    '''
-    components.html(html_code, height=600, scrolling=True)
 
 def sync_user_data(username: str):
     engine = get_database_engine()
@@ -788,7 +736,11 @@ elif st.session_state.page_mode == "results":
                 with st.chat_message(m["role"]): st.markdown(m["content"])
 
             with st.expander("📐 点击展开公式键盘"):
-                render_mathlive_input()
+
+                user_latex = math_input(default_value="", key=f"react_math_{qid}")
+
+                if user_latex:
+                    st.caption(f"Python已接收到: {user_latex}")
 
             if query := st.chat_input("请求智能辅导..."):
                 st.session_state.chat_histories[qid].append({"role": "user", "content": query})
