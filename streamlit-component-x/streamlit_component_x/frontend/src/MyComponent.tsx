@@ -4,20 +4,15 @@ import {
   ComponentProps,
 } from "streamlit-component-lib";
 import React, { useEffect, useRef, useState } from "react";
+
 import "mathlive";
+import "mathlive/static.css";
 
 declare global {
   namespace JSX {
     interface IntrinsicElements {
       "math-field": any;
     }
-  }
-
-  interface Window {
-    mathVirtualKeyboard?: {
-      show: () => void;
-      hide: () => void;
-    };
   }
 }
 
@@ -27,10 +22,10 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   useEffect(() => {
     const mf = mfRef.current;
-
     if (mf) {
       mf.value = args.default_value || "";
       mf.mathVirtualKeyboardPolicy = "manual";
+      mf.virtualKeyboardMode = "manual";
 
       const handleInput = (e: any) => {
         const newValue = e.target.value;
@@ -38,16 +33,10 @@ const MyComponent = ({ args }: ComponentProps) => {
         Streamlit.setComponentValue(newValue);
       };
 
-      const handleFocus = () => {
-        window.mathVirtualKeyboard?.show();
-      };
-
       mf.addEventListener("input", handleInput);
-      mf.addEventListener("focusin", handleFocus);
 
       return () => {
         mf.removeEventListener("input", handleInput);
-        mf.removeEventListener("focusin", handleFocus);
       };
     }
   }, [args.default_value]);
@@ -55,10 +44,36 @@ const MyComponent = ({ args }: ComponentProps) => {
   useEffect(() => {
     const interval = setInterval(() => {
       Streamlit.setFrameHeight();
-    }, 100);
+    }, 200);
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = `
+      math-virtual-keyboard {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100vw !important;
+        z-index: 999999 !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  const toggleKeyboard = () => {
+    const vk = (window as any).mathVirtualKeyboard;
+    if (vk) {
+      vk.visible = !vk.visible;
+    }
+  };
 
   return (
     <div
@@ -68,6 +83,7 @@ const MyComponent = ({ args }: ComponentProps) => {
         borderRadius: "8px",
         border: "1px solid #ccc",
         minHeight: "450px",
+        position: "relative",
       }}
     >
       <div
@@ -82,17 +98,21 @@ const MyComponent = ({ args }: ComponentProps) => {
       </div>
 
       <button
-        onClick={() => window.mathVirtualKeyboard?.show()}
+        onClick={toggleKeyboard}
         style={{
-          marginBottom: "10px",
-          padding: "8px 12px",
+          position: "absolute",
+          top: "12px",
+          right: "12px",
+          zIndex: 9999,
+          padding: "6px 12px",
+          border: "none",
+          borderRadius: "6px",
+          background: "#4a90e2",
+          color: "white",
           cursor: "pointer",
-          border: "1px solid #ccc",
-          borderRadius: "4px",
-          background: "#f5f5f5",
         }}
       >
-        打开公式键盘
+        ⌨️
       </button>
 
       <math-field
@@ -105,7 +125,6 @@ const MyComponent = ({ args }: ComponentProps) => {
           border: "1px solid #ddd",
           borderRadius: "4px",
           padding: "10px",
-          display: "block",
         }}
       ></math-field>
 
@@ -118,14 +137,7 @@ const MyComponent = ({ args }: ComponentProps) => {
         }}
       >
         <strong>✨ 对应的 LaTeX代码:</strong>
-        <code
-          style={{
-            marginLeft: "8px",
-            color: "#4a90e2",
-          }}
-        >
-          {latex}
-        </code>
+        <code style={{ marginLeft: "8px", color: "#4a90e2" }}>{latex}</code>
       </div>
     </div>
   );
