@@ -23,9 +23,12 @@ const MyComponent = ({ args }: ComponentProps) => {
   const [latex, setLatex] = useState(args.default_value || "");
 
   const refreshFrameHeight = () => {
-    window.setTimeout(() => Streamlit.setFrameHeight(), 0);
-    window.setTimeout(() => Streamlit.setFrameHeight(), 100);
-    window.setTimeout(() => Streamlit.setFrameHeight(), 300);
+    const height = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+      700
+    );
+    Streamlit.setFrameHeight(height + 20);
   };
 
   useEffect(() => {
@@ -72,6 +75,17 @@ const MyComponent = ({ args }: ComponentProps) => {
   }, [args.default_value]);
 
   useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      refreshFrameHeight();
+    });
+
+    observer.observe(document.body);
+    observer.observe(document.documentElement);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     const style = document.createElement("style");
     style.innerHTML = `
       html, body {
@@ -98,23 +112,6 @@ const MyComponent = ({ args }: ComponentProps) => {
     };
   }, []);
 
-  const toggleKeyboard = () => {
-    const mf = mfRef.current;
-    const vk = vkRef.current;
-
-    if (!mf || !vk) return;
-
-    mf.focus();
-
-    if (vk.visible) {
-      vk.hide();
-    } else {
-      vk.show();
-    }
-
-    refreshFrameHeight();
-  };
-
   return (
     <div
       style={{
@@ -122,8 +119,9 @@ const MyComponent = ({ args }: ComponentProps) => {
         padding: "15px",
         borderRadius: "8px",
         border: "1px solid #ccc",
-        minHeight: "450px",
+        minHeight: "700px",
         position: "relative",
+        overflow: "visible",
       }}
     >
       <div
@@ -137,31 +135,12 @@ const MyComponent = ({ args }: ComponentProps) => {
         📐 MathLive 面板
       </div>
 
-      <button
-        onClick={toggleKeyboard}
-        type="button"
-        style={{
-          position: "absolute",
-          top: "12px",
-          right: "12px",
-          zIndex: 9999,
-          padding: "6px 12px",
-          border: "none",
-          borderRadius: "6px",
-          background: "#4a90e2",
-          color: "white",
-          cursor: "pointer",
-        }}
-      >
-        ⌨️
-      </button>
-
       <math-field
         ref={mfRef}
         style={{
           fontSize: "24px",
           width: "100%",
-          minHeight: "150px",
+          minHeight: "180px",
           outline: "none",
           border: "1px solid #ddd",
           borderRadius: "4px",
