@@ -107,7 +107,8 @@ def init_session_state():
         "logged_in": False, "current_user": None, "user_role": "student", "page_mode": "home",
         "quiz_queue": [], "current_question_index": 0, "user_answers": {},
         "assessment_results": [], "review_question_index": None,
-        "chat_histories": {}, "session_count": 0, "study_session_id": None, "current_course": None
+        "chat_histories": {}, "session_count": 0, "study_session_id": None, "current_course": None,
+        "is_grading": False, "grading_started": False
     }
     for k, v in defaults.items():
         if k not in st.session_state: st.session_state[k] = v
@@ -180,6 +181,8 @@ def start_experiment_session(course_name: str):
     st.session_state.assessment_results = []
     st.session_state.review_question_index = None
     st.session_state.chat_histories = {}
+    st.session_state.is_grading = False
+    st.session_state.grading_started = False
     st.session_state.page_mode = "quiz"
     st.rerun()
 
@@ -210,8 +213,7 @@ async def batch_assess(queue: list, answers: dict) -> list:
 
 def submit_and_assess():
     st.session_state.assessment_results = []
-    with st.spinner("AI 并发极速批改试卷中..."):
-        results = asyncio.run(batch_assess(st.session_state.quiz_queue, st.session_state.user_answers))
+    results = asyncio.run(batch_assess(st.session_state.quiz_queue, st.session_state.user_answers))
 
     for i, (q, is_ok) in enumerate(zip(st.session_state.quiz_queue, results)):
         ans = st.session_state.user_answers.get(i, "未作答")
@@ -230,6 +232,8 @@ def submit_and_assess():
             conn.commit()
 
     st.session_state.session_count += 1
+    st.session_state.is_grading = False
+    st.session_state.grading_started = False
     st.session_state.page_mode = "results"
     st.rerun()
 
@@ -273,27 +277,28 @@ if not st.session_state.logged_in:
                         st.error("注册失败（学号已被占用或密码不一致）。")
     st.stop()
 
-with st.sidebar:
-    st.write(
-        f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
-    if st.session_state.user_role == 'student':
-        if st.session_state.page_mode != "home":
-            if st.button("🏠 返回大厅"):
-                engine = get_database_engine()
-                with engine.connect() as conn:
-                    conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
-                                 {"u": st.session_state.current_user})
-                    conn.commit()
-                st.session_state.page_mode = "home"
-                st.rerun()
-        if st.session_state.page_mode != "report":
-            if st.button("📊 我的学情报告"):
-                st.session_state.page_mode = "report"
-                st.rerun()
-    if st.button("🚪 退出登录"):
-        for k in list(st.session_state.keys()):
-            del st.session_state[k]
-        st.rerun()
+if not (st.session_state.page_mode == "grading" and st.session_state.is_grading):
+    with st.sidebar:
+        st.write(
+            f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
+        if st.session_state.user_role == 'student':
+            if st.session_state.page_mode != "home":
+                if st.button("🏠 返回大厅"):
+                    engine = get_database_engine()
+                    with engine.connect() as conn:
+                        conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
+                                     {"u": st.session_state.current_user})
+                        conn.commit()
+                    st.session_state.page_mode = "home"
+                    st.rerun()
+            if st.session_state.page_mode != "report":
+                if st.button("📊 我的学情报告"):
+                    st.session_state.page_mode = "report"
+                    st.rerun()
+        if st.button("🚪 退出登录"):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.rerun()
 
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
     st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
@@ -644,68 +649,80 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
                 start_experiment_session(c_name)
 
 elif st.session_state.page_mode == "quiz":
-    st.warning("⚠️ 考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！")
+    page = st.empty()
 
-    idx = st.session_state.current_question_index
-    total = len(st.session_state.quiz_queue)
-    q = st.session_state.quiz_queue[idx]
+    with page.container():
+        st.warning("⚠️ 考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！")
 
-    current_ans_key = f"ans_{idx}"
-    if current_ans_key in st.session_state:
-        st.session_state.user_answers[idx] = st.session_state[current_ans_key]
+        idx = st.session_state.current_question_index
+        total = len(st.session_state.quiz_queue)
+        q = st.session_state.quiz_queue[idx]
 
-    st.markdown("### 🗂️ 题目列表")
-    with st.container():
-        cols_per_row = 10
-        for i in range(0, total, cols_per_row):
-            cols = st.columns(cols_per_row)
-            for j in range(cols_per_row):
-                q_idx = i + j
-                if q_idx < total:
-                    with cols[j]:
-                        is_answered = bool(st.session_state.user_answers.get(q_idx, "").strip())
-                        btn_type = "primary" if q_idx == idx else "secondary"
-                        btn_label = f"{q_idx + 1} ✅" if is_answered else str(q_idx + 1)
+        current_ans_key = f"ans_{idx}"
+        if current_ans_key in st.session_state:
+            st.session_state.user_answers[idx] = st.session_state[current_ans_key]
 
-                        if st.button(btn_label, key=f"nav_btn_{q_idx}", type=btn_type, use_container_width=True):
-                            st.session_state.current_question_index = q_idx
-                            st.rerun()
-    st.divider()
+        st.markdown("### 🗂️ 题目列表")
+        with st.container():
+            cols_per_row = 10
+            for i in range(0, total, cols_per_row):
+                cols = st.columns(cols_per_row)
+                for j in range(cols_per_row):
+                    q_idx = i + j
+                    if q_idx < total:
+                        with cols[j]:
+                            is_answered = bool(st.session_state.user_answers.get(q_idx, "").strip())
+                            btn_type = "primary" if q_idx == idx else "secondary"
+                            btn_label = f"{q_idx + 1} ✅" if is_answered else str(q_idx + 1)
 
-    st.progress((idx + 1) / total, text=f"【{st.session_state.current_course}】 进度：{idx + 1} / {total}")
-    st.markdown(f"### 第 {idx + 1} 题")
-    st.info(format_math(q['content']))
+                            if st.button(btn_label, key=f"nav_btn_{q_idx}", type=btn_type, use_container_width=True):
+                                st.session_state.current_question_index = q_idx
+                                st.rerun()
 
-    st.markdown("#### ✍️ 你的解答")
-    ans = st.text_area("请输入你的答案（选择题请直接输入选项字母）：",
-                       value=st.session_state.user_answers.get(idx, ""), height=150, key=f"ans_{idx}")
-    st.session_state.user_answers[idx] = ans
+        st.divider()
 
-    cols = st.columns(2)
-    with cols[0]:
-        if idx > 0 and st.button("⬅️ 上一题", use_container_width=True):
-            st.session_state.current_question_index -= 1
-            st.rerun()
-    with cols[1]:
-        if idx < total - 1:
-            if st.button("下一题 ➡️", use_container_width=True):
-                st.session_state.current_question_index += 1
+        st.progress((idx + 1) / total, text=f"【{st.session_state.current_course}】 进度：{idx + 1} / {total}")
+        st.markdown(f"### 第 {idx + 1} 题")
+        st.info(format_math(q['content']))
+
+        st.markdown("#### ✍️ 你的解答")
+        ans = st.text_area("请输入你的答案（选择题请直接输入选项字母）：",
+                           value=st.session_state.user_answers.get(idx, ""), height=150, key=f"ans_{idx}")
+        st.session_state.user_answers[idx] = ans
+
+        cols = st.columns(2)
+        with cols[0]:
+            if idx > 0 and st.button("⬅️ 上一题", use_container_width=True):
+                st.session_state.current_question_index -= 1
                 st.rerun()
-        else:
-            if st.button("✅ 提交试卷", type="primary", use_container_width=True):
-                missing = [str(i + 1) for i in range(total) if not st.session_state.user_answers.get(i, "").strip()]
-                if missing:
-                    st.warning(f"⚠️ 第 {'、'.join(missing)} 题尚未作答，请完成后再提交。")
-                else:
-                    st.session_state.page_mode = "grading"
+
+        with cols[1]:
+            if idx < total - 1:
+                if st.button("下一题 ➡️", use_container_width=True):
+                    st.session_state.current_question_index += 1
                     st.rerun()
+            else:
+                if st.button("✅ 提交试卷", type="primary", use_container_width=True):
+                    missing = [str(i + 1) for i in range(total) if not st.session_state.user_answers.get(i, "").strip()]
+                    if missing:
+                        st.warning(f"⚠️ 第 {'、'.join(missing)} 题尚未作答，请完成后再提交。")
+                    else:
+                        st.session_state.is_grading = True
+                        st.session_state.grading_started = False
+                        st.session_state.page_mode = "grading"
+                        st.rerun()
 
 elif st.session_state.page_mode == "grading":
-    st.markdown("<div style='margin-top: 100px;'></div>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center;'>🧠 系统正在阅卷中，请勿刷新或退出...</h2>", unsafe_allow_html=True)
-    st.progress(100)
+    st.session_state.is_grading = True
+    st.markdown("""
+<div style="height: 80vh; display: flex; align-items: center; justify-content: center;">
+    <h2>🧠 系统正在阅卷中，请勿刷新或退出...</h2>
+</div>
+""", unsafe_allow_html=True)
 
-    submit_and_assess()
+    if not st.session_state.grading_started:
+        st.session_state.grading_started = True
+        submit_and_assess()
 
 elif st.session_state.page_mode == "results":
     st.title("📊 作答结果与辅导")
