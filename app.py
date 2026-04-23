@@ -277,7 +277,7 @@ if not st.session_state.logged_in:
                         st.error("注册失败（学号已被占用或密码不一致）。")
     st.stop()
 
-if not (st.session_state.page_mode == "grading" and st.session_state.is_grading):
+if st.session_state.page_mode != "grading":
     with st.sidebar:
         st.write(
             f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
@@ -715,7 +715,34 @@ elif st.session_state.page_mode == "quiz":
 elif st.session_state.page_mode == "grading":
     st.session_state.is_grading = True
     st.markdown("""
-<div style="height: 80vh; display: flex; align-items: center; justify-content: center;">
+<style>
+[data-testid="stSidebar"] {
+    display: none !important;
+}
+[data-testid="collapsedControl"] {
+    display: none !important;
+}
+[data-testid="stHeader"] {
+    display: none !important;
+}
+[data-testid="stToolbar"] {
+    display: none !important;
+}
+[data-testid="stStatusWidget"] {
+    display: none !important;
+}
+#MainMenu {
+    display: none !important;
+}
+footer {
+    display: none !important;
+}
+.block-container {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+</style>
+<div style="height: 100vh; display: flex; align-items: center; justify-content: center;">
     <h2>🧠 系统正在阅卷中，请勿刷新或退出...</h2>
 </div>
 """, unsafe_allow_html=True)
