@@ -277,8 +277,10 @@ if not st.session_state.logged_in:
                         st.error("注册失败（学号已被占用或密码不一致）。")
     st.stop()
 
+sidebar_slot = st.sidebar.empty()
+
 if st.session_state.page_mode != "grading":
-    with st.sidebar:
+    with sidebar_slot.container():
         st.write(
             f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
         if st.session_state.user_role == 'student':
@@ -299,6 +301,8 @@ if st.session_state.page_mode != "grading":
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
+else:
+    sidebar_slot.empty()
 
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
     st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
@@ -714,32 +718,55 @@ elif st.session_state.page_mode == "quiz":
 
 elif st.session_state.page_mode == "grading":
     st.session_state.is_grading = True
+    sidebar_slot.empty()
+
     st.markdown("""
 <style>
-[data-testid="stSidebar"] {
+section[data-testid="stSidebar"],
+[data-testid="stSidebar"],
+div[data-testid="stSidebarUserContent"] {
     display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
 }
-[data-testid="collapsedControl"] {
-    display: none !important;
-}
+
+header[data-testid="stHeader"],
 [data-testid="stHeader"] {
     display: none !important;
 }
+
+div[data-testid="stToolbar"],
 [data-testid="stToolbar"] {
     display: none !important;
 }
+
+div[data-testid="collapsedControl"],
+[data-testid="collapsedControl"] {
+    display: none !important;
+}
+
+div[data-testid="stStatusWidget"],
 [data-testid="stStatusWidget"] {
     display: none !important;
 }
-#MainMenu {
+
+div[data-testid="stDecoration"] {
     display: none !important;
 }
+
+#MainMenu,
 footer {
     display: none !important;
 }
+
 .block-container {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+    max-width: 100% !important;
+}
+
+html, body, [data-testid="stAppViewContainer"] {
+    overflow: hidden !important;
 }
 </style>
 <div style="height: 100vh; display: flex; align-items: center; justify-content: center;">
