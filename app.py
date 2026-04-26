@@ -4,6 +4,7 @@ import random
 import time
 import hashlib
 import re
+import json
 import pandas as pd
 import plotly.express as px
 import logging
@@ -16,7 +17,13 @@ from dotenv import load_dotenv
 from datetime import datetime
 import pytz
 from werkzeug.security import generate_password_hash, check_password_hash
-from prompts import SYSTEM_INSTRUCTION, JUDGE_PROMPT_SYSTEM
+from prompts import (
+    SYSTEM_INSTRUCTION,
+    JUDGE_PROMPT_SYSTEM,
+    HINT_PLAN_PROMPT_SYSTEM,
+    LEAKAGE_CHECK_PROMPT_SYSTEM,
+    REWRITE_PROMPT_SYSTEM,
+)
 from math_comp import math_input
 
 load_dotenv()
@@ -56,6 +63,228 @@ def format_math(text_str: str) -> str:
     return text_str
 
 
+def parse_json_object(raw_text: str) -> dict:
+    if not raw_text:
+        return {}
+    cleaned = raw_text.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", cleaned, flags=re.S)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+
+def chat_completion_text(messages: list, temperature: float = 0.2) -> str:
+    resp = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=messages,
+        temperature=temperature
+    )
+    return (resp.choices[0].message.content or "").strip()
+
+
+def get_dynamic_system_prompt() -> str:
+    try:
+        engine_tmp = get_database_engine()
+        with engine_tmp.connect() as conn_tmp:
+            dyn_prompt_res = conn_tmp.execute(text(
+                "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
+            if dyn_prompt_res:
+                return dyn_prompt_res[0]
+    except Exception as e:
+        logging.error(f"Fetch prompt error: {e}")
+    return SYSTEM_INSTRUCTION
+
+
+def build_hint_plan(question_data: dict, student_answer: str, is_correct: bool, student_request: str) -> str:
+    std_ans = question_data.get("answer", "")
+    std_sol = question_data.get("solution", "")
+    if not (std_ans or std_sol):
+        return json.dumps({
+            "knowledge_point": "待由题目判断",
+            "diagnosis": "根据学生请求进行局部启发",
+            "hint_goal": "引导学生检查当前思路中的下一步",
+            "allowed_hint_level": "direction",
+            "forbidden_content": "最终答案、完整步骤、关键数值"
+        }, ensure_ascii=False)
+
+    prompt = f"""题目：
+{question_data['content']}
+
+标准答案：
+{std_ans}
+
+标准解析：
+{std_sol}
+
+学生答案：
+{student_answer}
+
+判题结果：
+{'正确' if is_correct else '错误'}
+
+学生请求：
+{student_request}
+
+请生成不会展示给学生的安全提示计划。"""
+    try:
+        plan_text = chat_completion_text(
+            [{"role": "system", "content": HINT_PLAN_PROMPT_SYSTEM}, {"role": "user", "content": prompt}],
+            temperature=0.1
+        )
+        plan_obj = parse_json_object(plan_text)
+        if plan_obj:
+            return json.dumps(plan_obj, ensure_ascii=False)
+        return plan_text
+    except Exception as e:
+        logging.error(f"Build hint plan error: {e}")
+        return "围绕题目核心概念进行一步启发，避免最终答案、关键数值和完整解法。"
+
+
+def generate_student_hint(question_data: dict, student_answer: str, is_correct: bool,
+                          student_request: str, hint_plan: str, system_prompt: str) -> str:
+    ctx = f"""【Problem】
+{question_data['content']}
+
+【Student Answer】
+{student_answer}
+
+【Assessment Result】
+{'Correct' if is_correct else 'Incorrect'}
+
+【Private Safe Hint Plan】
+{hint_plan}
+
+【Student Request】
+{student_request}
+
+请根据私有提示计划生成面向学生的一次性辅导提示。"""
+    return chat_completion_text(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": ctx}],
+        temperature=0.4
+    )
+
+
+def heuristic_leakage_check(reference_answer: str, candidate_hint: str) -> dict:
+    hint = candidate_hint or ""
+    answer = (reference_answer or "").strip()
+    if not answer:
+        return {"is_leaking": False, "score": 0, "reason": "无标准答案，启用低风险默认判定"}
+
+    if len(answer) == 1 and answer.upper() in "ABCD":
+        direct_patterns = [
+            rf"(答案|选项|选择|应选|正确选项)\s*(是|为|:|：)?\s*{answer}",
+            rf"{answer}\s*(项|选项)\s*(正确|是对的)?",
+            rf"\({answer}\)"
+        ]
+        if any(re.search(p, hint, flags=re.I) for p in direct_patterns):
+            return {"is_leaking": True, "score": 3, "reason": "提示中直接暴露选择题选项"}
+        return {"is_leaking": False, "score": 0, "reason": "未发现直接选项泄露"}
+
+    if len(answer) >= 2 and answer in hint:
+        return {"is_leaking": True, "score": 3, "reason": "提示中直接包含标准答案文本"}
+
+    return {"is_leaking": False, "score": 0, "reason": "未命中本地泄露规则"}
+
+
+def evaluate_hint_leakage(question_data: dict, candidate_hint: str) -> dict:
+    std_ans = question_data.get("answer", "")
+    std_sol = question_data.get("solution", "")
+    if not (std_ans or std_sol):
+        return heuristic_leakage_check(std_ans, candidate_hint)
+
+    prompt = f"""题目：
+{question_data['content']}
+
+标准答案：
+{std_ans}
+
+标准解析：
+{std_sol}
+
+待检测提示：
+{candidate_hint}
+
+请判断待检测提示是否泄露答案信息。"""
+    try:
+        raw = chat_completion_text(
+            [{"role": "system", "content": LEAKAGE_CHECK_PROMPT_SYSTEM}, {"role": "user", "content": prompt}],
+            temperature=0
+        )
+        parsed = parse_json_object(raw)
+        if parsed:
+            return {
+                "is_leaking": bool(parsed.get("is_leaking", False)),
+                "score": int(parsed.get("score", 0)),
+                "reason": str(parsed.get("reason", ""))[:255]
+            }
+    except Exception as e:
+        logging.error(f"Leakage evaluation error: {e}")
+
+    return heuristic_leakage_check(std_ans, candidate_hint)
+
+
+def rewrite_unsafe_hint(question_data: dict, student_request: str, hint_plan: str,
+                        unsafe_hint: str, leakage_result: dict) -> str:
+    prompt = f"""题目：
+{question_data['content']}
+
+私有安全提示计划：
+{hint_plan}
+
+学生请求：
+{student_request}
+
+泄露检测结果：
+{json.dumps(leakage_result, ensure_ascii=False)}
+
+不安全提示：
+{unsafe_hint}
+
+请重写为安全、启发式、不会泄露答案的学生提示。"""
+    return chat_completion_text(
+        [{"role": "system", "content": REWRITE_PROMPT_SYSTEM}, {"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+
+def generate_controlled_hint(question_data: dict, student_answer: str, is_correct: bool, student_request: str) -> dict:
+    dynamic_prompt = get_dynamic_system_prompt()
+    hint_plan = build_hint_plan(question_data, student_answer, is_correct, student_request)
+    final_hint = generate_student_hint(question_data, student_answer, is_correct, student_request, hint_plan,
+                                      dynamic_prompt)
+    leakage_result = evaluate_hint_leakage(question_data, final_hint)
+    rewrite_count = 0
+
+    while leakage_result.get("is_leaking") and rewrite_count < 2:
+        rewrite_count += 1
+        final_hint = rewrite_unsafe_hint(question_data, student_request, hint_plan, final_hint, leakage_result)
+        leakage_result = evaluate_hint_leakage(question_data, final_hint)
+
+    if leakage_result.get("is_leaking"):
+        final_hint = "这道题我们先抓住关键条件，不直接推进到答案。你可以先判断题目考查的是哪个定义、公式或判别方法，再检查你的下一步是否满足它的适用条件。"
+        leakage_result = {
+            "is_leaking": False,
+            "score": 0,
+            "reason": "重写后仍有风险，已替换为保底启发式提示"
+        }
+
+    return {
+        "hint": format_math(final_hint),
+        "is_leaking": int(bool(leakage_result.get("is_leaking", False))),
+        "leakage_score": int(leakage_result.get("score", 0)),
+        "rewrite_count": rewrite_count,
+        "leakage_reason": leakage_result.get("reason", "")
+    }
+
+
 def authenticate_user(u: str, p: str):
     engine = get_database_engine()
     with engine.connect() as conn:
@@ -88,15 +317,57 @@ def log_login(username: str):
         logging.error(f"log_login error: {e}")
 
 
-def log_interaction(qid: int, qry: str, rsp: str, leak: int = 0):
+def ensure_leakage_observability_columns():
+    try:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN leakage_score INT DEFAULT 0"))
+            conn.commit()
+    except Exception:
+        pass
+
+    try:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN rewrite_count INT DEFAULT 0"))
+            conn.commit()
+    except Exception:
+        pass
+
+    try:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN leakage_reason VARCHAR(255)"))
+            conn.commit()
+    except Exception:
+        pass
+
+
+def log_interaction(
+        qid: int,
+        qry: str,
+        rsp: str,
+        leak: int = 0,
+        leakage_score: int = 0,
+        rewrite_count: int = 0,
+        leakage_reason: str = ""
+):
     try:
         engine = get_database_engine()
         with engine.connect() as conn:
             ts = datetime.now(pytz.timezone('Asia/Shanghai'))
-            conn.execute(text(
-                "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :time)"),
-                {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak,
-                 "time": ts})
+            ensure_leakage_observability_columns()
+            try:
+                conn.execute(text(
+                    "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, leakage_score, rewrite_count, leakage_reason, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, :time)"),
+                    {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak,
+                     "score": leakage_score, "rewrites": rewrite_count, "reason": leakage_reason[:255],
+                     "time": ts})
+            except Exception:
+                conn.execute(text(
+                    "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :time)"),
+                    {"qid": qid, "sid": st.session_state.current_user, "qry": qry, "rsp": rsp, "leak": leak,
+                     "time": ts})
             conn.commit()
     except Exception as e:
         logging.error(f"log_interaction error: {e}")
@@ -375,6 +646,32 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             except Exception as e:
                 st.error(f"⚠️ 图表加载报错: {e}")
 
+            st.markdown("---")
+            st.markdown("#### 🛡️ 智能辅导答案泄露控制统计")
+            try:
+                df_leak = pd.read_sql(
+                    "SELECT is_leaking_answer, leakage_score, rewrite_count FROM interaction_logs WHERE user_query LIKE '【辅导】%%'",
+                    conn)
+                if not df_leak.empty:
+                    total_hints = len(df_leak)
+                    leaked_hints = int(df_leak['is_leaking_answer'].fillna(0).astype(int).sum())
+                    rewrite_total = int(df_leak.get('rewrite_count', pd.Series([0] * total_hints)).fillna(0).astype(int).sum())
+                    leak_rate = round(leaked_hints / total_hints * 100, 1)
+                    c_leak1, c_leak2, c_leak3 = st.columns(3)
+                    c_leak1.metric("辅导提示总数", total_hints)
+                    c_leak2.metric("最终泄露率", f"{leak_rate} %")
+                    c_leak3.metric("自动重写次数", rewrite_total)
+                    score_df = df_leak.groupby('leakage_score').size().reset_index(name='count')
+                    fig_leak = px.bar(score_df, x='leakage_score', y='count',
+                                      labels={'leakage_score': '泄露评分', 'count': '提示数量'},
+                                      color_discrete_sequence=['#2ca02c'])
+                    st.plotly_chart(fig_leak, use_container_width=True)
+                else:
+                    st.info("暂无智能辅导提示数据，无法计算泄露控制指标。")
+            except Exception as e:
+                logging.error(f"Leakage dashboard error: {e}")
+                st.info("当前数据库尚未记录泄露控制扩展指标。")
+
         with tab1:
             st.subheader("学生活跃度监控")
             df_login = pd.read_sql(
@@ -397,9 +694,14 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
 
         with tab3:
             st.subheader("大模型交互质量抽查")
-            df_chat = pd.read_sql(
-                "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
-                conn)
+            try:
+                df_chat = pd.read_sql(
+                    "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', is_leaking_answer AS '是否泄露', leakage_score AS '泄露评分', rewrite_count AS '重写次数', leakage_reason AS '检测原因', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
+                    conn)
+            except Exception:
+                df_chat = pd.read_sql(
+                    "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
+                    conn)
             st.dataframe(df_chat, use_container_width=True)
             if not df_chat.empty:
                 st.download_button("📥 导出AI辅导监控记录 (CSV)", df_chat.to_csv(index=False).encode('utf-8-sig'),
@@ -866,40 +1168,35 @@ elif st.session_state.page_mode == "results":
 
             if st.session_state.chat_histories[qid] and st.session_state.chat_histories[qid][-1]["role"] == "user":
                 with st.chat_message("assistant"):
-                    h = st.empty()
-                    f = ""
                     last_query = st.session_state.chat_histories[qid][-1]["content"]
-                    std_ans = data['question_data'].get('answer', '')
-                    std_sol = data['question_data'].get('solution', '')
-                    if std_ans or std_sol:
-                        ctx = f"题目：{data['question_data']['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{last_query}"
-                    else:
-                        ctx = f"题目：{data['question_data']['content']}\n答案：{data['user_answer']}\n判题：{'正确' if data['is_correct'] else '错误'}\n请求：{last_query}"
-                    dynamic_prompt = SYSTEM_INSTRUCTION
                     try:
-                        engine_tmp = get_database_engine()
-                        with engine_tmp.connect() as conn_tmp:
-                            dyn_prompt_res = conn_tmp.execute(text(
-                                "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
-                            if dyn_prompt_res:
-                                dynamic_prompt = dyn_prompt_res[0]
+                        with st.spinner("正在生成并进行答案泄露检测..."):
+                            controlled = generate_controlled_hint(
+                                data['question_data'],
+                                data['user_answer'],
+                                data['is_correct'],
+                                last_query
+                            )
+                        final = controlled["hint"]
+                        st.markdown(final)
+                        if controlled["rewrite_count"] > 0:
+                            st.caption(f"已自动重写 {controlled['rewrite_count']} 次，以降低答案泄露风险。")
+                        st.session_state.chat_histories[qid].append({"role": "assistant", "content": final})
+                        log_interaction(
+                            qid,
+                            f"【辅导】{last_query}",
+                            final,
+                            leak=controlled["is_leaking"],
+                            leakage_score=controlled["leakage_score"],
+                            rewrite_count=controlled["rewrite_count"],
+                            leakage_reason=controlled["leakage_reason"]
+                        )
                     except Exception as e:
-                        logging.error(f"Fetch prompt error: {e}")
-                    stream = client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=[{"role": "system", "content": dynamic_prompt},
-                                  {"role": "user", "content": ctx}],
-                        stream=True
-                    )
-                    for chunk in stream:
-                        c = chunk.choices[0].delta.content
-                        if c:
-                            f += c
-                            h.markdown(format_math(f) + "▌")
-                    final = format_math(f)
-                    h.markdown(final)
-                    st.session_state.chat_histories[qid].append({"role": "assistant", "content": final})
-                    log_interaction(qid, f"【辅导】{last_query}", final)
+                        logging.error(f"Controlled hint generation error: {e}")
+                        fallback = "这道题我们先不急着看答案。你可以先指出题目中最关键的条件是什么，再想一想它对应哪个定义或公式？"
+                        st.markdown(fallback)
+                        st.session_state.chat_histories[qid].append({"role": "assistant", "content": fallback})
+                        log_interaction(qid, f"【辅导】{last_query}", fallback, leak=0)
 
 elif st.session_state.page_mode == "report" and st.session_state.user_role == "student":
     st.markdown("<h1 style='text-align: center;'>📊 个人学情中心与错题记录</h1>", unsafe_allow_html=True)
