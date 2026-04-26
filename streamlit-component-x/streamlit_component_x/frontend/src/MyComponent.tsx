@@ -38,8 +38,10 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     if (!mf) return;
 
-    if ((args.default_value || "") !== mf.value) {
-      mf.value = args.default_value || "";
+    const nextValue = args.default_value || "";
+    if (nextValue !== mf.value) {
+      mf.value = nextValue;
+      Streamlit.setComponentValue(nextValue);
     }
 
     mf.mathVirtualKeyboardPolicy = "sandboxed";

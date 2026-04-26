@@ -1112,6 +1112,7 @@ elif st.session_state.page_mode == "results":
             composer_input_key = f"composer_input_{qid}"
             latex_key = f"composer_latex_{qid}"
             composer_reset_key = f"composer_reset_{qid}"
+            math_widget_version_key = f"math_widget_version_{qid}"
 
             if composer_input_key not in st.session_state:
                 st.session_state[composer_input_key] = ""
@@ -1122,8 +1123,13 @@ elif st.session_state.page_mode == "results":
             if composer_reset_key not in st.session_state:
                 st.session_state[composer_reset_key] = False
 
+            if math_widget_version_key not in st.session_state:
+                st.session_state[math_widget_version_key] = 0
+
             if st.session_state[composer_reset_key]:
                 st.session_state[composer_input_key] = ""
+                st.session_state[latex_key] = ""
+                st.session_state[math_widget_version_key] += 1
                 st.session_state[composer_reset_key] = False
 
             st.markdown("#### ✍️ 请求智能辅导")
@@ -1133,7 +1139,7 @@ elif st.session_state.page_mode == "results":
             with st.expander("📐 插入公式到智能辅导提示词输入框"):
                 user_latex = math_input(
                     default_value=st.session_state.get(latex_key, ""),
-                    key=f"react_math_{qid}"
+                    key=f"react_math_{qid}_{st.session_state[math_widget_version_key]}"
                 )
 
                 if user_latex is not None:
@@ -1146,6 +1152,7 @@ elif st.session_state.page_mode == "results":
                         sep = "" if current == "" or current.endswith((" ", "\n")) else " "
                         st.session_state[composer_input_key] = current + sep + f"${latex}$"
                         st.session_state[latex_key] = ""
+                        st.session_state[math_widget_version_key] += 1
                         st.rerun()
 
             composer_box.text_area(
