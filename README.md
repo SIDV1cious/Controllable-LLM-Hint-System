@@ -75,10 +75,3 @@ python reset_db.py
 ```powershell
 streamlit run app.py
 ```
-
-## 答辩展示建议
-
-- 先展示学生测验流程，再进入错题辅导，强调系统不会直接给答案。
-- 在管理员端展示“智能辅导答案泄露控制统计”，说明系统已记录泄露率、评分和自动重写次数。
-- 结合 `docs/experiment_plan.md` 说明如何用普通提示与可控提示做对照实验。
-- 结合 `docs/system_design.md` 解释系统如何从 Prompt 约束升级为“检测 + 重写”的可控生成闭环。
