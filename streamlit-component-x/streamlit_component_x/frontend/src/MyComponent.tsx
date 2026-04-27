@@ -170,11 +170,8 @@ const MyComponent = ({ args }: ComponentProps) => {
     const mathField = document.createElement("math-field") as any;
     mathField.className = "inline-formula-field";
     mathField.value = latex;
-    mathField.menuItems = [];
-    mathField.defaultMode = "math";
-    mathField.mathVirtualKeyboardPolicy = "manual";
-    mathField.smartFence = true;
-    mathField.maxMatrixCols = MAX_MATRIX_SIZE;
+    mathField.setAttribute("math-virtual-keyboard-policy", "manual");
+    mathField.setAttribute("max-matrix-cols", String(MAX_MATRIX_SIZE));
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -214,6 +211,8 @@ const MyComponent = ({ args }: ComponentProps) => {
       delete formulaRefs.current[id];
       removeFormula(chip);
     });
+
+    window.setTimeout(() => configureMathField(mathField), 0);
 
     return { id, chip, mathField };
   };
@@ -589,6 +588,39 @@ const serializeEditor = (root: HTMLElement) => {
 
   root.childNodes.forEach(visit);
   return value;
+};
+
+const configureMathField = (mathField: any, attempt = 0) => {
+  if (!mathField.isConnected) {
+    if (attempt < 10) {
+      window.setTimeout(() => configureMathField(mathField, attempt + 1), 30);
+    }
+    return;
+  }
+
+  trySetMathFieldOption(() => {
+    mathField.defaultMode = "math";
+  });
+  trySetMathFieldOption(() => {
+    mathField.mathVirtualKeyboardPolicy = "manual";
+  });
+  trySetMathFieldOption(() => {
+    mathField.smartFence = true;
+  });
+  trySetMathFieldOption(() => {
+    mathField.maxMatrixCols = MAX_MATRIX_SIZE;
+  });
+  trySetMathFieldOption(() => {
+    mathField.menuItems = [];
+  });
+};
+
+const trySetMathFieldOption = (setter: () => void) => {
+  try {
+    setter();
+  } catch {
+    // Some MathLive properties are not writable until its internal model mounts.
+  }
 };
 
 const isZeroWidthText = (node: Node | null): node is Text =>
