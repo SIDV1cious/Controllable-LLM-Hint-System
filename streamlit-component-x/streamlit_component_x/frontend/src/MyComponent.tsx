@@ -15,35 +15,153 @@ declare global {
   }
 }
 
-const FRAME_HEIGHT = 455;
+type FormulaItem = {
+  label: string;
+  latex: string;
+};
+
+type FormulaGroup = {
+  title: string;
+  items: FormulaItem[];
+};
+
+const FRAME_HEIGHT = 475;
 const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 
-const INSERT_TEMPLATES = [
-  { label: "绝对值", latex: "\\lvert#?\\rvert" },
-  { label: "n次根", latex: "\\sqrt[#?]{#?}" },
-  { label: "对数", latex: "\\log_{#?}{#?}" },
-  { label: "导数", latex: "\\dfrac{\\mathrm{d}}{\\mathrm{d}x}#?\\bigm|_{x=#?}" },
-  { label: "n阶导", latex: "\\dfrac{\\mathrm{d}^{#?}}{\\mathrm{d}x^{#?}}#?\\bigm|_{x=#?}" },
-  { label: "积分", latex: "\\int_{#?}^{#?}#?\\,\\mathrm{d}#?" },
-  { label: "求和", latex: "\\sum_{#?}^{#?}#?" },
-  { label: "乘积", latex: "\\prod_{#?}^{#?}#?" },
-  { label: "模长", latex: "\\lvert#?\\rvert" },
-  { label: "辐角", latex: "\\arg(#?)" },
-  { label: "实部", latex: "\\Re(#?)" },
-  { label: "虚部", latex: "\\Im(#?)" },
-  { label: "共轭", latex: "\\overline{#?}" },
+const FORMULA_GROUPS: FormulaGroup[] = [
+  {
+    title: "分式/上下标",
+    items: [
+      { label: "分式", latex: "\\frac{#?}{#?}" },
+      { label: "斜分式", latex: "#?/#?" },
+      { label: "上标", latex: "#?^{#?}" },
+      { label: "下标", latex: "#?_{#?}" },
+      { label: "上下标", latex: "#?_{#?}^{#?}" },
+    ],
+  },
+  {
+    title: "根式",
+    items: [
+      { label: "平方根", latex: "\\sqrt{#?}" },
+      { label: "n次根", latex: "\\sqrt[#?]{#?}" },
+    ],
+  },
+  {
+    title: "积分",
+    items: [
+      { label: "积分", latex: "\\int_{#?}^{#?}#?\\,\\mathrm{d}#?" },
+      { label: "二重积分", latex: "\\iint_{#?}#?\\,\\mathrm{d}#?" },
+      { label: "三重积分", latex: "\\iiint_{#?}#?\\,\\mathrm{d}#?" },
+      { label: "闭合积分", latex: "\\oint_{#?}#?\\,\\mathrm{d}#?" },
+    ],
+  },
+  {
+    title: "大型运算",
+    items: [
+      { label: "求和", latex: "\\sum_{#?}^{#?}#?" },
+      { label: "乘积", latex: "\\prod_{#?}^{#?}#?" },
+      { label: "并集", latex: "\\bigcup_{#?}^{#?}#?" },
+      { label: "交集", latex: "\\bigcap_{#?}^{#?}#?" },
+    ],
+  },
+  {
+    title: "括号",
+    items: [
+      { label: "圆括号", latex: "\\left(#?\\right)" },
+      { label: "方括号", latex: "\\left[#?\\right]" },
+      { label: "大括号", latex: "\\left\\{#?\\right\\}" },
+      { label: "绝对值", latex: "\\left|#?\\right|" },
+      { label: "范数", latex: "\\left\\|#?\\right\\|" },
+    ],
+  },
+  {
+    title: "函数",
+    items: [
+      { label: "sin", latex: "\\sin(#?)" },
+      { label: "cos", latex: "\\cos(#?)" },
+      { label: "tan", latex: "\\tan(#?)" },
+      { label: "ln", latex: "\\ln(#?)" },
+      { label: "log", latex: "\\log_{#?}{#?}" },
+      { label: "exp", latex: "\\exp(#?)" },
+      { label: "lim", latex: "\\lim_{#?\\to#?}#?" },
+    ],
+  },
+  {
+    title: "导数",
+    items: [
+      { label: "导数", latex: "\\frac{\\mathrm{d}}{\\mathrm{d}#?}#?" },
+      { label: "n阶导", latex: "\\frac{\\mathrm{d}^{#?}}{\\mathrm{d}#?^{#?}}#?" },
+      { label: "偏导", latex: "\\frac{\\partial}{\\partial #?}#?" },
+      { label: "n阶偏导", latex: "\\frac{\\partial^{#?}}{\\partial #?^{#?}}#?" },
+    ],
+  },
+  {
+    title: "标注",
+    items: [
+      { label: "向量", latex: "\\vec{#?}" },
+      { label: "帽子", latex: "\\hat{#?}" },
+      { label: "上划线", latex: "\\overline{#?}" },
+      { label: "点", latex: "\\dot{#?}" },
+      { label: "二重点", latex: "\\ddot{#?}" },
+      { label: "共轭", latex: "\\overline{#?}" },
+      { label: "实部", latex: "\\Re(#?)" },
+      { label: "虚部", latex: "\\Im(#?)" },
+    ],
+  },
 ];
 
-const QUICK_SYMBOLS = [
+const COMMON_SYMBOLS: FormulaItem[] = [
+  { label: "±", latex: "\\pm" },
+  { label: "∓", latex: "\\mp" },
+  { label: "∞", latex: "\\infty" },
+  { label: "=", latex: "=" },
+  { label: "≠", latex: "\\ne" },
+  { label: "≈", latex: "\\approx" },
+  { label: "≅", latex: "\\cong" },
+  { label: "∝", latex: "\\propto" },
+  { label: "×", latex: "\\times" },
+  { label: "÷", latex: "\\div" },
   { label: "≤", latex: "\\le" },
   { label: "≥", latex: "\\ge" },
-  { label: "≠", latex: "\\ne" },
-  { label: "∞", latex: "\\infty" },
+  { label: "∈", latex: "\\in" },
+  { label: "∉", latex: "\\notin" },
+  { label: "⊂", latex: "\\subset" },
+  { label: "⊆", latex: "\\subseteq" },
+  { label: "∪", latex: "\\cup" },
+  { label: "∩", latex: "\\cap" },
+  { label: "∅", latex: "\\varnothing" },
+  { label: "∀", latex: "\\forall" },
+  { label: "∃", latex: "\\exists" },
+  { label: "∄", latex: "\\nexists" },
+  { label: "∴", latex: "\\therefore" },
+  { label: "∵", latex: "\\because" },
+  { label: "←", latex: "\\leftarrow" },
+  { label: "→", latex: "\\rightarrow" },
+  { label: "↔", latex: "\\leftrightarrow" },
+  { label: "⇒", latex: "\\Rightarrow" },
+  { label: "⇔", latex: "\\Leftrightarrow" },
   { label: "α", latex: "\\alpha" },
   { label: "β", latex: "\\beta" },
+  { label: "γ", latex: "\\gamma" },
+  { label: "δ", latex: "\\delta" },
+  { label: "ε", latex: "\\varepsilon" },
   { label: "θ", latex: "\\theta" },
+  { label: "λ", latex: "\\lambda" },
+  { label: "μ", latex: "\\mu" },
   { label: "π", latex: "\\pi" },
+  { label: "ρ", latex: "\\rho" },
+  { label: "σ", latex: "\\sigma" },
+  { label: "φ", latex: "\\varphi" },
+  { label: "ω", latex: "\\omega" },
+  { label: "Γ", latex: "\\Gamma" },
+  { label: "Δ", latex: "\\Delta" },
+  { label: "Θ", latex: "\\Theta" },
+  { label: "Λ", latex: "\\Lambda" },
+  { label: "Π", latex: "\\Pi" },
+  { label: "Σ", latex: "\\Sigma" },
+  { label: "Φ", latex: "\\Phi" },
+  { label: "Ω", latex: "\\Omega" },
 ];
 
 const MyComponent = ({ args }: ComponentProps) => {
@@ -333,21 +451,6 @@ const MyComponent = ({ args }: ComponentProps) => {
     insertLatexIntoFormula(`\\begin{pmatrix}${body}\\end{pmatrix}`);
   };
 
-  const openVirtualKeyboard = () => {
-    const mathField = getActiveMathField();
-
-    if (!mathField) {
-      insertFormulaBox();
-      window.setTimeout(() => {
-        const nextField = getActiveMathField();
-        if (nextField) showVirtualKeyboard(nextField);
-      }, 80);
-      return;
-    }
-
-    showVirtualKeyboard(mathField);
-  };
-
   const removeAdjacentFormula = (direction: "backward" | "forward") => {
     const range = getEditorRange();
     if (!range || !range.collapsed) return false;
@@ -520,40 +623,45 @@ const MyComponent = ({ args }: ComponentProps) => {
         >
           插入公式框
         </button>
-
-        <button
-          type="button"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={openVirtualKeyboard}
-          style={toolButtonStyle}
-        >
-          虚拟键盘
-        </button>
+        <span style={toolbarHintStyle}>公式工具只会输入到当前公式框</span>
       </div>
 
-      <div style={toolbarStyle}>
-        {INSERT_TEMPLATES.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => insertLatexIntoFormula(item.latex)}
-            style={toolButtonStyle}
-          >
-            {item.label}
-          </button>
+      <div style={groupToolbarStyle}>
+        {FORMULA_GROUPS.map((group) => (
+          <details key={group.title} style={dropdownStyle}>
+            <summary style={summaryStyle}>{group.title}</summary>
+            <div style={dropdownPanelStyle}>
+              {group.items.map((item) => (
+                <button
+                  key={`${group.title}-${item.label}`}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => insertLatexIntoFormula(item.latex)}
+                  style={symbolButtonStyle}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </details>
         ))}
-        {QUICK_SYMBOLS.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => insertLatexIntoFormula(item.latex)}
-            style={toolButtonStyle}
-          >
-            {item.label}
-          </button>
-        ))}
+
+        <details style={dropdownStyle}>
+          <summary style={summaryStyle}>常用符号</summary>
+          <div style={symbolPanelStyle}>
+            {COMMON_SYMBOLS.map((item) => (
+              <button
+                key={`${item.label}-${item.latex}`}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => insertLatexIntoFormula(item.latex)}
+                style={symbolButtonStyle}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </details>
       </div>
 
       <div style={matrixRowStyle}>
@@ -662,19 +770,6 @@ const insertIntoMathField = (mathField: any, latex: string) => {
   });
 };
 
-const showVirtualKeyboard = (mathField: any) => {
-  configureMathField(mathField);
-  mathField.focus();
-
-  trySetMathFieldOption(() => {
-    mathField.executeCommand?.("showVirtualKeyboard");
-  });
-
-  trySetMathFieldOption(() => {
-    (window as any).mathVirtualKeyboard?.show?.();
-  });
-};
-
 const configureMathField = (mathField: any, attempt = 0) => {
   if (!mathField.isConnected) {
     if (attempt < 10) {
@@ -766,7 +861,7 @@ const containerStyle: React.CSSProperties = {
   border: "1px solid #d9dee8",
   borderRadius: "8px",
   padding: "10px",
-  height: "420px",
+  height: "440px",
   boxSizing: "border-box",
   overflow: "hidden",
 };
@@ -778,6 +873,19 @@ const toolbarHeaderStyle: React.CSSProperties = {
   gap: "8px",
   marginBottom: "8px",
   flexWrap: "wrap",
+};
+
+const toolbarHintStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: "12px",
+};
+
+const groupToolbarStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "6px",
+  flexWrap: "wrap",
+  alignItems: "flex-start",
+  marginBottom: "8px",
 };
 
 const matrixPanelStyle: React.CSSProperties = {
@@ -794,11 +902,42 @@ const matrixRowStyle: React.CSSProperties = {
   marginBottom: "8px",
 };
 
-const toolbarStyle: React.CSSProperties = {
-  display: "flex",
+const dropdownStyle: React.CSSProperties = {
+  position: "relative",
+};
+
+const summaryStyle: React.CSSProperties = {
+  border: "1px solid #cfd6e3",
+  background: "#f8fafc",
+  color: "#263244",
+  borderRadius: "7px",
+  padding: "6px 9px",
+  fontSize: "12px",
+  cursor: "pointer",
+  minHeight: "30px",
+  listStyle: "none",
+};
+
+const dropdownPanelStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(72px, 1fr))",
   gap: "6px",
-  flexWrap: "wrap",
-  marginBottom: "8px",
+  position: "absolute",
+  zIndex: 20,
+  top: "34px",
+  left: 0,
+  minWidth: "180px",
+  padding: "8px",
+  border: "1px solid #d9dee8",
+  borderRadius: "8px",
+  background: "white",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)",
+};
+
+const symbolPanelStyle: React.CSSProperties = {
+  ...dropdownPanelStyle,
+  gridTemplateColumns: "repeat(6, 34px)",
+  minWidth: "252px",
 };
 
 const primaryButtonStyle: React.CSSProperties = {
@@ -824,6 +963,12 @@ const toolButtonStyle: React.CSSProperties = {
   minHeight: "28px",
 };
 
+const symbolButtonStyle: React.CSSProperties = {
+  ...toolButtonStyle,
+  minHeight: "30px",
+  padding: "4px 7px",
+};
+
 const selectStyle: React.CSSProperties = {
   border: "1px solid #cfd6e3",
   borderRadius: "6px",
@@ -835,7 +980,7 @@ const selectStyle: React.CSSProperties = {
 
 const editorStyle: React.CSSProperties = {
   width: "100%",
-  height: "210px",
+  height: "205px",
   boxSizing: "border-box",
   overflowY: "auto",
   border: "1px solid #d9dee8",
