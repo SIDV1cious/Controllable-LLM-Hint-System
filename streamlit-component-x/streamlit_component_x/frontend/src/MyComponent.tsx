@@ -17,39 +17,42 @@ declare global {
 }
 
 const FRAME_HEIGHT = 560;
-const MAX_MATRIX_SIZE = 5;
+const MAX_MATRIX_SIZE = 10;
 
-const COMMON_SYMBOLS = [
-  { label: "x^2", latex: "x^2" },
-  { label: "x_n", latex: "x_n" },
-  { label: "分式", latex: "\\frac{}{}" },
-  { label: "根号", latex: "\\sqrt{}" },
-  { label: "积分", latex: "\\int_{}^{}" },
-  { label: "求和", latex: "\\sum_{}^{}" },
+const INSERT_TEMPLATES = [
+  { label: "绝对值", latex: "|#?|" },
+  { label: "n次根", latex: "\\sqrt[#?]{#?}" },
+  { label: "对数", latex: "\\log_{#?}{#?}" },
+  { label: "导数", latex: "\\dfrac{\\mathrm{d}}{\\mathrm{d}x}#?\\bigm|_{x=#?}" },
+  { label: "n阶导", latex: "\\dfrac{\\mathrm{d}^#?}{\\mathrm{d}x^#?}#?\\bigm|_{x=#?}" },
+  { label: "积分", latex: "\\int_#?^#?#?\\,\\mathrm{d}#?" },
+  { label: "求和", latex: "\\sum_#?^#?#?" },
+  { label: "乘积", latex: "\\prod_#?^#?#?" },
+  { label: "模长", latex: "\\lvert#?\\rvert" },
+  { label: "辐角", latex: "\\arg(#?)" },
+  { label: "实部", latex: "\\Re(#?)" },
+  { label: "虚部", latex: "\\Im(#?)" },
+  { label: "共轭", latex: "\\overline{#?}" },
+];
+
+const QUICK_SYMBOLS = [
   { label: "≤", latex: "\\le" },
   { label: "≥", latex: "\\ge" },
   { label: "≠", latex: "\\ne" },
   { label: "∞", latex: "\\infty" },
-];
-
-const ADVANCED_SYMBOLS = [
-  { label: "lim", latex: "\\lim_{}" },
-  { label: "lim x→0", latex: "\\lim_{x\\to 0}" },
   { label: "α", latex: "\\alpha" },
   { label: "β", latex: "\\beta" },
-  { label: "γ", latex: "\\gamma" },
-  { label: "δ", latex: "\\delta" },
-  { label: "λ", latex: "\\lambda" },
-  { label: "μ", latex: "\\mu" },
-  { label: "π", latex: "\\pi" },
   { label: "θ", latex: "\\theta" },
-  { label: "Ω", latex: "\\Omega" },
+  { label: "π", latex: "\\pi" },
+  { label: "空格", latex: "\\;" },
+  { label: "换行", latex: "\\\\" },
 ];
 
 const MyComponent = ({ args }: ComponentProps) => {
   const mfRef = useRef<any>(null);
   const vkRef = useRef<any>(null);
-  const [entryMode, setEntryMode] = useState<"math" | "text">("text");
+  const syncTimerRef = useRef<number | null>(null);
+  const isComposingRef = useRef(false);
   const [matrixRows, setMatrixRows] = useState(2);
   const [matrixCols, setMatrixCols] = useState(2);
 
@@ -65,6 +68,17 @@ const MyComponent = ({ args }: ComponentProps) => {
     }
   };
 
+  const scheduleSyncValue = () => {
+    if (isComposingRef.current) return;
+    if (syncTimerRef.current !== null) {
+      window.clearTimeout(syncTimerRef.current);
+    }
+    syncTimerRef.current = window.setTimeout(() => {
+      syncTimerRef.current = null;
+      syncValue();
+    }, 120);
+  };
+
   const focusMathField = () => {
     window.setTimeout(() => mfRef.current?.focus(), 0);
   };
@@ -72,20 +86,14 @@ const MyComponent = ({ args }: ComponentProps) => {
   const insertLatex = (latex: string) => {
     const mf = mfRef.current;
     if (!mf) return;
-    mf.mode = "math";
-    setEntryMode("math");
-    mf.insert(latex);
+    mf.insert(latex, {
+      mode: "math",
+      format: "latex",
+      selectionMode: "placeholder",
+      focus: true,
+    });
     syncValue();
     focusMathField();
-  };
-
-  const switchMode = (mode: "math" | "text") => {
-    const mf = mfRef.current;
-    setEntryMode(mode);
-    if (mf) {
-      mf.mode = mode;
-      focusMathField();
-    }
   };
 
   const insertMatrix = () => {
@@ -109,30 +117,38 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (!mf) return;
 
     const nextValue = args.default_value || "";
-    if (nextValue !== mf.value) {
+    if (document.activeElement !== mf && nextValue !== mf.value) {
       mf.value = nextValue;
       Streamlit.setComponentValue(nextValue);
     }
 
     mf.mathVirtualKeyboardPolicy = "sandboxed";
     mf.defaultMode = "text";
-    mf.mode = entryMode;
     mf.menuItems = [];
     mf.maxMatrixCols = MAX_MATRIX_SIZE;
     mf.mathModeSpace = "\\;";
     mf.smartFence = true;
-    mf.smartMode = true;
+    mf.smartMode = false;
     mf.popoverPolicy = "off";
     mf.environmentPopoverPolicy = "off";
 
     const handleInput = (e: any) => {
-      Streamlit.setComponentValue(e.target.value);
+      scheduleSyncValue();
+    };
+
+    const handleCompositionStart = () => {
+      isComposingRef.current = true;
+    };
+
+    const handleCompositionEnd = () => {
+      isComposingRef.current = false;
+      syncValue();
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        mf.insert(" \\\\ ");
+        mf.insert("\\\\", { mode: "math", format: "latex", selectionMode: "after" });
         syncValue();
       }
     };
@@ -142,7 +158,10 @@ const MyComponent = ({ args }: ComponentProps) => {
     };
 
     mf.addEventListener("input", handleInput);
+    mf.addEventListener("compositionstart", handleCompositionStart);
+    mf.addEventListener("compositionend", handleCompositionEnd);
     mf.addEventListener("keydown", handleKeyDown);
+    mf.addEventListener("blur", syncValue);
 
     if (vk) {
       vk.addEventListener("geometrychange", handleGeometryChange);
@@ -151,8 +170,15 @@ const MyComponent = ({ args }: ComponentProps) => {
     refreshFrameHeight();
 
     return () => {
+      if (syncTimerRef.current !== null) {
+        window.clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
       mf.removeEventListener("input", handleInput);
+      mf.removeEventListener("compositionstart", handleCompositionStart);
+      mf.removeEventListener("compositionend", handleCompositionEnd);
       mf.removeEventListener("keydown", handleKeyDown);
+      mf.removeEventListener("blur", syncValue);
       if (vk) {
         vk.removeEventListener("geometrychange", handleGeometryChange);
       }
@@ -215,23 +241,6 @@ const MyComponent = ({ args }: ComponentProps) => {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", gap: "6px" }}>
-          <button
-            type="button"
-            onClick={() => switchMode("math")}
-            style={modeButtonStyle(entryMode === "math")}
-          >
-            公式
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode("text")}
-            style={modeButtonStyle(entryMode === "text")}
-          >
-            文字
-          </button>
-        </div>
-
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <span style={{ fontSize: "12px", color: "#536075" }}>矩阵</span>
           <select
@@ -239,7 +248,7 @@ const MyComponent = ({ args }: ComponentProps) => {
             onChange={(e) => setMatrixRows(Number(e.target.value))}
             style={selectStyle}
           >
-            {[1, 2, 3, 4, 5].map((n) => (
+            {Array.from({ length: MAX_MATRIX_SIZE }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n}行
               </option>
@@ -250,7 +259,7 @@ const MyComponent = ({ args }: ComponentProps) => {
             onChange={(e) => setMatrixCols(Number(e.target.value))}
             style={selectStyle}
           >
-            {[1, 2, 3, 4, 5].map((n) => (
+            {Array.from({ length: MAX_MATRIX_SIZE }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n}列
               </option>
@@ -263,7 +272,7 @@ const MyComponent = ({ args }: ComponentProps) => {
       </div>
 
       <div style={toolbarStyle}>
-        {COMMON_SYMBOLS.map((item) => (
+        {INSERT_TEMPLATES.map((item) => (
           <button
             key={item.label}
             type="button"
@@ -276,7 +285,7 @@ const MyComponent = ({ args }: ComponentProps) => {
       </div>
 
       <div style={toolbarStyle}>
-        {ADVANCED_SYMBOLS.map((item) => (
+        {QUICK_SYMBOLS.map((item) => (
           <button
             key={item.label}
             type="button"
@@ -286,12 +295,6 @@ const MyComponent = ({ args }: ComponentProps) => {
             {item.label}
           </button>
         ))}
-        <button type="button" onClick={() => insertLatex("\\;")} style={toolButtonStyle}>
-          空格
-        </button>
-        <button type="button" onClick={() => insertLatex(" \\\\ ")} style={toolButtonStyle}>
-          换行
-        </button>
       </div>
 
       <math-field
@@ -341,13 +344,5 @@ const selectStyle: React.CSSProperties = {
   fontSize: "12px",
   height: "28px",
 };
-
-const modeButtonStyle = (active: boolean): React.CSSProperties => ({
-  ...toolButtonStyle,
-  background: active ? "#2563eb" : "#f8fafc",
-  borderColor: active ? "#2563eb" : "#cfd6e3",
-  color: active ? "white" : "#263244",
-  fontWeight: active ? 700 : 500,
-});
 
 export default withStreamlitConnection(MyComponent);
