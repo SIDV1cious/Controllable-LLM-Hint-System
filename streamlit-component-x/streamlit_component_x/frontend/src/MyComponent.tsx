@@ -3,7 +3,7 @@ import {
   withStreamlitConnection,
   ComponentProps,
 } from "streamlit-component-lib";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "mathlive";
 import "mathlive/static.css";
 
@@ -15,22 +15,9 @@ declare global {
   }
 }
 
-type TextBlock = {
-  id: string;
-  type: "text";
-  text: string;
-};
-
-type FormulaBlock = {
-  id: string;
-  type: "formula";
-  latex: string;
-};
-
-type ComposerBlock = TextBlock | FormulaBlock;
-
-const FRAME_HEIGHT = 500;
+const FRAME_HEIGHT = 430;
 const MAX_MATRIX_SIZE = 10;
+const ZERO_WIDTH_SPACE = "\u200B";
 
 const INSERT_TEMPLATES = [
   { label: "绝对值", latex: "\\lvert#?\\rvert" },
@@ -59,200 +46,225 @@ const QUICK_SYMBOLS = [
   { label: "π", latex: "\\pi" },
 ];
 
-const blockToValue = (block: ComposerBlock) => {
-  if (block.type === "text") return block.text;
-  const latex = block.latex.trim();
-  return latex ? `$${latex}$` : "";
-};
-
-const serializeBlocks = (blocks: ComposerBlock[]) =>
-  blocks.map(blockToValue).join("");
-
-const mergeAdjacentTextBlocks = (blocks: ComposerBlock[]) => {
-  const merged: ComposerBlock[] = [];
-
-  blocks.forEach((block) => {
-    const last = merged[merged.length - 1];
-    if (last?.type === "text" && block.type === "text") {
-      merged[merged.length - 1] = {
-        ...last,
-        text: `${last.text}${block.text}`,
-      };
-    } else {
-      merged.push(block);
-    }
-  });
-
-  return merged;
-};
-
-const parseInitialBlocks = (value: string, createId: () => string): ComposerBlock[] => {
-  if (!value) return [{ id: createId(), type: "text", text: "" }];
-
-  const blocks: ComposerBlock[] = [];
-  const formulaPattern = /\$([^$]+)\$/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = formulaPattern.exec(value)) !== null) {
-    if (match.index > lastIndex) {
-      blocks.push({
-        id: createId(),
-        type: "text",
-        text: value.slice(lastIndex, match.index),
-      });
-    }
-
-    blocks.push({
-      id: createId(),
-      type: "formula",
-      latex: match[1],
-    });
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < value.length) {
-    blocks.push({
-      id: createId(),
-      type: "text",
-      text: value.slice(lastIndex),
-    });
-  }
-
-  return blocks.length ? blocks : [{ id: createId(), type: "text", text: value }];
-};
-
 const MyComponent = ({ args }: ComponentProps) => {
-  const idCounterRef = useRef(0);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const savedRangeRef = useRef<Range | null>(null);
   const formulaRefs = useRef<Record<string, any>>({});
-  const textRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
-  const textSelectionsRef = useRef<Record<string, { start: number; end: number }>>({});
-  const activeBlockIdRef = useRef<string | null>(null);
-  const pendingFormulaInsertRef = useRef<{ id: string; latex: string } | null>(null);
-  const lastSerializedRef = useRef(args.default_value || "");
-
-  const createId = () => `block_${Date.now()}_${idCounterRef.current++}`;
-
-  const [blocks, setBlocks] = useState<ComposerBlock[]>(() =>
-    parseInitialBlocks(args.default_value || "", createId)
-  );
-  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
+  const activeFormulaIdRef = useRef<string | null>(null);
+  const lastValueRef = useRef(args.default_value || "");
+  const idCounterRef = useRef(0);
   const [matrixRows, setMatrixRows] = useState(2);
   const [matrixCols, setMatrixCols] = useState(2);
 
-  const activeFormulaId = useMemo(() => {
-    const active = blocks.find((block) => block.id === activeBlockId);
-    return active?.type === "formula" ? active.id : null;
-  }, [activeBlockId, blocks]);
+  const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
 
   const refreshFrameHeight = () => {
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 80);
   };
 
-  const setActiveBlock = (id: string) => {
-    activeBlockIdRef.current = id;
-    setActiveBlockId(id);
+  const isInsideEditor = (node: Node | null) => {
+    const editor = editorRef.current;
+    return !!editor && !!node && editor.contains(node);
   };
 
-  const syncBlocks = (nextBlocks: ComposerBlock[]) => {
-    const safeBlocks = nextBlocks.length
-      ? nextBlocks
-      : [{ id: createId(), type: "text" as const, text: "" }];
-    const serialized = serializeBlocks(safeBlocks);
-    lastSerializedRef.current = serialized;
-    setBlocks(safeBlocks);
-    Streamlit.setComponentValue(serialized);
+  const saveSelection = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    if (!isInsideEditor(range.commonAncestorContainer)) return;
+
+    savedRangeRef.current = range.cloneRange();
   };
 
-  const updateTextSelection = (id: string) => {
-    const textarea = textRefs.current[id];
-    if (!textarea) return;
+  const setActiveFormula = (id: string | null) => {
+    activeFormulaIdRef.current = id;
+    const editor = editorRef.current;
+    if (!editor) return;
 
-    textSelectionsRef.current[id] = {
-      start: textarea.selectionStart ?? textarea.value.length,
-      end: textarea.selectionEnd ?? textarea.value.length,
-    };
+    editor.querySelectorAll<HTMLElement>(".inline-formula-chip").forEach((chip) => {
+      chip.classList.toggle("active", chip.dataset.formulaId === id);
+    });
   };
 
-  const updateTextBlock = (id: string, text: string) => {
-    const nextBlocks = blocks.map((block) =>
-      block.id === id && block.type === "text" ? { ...block, text } : block
-    );
-    syncBlocks(nextBlocks);
+  const getEditorRange = () => {
+    const editor = editorRef.current;
+    if (!editor) return null;
+
+    const selection = window.getSelection();
+    if (
+      selection &&
+      selection.rangeCount > 0 &&
+      isInsideEditor(selection.getRangeAt(0).commonAncestorContainer)
+    ) {
+      return selection.getRangeAt(0);
+    }
+
+    if (
+      savedRangeRef.current &&
+      isInsideEditor(savedRangeRef.current.commonAncestorContainer)
+    ) {
+      return savedRangeRef.current.cloneRange();
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    return range;
   };
 
-  const updateFormulaBlock = (id: string, latex: string) => {
-    const nextBlocks = blocks.map((block) =>
-      block.id === id && block.type === "formula" ? { ...block, latex } : block
-    );
-    syncBlocks(nextBlocks);
+  const setCaretAfter = (node: Node) => {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const range = document.createRange();
+    range.setStartAfter(node);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+  };
+
+  const syncValue = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const value = serializeEditor(editor);
+    lastValueRef.current = value;
+    Streamlit.setComponentValue(value);
+    refreshFrameHeight();
+  };
+
+  const removeFormula = (chip: HTMLElement) => {
+    const next = chip.nextSibling;
+    const previous = chip.previousSibling;
+
+    if (isZeroWidthText(next)) next.remove();
+    if (isZeroWidthText(previous)) previous.remove();
+
+    chip.remove();
+    syncValue();
+
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+  };
+
+  const createFormulaElement = (latex = "") => {
+    const id = createId();
+    const chip = document.createElement("span");
+    chip.className = "inline-formula-chip";
+    chip.dataset.formulaId = id;
+    chip.dataset.latex = latex;
+    chip.contentEditable = "false";
+
+    const mathField = document.createElement("math-field") as any;
+    mathField.className = "inline-formula-field";
+    mathField.value = latex;
+    mathField.menuItems = [];
+    mathField.defaultMode = "math";
+    mathField.mathVirtualKeyboardPolicy = "manual";
+    mathField.smartFence = true;
+    mathField.maxMatrixCols = MAX_MATRIX_SIZE;
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "inline-formula-remove";
+    removeButton.textContent = "×";
+    removeButton.title = "删除公式框";
+
+    chip.append(mathField, removeButton);
+    formulaRefs.current[id] = mathField;
+
+    chip.addEventListener("mousedown", (event) => {
+      event.stopPropagation();
+    });
+
+    mathField.addEventListener("focus", () => {
+      setActiveFormula(id);
+    });
+
+    mathField.addEventListener("keydown", (event: KeyboardEvent) => {
+      event.stopPropagation();
+    });
+
+    mathField.addEventListener("input", (event: Event) => {
+      event.stopPropagation();
+      chip.dataset.latex = mathField.value || "";
+      syncValue();
+    });
+
+    removeButton.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+
+    removeButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      delete formulaRefs.current[id];
+      removeFormula(chip);
+    });
+
+    return { id, chip, mathField };
+  };
+
+  const insertPlainText = (text: string) => {
+    const range = getEditorRange();
+    if (!range) return;
+
+    range.deleteContents();
+    const textNode = document.createTextNode(text);
+    range.insertNode(textNode);
+    setCaretAfter(textNode);
+    syncValue();
   };
 
   const insertFormulaBox = (initialLatex = "") => {
-    const newFormula: FormulaBlock = { id: createId(), type: "formula", latex: "" };
-    const newText: TextBlock = { id: createId(), type: "text", text: "" };
-    const activeId = activeBlockIdRef.current;
-    const activeIndex = blocks.findIndex((block) => block.id === activeId);
-    let nextBlocks: ComposerBlock[];
+    const editor = editorRef.current;
+    const range = getEditorRange();
+    if (!editor || !range) return;
 
-    if (activeIndex >= 0 && blocks[activeIndex].type === "text") {
-      const activeText = blocks[activeIndex] as TextBlock;
-      const selection = textSelectionsRef.current[activeText.id] ?? {
-        start: activeText.text.length,
-        end: activeText.text.length,
-      };
-      const beforeText = activeText.text.slice(0, selection.start);
-      const afterText = activeText.text.slice(selection.end);
-      const replacements: ComposerBlock[] = [];
+    const { id, chip, mathField } = createFormulaElement("");
+    const spacer = document.createTextNode(ZERO_WIDTH_SPACE);
 
-      if (beforeText) {
-        replacements.push({ ...activeText, text: beforeText });
-      }
-
-      replacements.push(newFormula);
-      replacements.push({ ...newText, text: afterText });
-
-      nextBlocks = [
-        ...blocks.slice(0, activeIndex),
-        ...replacements,
-        ...blocks.slice(activeIndex + 1),
-      ];
-    } else if (activeIndex >= 0) {
-      nextBlocks = [
-        ...blocks.slice(0, activeIndex + 1),
-        newFormula,
-        newText,
-        ...blocks.slice(activeIndex + 1),
-      ];
-    } else {
-      nextBlocks = [...blocks, newFormula, newText];
-    }
-
-    pendingFormulaInsertRef.current = initialLatex
-      ? { id: newFormula.id, latex: initialLatex }
-      : null;
-    setActiveBlock(newFormula.id);
-    syncBlocks(nextBlocks);
+    range.deleteContents();
+    range.insertNode(spacer);
+    range.insertNode(chip);
+    setCaretAfter(spacer);
+    setActiveFormula(id);
+    syncValue();
 
     window.setTimeout(() => {
-      const mathField = formulaRefs.current[newFormula.id];
-      mathField?.focus();
+      mathField.focus();
+      if (initialLatex) {
+        mathField.insert(initialLatex, {
+          mode: "math",
+          format: "latex",
+          selectionMode: "placeholder",
+          focus: true,
+        });
+        chip.dataset.latex = mathField.value || "";
+        syncValue();
+      }
     }, 0);
   };
 
   const insertLatexIntoFormula = (latex: string) => {
-    const targetId = activeFormulaId;
+    const activeId = activeFormulaIdRef.current;
+    const mathField = activeId ? formulaRefs.current[activeId] : null;
 
-    if (!targetId) {
-      insertFormulaBox(latex);
-      return;
-    }
-
-    const mathField = formulaRefs.current[targetId];
     if (!mathField) {
-      pendingFormulaInsertRef.current = { id: targetId, latex };
+      insertFormulaBox(latex);
       return;
     }
 
@@ -263,7 +275,10 @@ const MyComponent = ({ args }: ComponentProps) => {
       selectionMode: "placeholder",
       focus: true,
     });
-    updateFormulaBlock(targetId, mathField.value || "");
+
+    const chip = mathField.closest(".inline-formula-chip") as HTMLElement | null;
+    if (chip) chip.dataset.latex = mathField.value || "";
+    syncValue();
   };
 
   const insertMatrix = () => {
@@ -276,56 +291,88 @@ const MyComponent = ({ args }: ComponentProps) => {
     insertLatexIntoFormula(`\\begin{pmatrix}${body}\\end{pmatrix}`);
   };
 
-  const removeFormulaBlock = (id: string) => {
-    const index = blocks.findIndex((block) => block.id === id);
-    if (index < 0) return;
+  const removeAdjacentFormula = (direction: "backward" | "forward") => {
+    const range = getEditorRange();
+    if (!range || !range.collapsed) return false;
 
-    const nextBlocks = mergeAdjacentTextBlocks(
-      blocks.filter((block) => block.id !== id)
-    );
-    if (!nextBlocks.some((block) => block.type === "text")) {
-      nextBlocks.push({ id: createId(), type: "text", text: "" });
+    const candidate =
+      direction === "backward"
+        ? getNodeBeforeRange(range)
+        : getNodeAfterRange(range);
+    const formula = findFormulaChip(candidate);
+    if (!formula) return false;
+
+    delete formulaRefs.current[formula.dataset.formulaId || ""];
+    removeFormula(formula);
+    return true;
+  };
+
+  const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      insertPlainText("\n");
+      return;
     }
 
-    const nextTextBlock = (nextBlocks
-      .slice(Math.max(index - 1, 0))
-      .find((block) => block.type === "text") ?? nextBlocks.find(
-      (block) => block.type === "text"
-    )) as TextBlock | undefined;
+    if (event.key === "Backspace" && removeAdjacentFormula("backward")) {
+      event.preventDefault();
+      return;
+    }
 
-    syncBlocks(nextBlocks);
-
-    if (nextTextBlock) {
-      setActiveBlock(nextTextBlock.id);
-      window.setTimeout(() => textRefs.current[nextTextBlock.id]?.focus(), 0);
+    if (event.key === "Delete" && removeAdjacentFormula("forward")) {
+      event.preventDefault();
     }
   };
 
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const text = event.clipboardData.getData("text/plain");
+    if (!text) return;
+
+    event.preventDefault();
+    insertPlainText(text);
+  };
+
+  const renderValue = (value: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    formulaRefs.current = {};
+    editor.innerHTML = "";
+
+    const pattern = /\$([^$]*)\$/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(value)) !== null) {
+      if (match.index > lastIndex) {
+        editor.append(document.createTextNode(value.slice(lastIndex, match.index)));
+      }
+
+      const { chip } = createFormulaElement(match[1]);
+      editor.append(chip, document.createTextNode(ZERO_WIDTH_SPACE));
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < value.length) {
+      editor.append(document.createTextNode(value.slice(lastIndex)));
+    }
+
+    setActiveFormula(null);
+    refreshFrameHeight();
+  };
+
+  useEffect(() => {
+    renderValue(args.default_value || "");
+    lastValueRef.current = args.default_value || "";
+  }, []);
+
   useEffect(() => {
     const nextValue = args.default_value || "";
-    if (nextValue !== lastSerializedRef.current) {
-      lastSerializedRef.current = nextValue;
-      setBlocks(parseInitialBlocks(nextValue, createId));
+    if (nextValue !== lastValueRef.current) {
+      lastValueRef.current = nextValue;
+      renderValue(nextValue);
     }
   }, [args.default_value]);
-
-  useEffect(() => {
-    const pending = pendingFormulaInsertRef.current;
-    if (!pending) return;
-
-    const mathField = formulaRefs.current[pending.id];
-    if (!mathField) return;
-
-    pendingFormulaInsertRef.current = null;
-    mathField.focus();
-    mathField.insert(pending.latex, {
-      mode: "math",
-      format: "latex",
-      selectionMode: "placeholder",
-      focus: true,
-    });
-    updateFormulaBlock(pending.id, mathField.value || "");
-  }, [blocks]);
 
   useEffect(() => {
     const style = document.createElement("style");
@@ -337,9 +384,72 @@ const MyComponent = ({ args }: ComponentProps) => {
         background: white;
       }
 
-      math-field::part(menu-toggle),
-      math-field::part(virtual-keyboard-toggle) {
+      .mixed-editor {
+        caret-color: #111827;
+      }
+
+      .mixed-editor:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.10);
+      }
+
+      .inline-formula-chip {
+        display: inline-flex;
+        align-items: center;
+        vertical-align: baseline;
+        max-width: min(340px, 80vw);
+        min-width: 92px;
+        min-height: 34px;
+        margin: 0 3px;
+        padding: 2px 5px;
+        border: 1px solid #a3a3a3;
+        border-radius: 2px;
+        background: #eeeeee;
+        box-sizing: border-box;
+        white-space: nowrap;
+      }
+
+      .inline-formula-chip.active {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+        background: #f8fbff;
+      }
+
+      .inline-formula-field {
+        display: inline-block;
+        width: 100%;
+        min-width: 72px;
+        max-width: 300px;
+        min-height: 28px;
+        border: 0;
+        padding: 2px 4px;
+        background: transparent;
+        font-size: 18px;
+        outline: none;
+        overflow-x: auto;
+      }
+
+      .inline-formula-field::part(menu-toggle),
+      .inline-formula-field::part(virtual-keyboard-toggle) {
         display: none;
+      }
+
+      .inline-formula-remove {
+        flex: 0 0 auto;
+        width: 18px;
+        height: 22px;
+        margin-left: 2px;
+        border: 0;
+        border-left: 1px solid #c7c7c7;
+        background: transparent;
+        color: #6b7280;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+      }
+
+      .inline-formula-remove:hover {
+        color: #b91c1c;
       }
     `;
     document.head.appendChild(style);
@@ -350,15 +460,12 @@ const MyComponent = ({ args }: ComponentProps) => {
     };
   }, []);
 
-  useEffect(() => {
-    refreshFrameHeight();
-  }, [blocks.length]);
-
   return (
     <div style={containerStyle}>
       <div style={toolbarHeaderStyle}>
         <button
           type="button"
+          onMouseDown={(event) => event.preventDefault()}
           onClick={() => insertFormulaBox()}
           style={primaryButtonStyle}
         >
@@ -369,27 +476,38 @@ const MyComponent = ({ args }: ComponentProps) => {
           <span style={{ fontSize: "12px", color: "#536075" }}>矩阵</span>
           <select
             value={matrixRows}
-            onChange={(e) => setMatrixRows(Number(e.target.value))}
+            onChange={(event) => setMatrixRows(Number(event.target.value))}
+            onMouseDown={(event) => event.stopPropagation()}
             style={selectStyle}
           >
-            {Array.from({ length: MAX_MATRIX_SIZE }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n}行
-              </option>
-            ))}
+            {Array.from({ length: MAX_MATRIX_SIZE }, (_, index) => index + 1).map(
+              (n) => (
+                <option key={n} value={n}>
+                  {n}行
+                </option>
+              )
+            )}
           </select>
           <select
             value={matrixCols}
-            onChange={(e) => setMatrixCols(Number(e.target.value))}
+            onChange={(event) => setMatrixCols(Number(event.target.value))}
+            onMouseDown={(event) => event.stopPropagation()}
             style={selectStyle}
           >
-            {Array.from({ length: MAX_MATRIX_SIZE }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n}列
-              </option>
-            ))}
+            {Array.from({ length: MAX_MATRIX_SIZE }, (_, index) => index + 1).map(
+              (n) => (
+                <option key={n} value={n}>
+                  {n}列
+                </option>
+              )
+            )}
           </select>
-          <button type="button" onClick={insertMatrix} style={toolButtonStyle}>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={insertMatrix}
+            style={toolButtonStyle}
+          >
             插入矩阵
           </button>
         </div>
@@ -400,6 +518,7 @@ const MyComponent = ({ args }: ComponentProps) => {
           <button
             key={item.label}
             type="button"
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => insertLatexIntoFormula(item.latex)}
             style={toolButtonStyle}
           >
@@ -410,6 +529,7 @@ const MyComponent = ({ args }: ComponentProps) => {
           <button
             key={item.label}
             type="button"
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => insertLatexIntoFormula(item.latex)}
             style={toolButtonStyle}
           >
@@ -418,116 +538,101 @@ const MyComponent = ({ args }: ComponentProps) => {
         ))}
       </div>
 
-      <div style={editorSurfaceStyle}>
-        {blocks.map((block) =>
-          block.type === "text" ? (
-            <textarea
-              key={block.id}
-              ref={(node) => {
-                textRefs.current[block.id] = node;
-              }}
-              value={block.text}
-              onFocus={() => setActiveBlock(block.id)}
-              onClick={() => updateTextSelection(block.id)}
-              onKeyUp={() => updateTextSelection(block.id)}
-              onSelect={() => updateTextSelection(block.id)}
-              onChange={(e) => updateTextBlock(block.id, e.target.value)}
-              placeholder="在这里输入文字。需要公式时，点击上方“插入公式框”。"
-              style={textBlockStyle}
-            />
-          ) : (
-            <FormulaBox
-              key={block.id}
-              id={block.id}
-              latex={block.latex}
-              active={block.id === activeFormulaId}
-              registerRef={(id, ref) => {
-                if (ref) formulaRefs.current[id] = ref;
-                else delete formulaRefs.current[id];
-              }}
-              onFocus={() => setActiveBlock(block.id)}
-              onChange={(latex) => updateFormulaBlock(block.id, latex)}
-              onRemove={() => removeFormulaBlock(block.id)}
-            />
-          )
-        )}
-      </div>
+      <div
+        ref={editorRef}
+        className="mixed-editor"
+        contentEditable
+        suppressContentEditableWarning
+        onFocus={() => {
+          setActiveFormula(null);
+          saveSelection();
+        }}
+        onMouseUp={saveSelection}
+        onKeyUp={saveSelection}
+        onInput={() => {
+          saveSelection();
+          syncValue();
+        }}
+        onKeyDown={handleEditorKeyDown}
+        onPaste={handlePaste}
+        style={editorStyle}
+      />
     </div>
   );
 };
 
-const FormulaBox = ({
-  id,
-  latex,
-  active,
-  registerRef,
-  onFocus,
-  onChange,
-  onRemove,
-}: {
-  id: string;
-  latex: string;
-  active: boolean;
-  registerRef: (id: string, ref: any | null) => void;
-  onFocus: () => void;
-  onChange: (latex: string) => void;
-  onRemove: () => void;
-}) => {
-  const mathFieldRef = useRef<any>(null);
-  const onChangeRef = useRef(onChange);
-  const onFocusRef = useRef(onFocus);
+const serializeEditor = (root: HTMLElement) => {
+  let value = "";
 
-  useEffect(() => {
-    onChangeRef.current = onChange;
-    onFocusRef.current = onFocus;
-  }, [onChange, onFocus]);
-
-  useEffect(() => {
-    const mathField = mathFieldRef.current;
-    if (!mathField) return;
-
-    registerRef(id, mathField);
-    mathField.menuItems = [];
-    mathField.defaultMode = "math";
-    mathField.mathVirtualKeyboardPolicy = "manual";
-    mathField.smartFence = true;
-    mathField.maxMatrixCols = MAX_MATRIX_SIZE;
-
-    const handleInput = () => onChangeRef.current(mathField.value || "");
-    const handleFocus = () => onFocusRef.current();
-
-    mathField.addEventListener("input", handleInput);
-    mathField.addEventListener("focus", handleFocus);
-
-    return () => {
-      mathField.removeEventListener("input", handleInput);
-      mathField.removeEventListener("focus", handleFocus);
-      registerRef(id, null);
-    };
-  }, [id]);
-
-  useEffect(() => {
-    const mathField = mathFieldRef.current;
-    if (mathField && document.activeElement !== mathField && mathField.value !== latex) {
-      mathField.value = latex;
+  const visit = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      value += (node.textContent || "").replaceAll(ZERO_WIDTH_SPACE, "");
+      return;
     }
-  }, [latex]);
 
-  return (
-    <div
-      style={{
-        ...formulaBlockStyle,
-        borderColor: active ? "#2563eb" : "#c7d2fe",
-        boxShadow: active ? "0 0 0 2px rgba(37, 99, 235, 0.12)" : "none",
-      }}
-    >
-      <div style={formulaLabelStyle}>公式框</div>
-      <math-field ref={mathFieldRef} style={mathFieldStyle}></math-field>
-      <button type="button" onClick={onRemove} style={removeButtonStyle}>
-        删除
-      </button>
-    </div>
-  );
+    if (!(node instanceof HTMLElement)) return;
+
+    if (node.classList.contains("inline-formula-chip")) {
+      const mathField = node.querySelector("math-field") as any;
+      const latex = (mathField?.value || node.dataset.latex || "").trim();
+      if (latex) value += `$${latex}$`;
+      return;
+    }
+
+    if (node.tagName === "BR") {
+      value += "\n";
+      return;
+    }
+
+    node.childNodes.forEach(visit);
+  };
+
+  root.childNodes.forEach(visit);
+  return value;
+};
+
+const isZeroWidthText = (node: Node | null): node is Text =>
+  node?.nodeType === Node.TEXT_NODE &&
+  (node.textContent || "").replaceAll(ZERO_WIDTH_SPACE, "") === "";
+
+const isFormulaChip = (node: Node | null): node is HTMLElement =>
+  node instanceof HTMLElement && node.classList.contains("inline-formula-chip");
+
+const findFormulaChip = (node: Node | null) => {
+  if (isFormulaChip(node)) return node;
+  if (isZeroWidthText(node)) {
+    if (isFormulaChip(node.previousSibling)) return node.previousSibling;
+    if (isFormulaChip(node.nextSibling)) return node.nextSibling;
+  }
+  return null;
+};
+
+const getNodeBeforeRange = (range: Range) => {
+  const { startContainer, startOffset } = range;
+
+  if (startContainer.nodeType === Node.TEXT_NODE) {
+    const textBefore = (startContainer.textContent || "").slice(0, startOffset);
+    if (textBefore.replaceAll(ZERO_WIDTH_SPACE, "") === "") {
+      return startContainer.previousSibling;
+    }
+    return null;
+  }
+
+  return startContainer.childNodes[startOffset - 1] || null;
+};
+
+const getNodeAfterRange = (range: Range) => {
+  const { startContainer, startOffset } = range;
+
+  if (startContainer.nodeType === Node.TEXT_NODE) {
+    const textAfter = (startContainer.textContent || "").slice(startOffset);
+    if (textAfter.replaceAll(ZERO_WIDTH_SPACE, "") === "") {
+      return startContainer.nextSibling;
+    }
+    return null;
+  }
+
+  return startContainer.childNodes[startOffset] || null;
 };
 
 const containerStyle: React.CSSProperties = {
@@ -535,7 +640,7 @@ const containerStyle: React.CSSProperties = {
   border: "1px solid #d9dee8",
   borderRadius: "8px",
   padding: "10px",
-  height: "455px",
+  height: "395px",
   boxSizing: "border-box",
   overflow: "hidden",
 };
@@ -563,16 +668,6 @@ const toolbarStyle: React.CSSProperties = {
   marginBottom: "8px",
 };
 
-const editorSurfaceStyle: React.CSSProperties = {
-  height: "300px",
-  boxSizing: "border-box",
-  border: "1px solid #d9dee8",
-  borderRadius: "8px",
-  padding: "8px",
-  background: "#ffffff",
-  overflowY: "auto",
-};
-
 const primaryButtonStyle: React.CSSProperties = {
   border: "1px solid #2563eb",
   background: "#2563eb",
@@ -596,17 +691,6 @@ const toolButtonStyle: React.CSSProperties = {
   minHeight: "28px",
 };
 
-const removeButtonStyle: React.CSSProperties = {
-  border: "1px solid #fecaca",
-  background: "#fff7f7",
-  color: "#b91c1c",
-  borderRadius: "6px",
-  padding: "4px 8px",
-  fontSize: "12px",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
 const selectStyle: React.CSSProperties = {
   border: "1px solid #cfd6e3",
   borderRadius: "6px",
@@ -616,54 +700,23 @@ const selectStyle: React.CSSProperties = {
   height: "30px",
 };
 
-const textBlockStyle: React.CSSProperties = {
+const editorStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: "70px",
+  height: "245px",
   boxSizing: "border-box",
-  resize: "vertical",
-  border: "none",
-  borderRadius: "6px",
-  padding: "10px",
-  outline: "none",
-  background: "transparent",
-  color: "#111827",
-  fontSize: "18px",
-  lineHeight: 1.65,
-  fontFamily:
-    "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-};
-
-const formulaBlockStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "64px minmax(0, 1fr) auto",
-  alignItems: "center",
-  gap: "8px",
-  margin: "6px 0",
-  padding: "8px",
-  border: "1px solid #c7d2fe",
+  overflowY: "auto",
+  border: "1px solid #d9dee8",
   borderRadius: "8px",
-  background: "#f8fbff",
-};
-
-const formulaLabelStyle: React.CSSProperties = {
-  color: "#2563eb",
-  fontSize: "12px",
-  fontWeight: 700,
-  whiteSpace: "nowrap",
-};
-
-const mathFieldStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: "42px",
-  display: "block",
-  boxSizing: "border-box",
-  fontSize: "20px",
-  border: "1px solid #cfd6e3",
-  borderRadius: "6px",
-  padding: "8px",
+  padding: "13px",
   outline: "none",
   background: "white",
   color: "#111827",
+  fontSize: "18px",
+  lineHeight: 1.75,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  fontFamily:
+    "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 };
 
 export default withStreamlitConnection(MyComponent);
