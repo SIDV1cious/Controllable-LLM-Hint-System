@@ -211,6 +211,12 @@ const MyComponent = ({ args }: ComponentProps) => {
       math-field::part(menu-toggle) {
         display: none;
       }
+
+      math-field {
+        --selection-color: #111827;
+        --selection-background-color: rgba(17, 24, 39, 0.10);
+        color: #111827;
+      }
     `;
     document.head.appendChild(style);
 
@@ -312,6 +318,7 @@ const MyComponent = ({ args }: ComponentProps) => {
           outline: "none",
           overflow: "auto",
           background: "white",
+          color: "#111827",
         }}
       ></math-field>
     </div>
