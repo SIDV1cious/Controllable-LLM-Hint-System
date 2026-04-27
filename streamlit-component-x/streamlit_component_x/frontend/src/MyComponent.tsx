@@ -366,14 +366,6 @@ const MyComponent = ({ args }: ComponentProps) => {
   }, []);
 
   useEffect(() => {
-    const nextValue = args.default_value || "";
-    if (nextValue !== lastValueRef.current) {
-      lastValueRef.current = nextValue;
-      renderValue(nextValue);
-    }
-  }, [args.default_value]);
-
-  useEffect(() => {
     const style = document.createElement("style");
     style.innerHTML = `
       html, body {
