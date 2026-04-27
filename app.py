@@ -1136,7 +1136,8 @@ elif st.session_state.page_mode == "results":
 
             composer_box = st.empty()
 
-            with st.expander("📐 插入公式到智能辅导提示词输入框"):
+            st.markdown("##### 📐 公式输入")
+            with st.container(border=True):
                 user_latex = math_input(
                     default_value=st.session_state.get(latex_key, ""),
                     key=f"react_math_{qid}_{st.session_state[math_widget_version_key]}"
