@@ -4,19 +4,8 @@ import {
   ComponentProps,
 } from "streamlit-component-lib";
 import React, { useEffect, useRef, useState } from "react";
-import { initVirtualKeyboardInCurrentBrowsingContext } from "mathlive";
-import "mathlive";
-import "mathlive/static.css";
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      "math-field": any;
-    }
-  }
-}
-
-const FRAME_HEIGHT = 560;
+const FRAME_HEIGHT = 430;
 const MAX_MATRIX_SIZE = 10;
 
 const INSERT_TEMPLATES = [
@@ -45,14 +34,12 @@ const QUICK_SYMBOLS = [
   { label: "θ", latex: "\\theta" },
   { label: "π", latex: "\\pi" },
   { label: "空格", latex: "\\;" },
-  { label: "换行", latex: "\\\\" },
+  { label: "换行", latex: "\n" },
 ];
 
 const MyComponent = ({ args }: ComponentProps) => {
-  const mfRef = useRef<any>(null);
-  const vkRef = useRef<any>(null);
-  const syncTimerRef = useRef<number | null>(null);
-  const isComposingRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [value, setValue] = useState(args.default_value || "");
   const [matrixRows, setMatrixRows] = useState(2);
   const [matrixCols, setMatrixCols] = useState(2);
 
@@ -61,198 +48,50 @@ const MyComponent = ({ args }: ComponentProps) => {
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 80);
   };
 
-  const syncValue = () => {
-    const mf = mfRef.current;
-    if (mf) {
-      Streamlit.setComponentValue(mf.value || "");
-    }
+  const updateValue = (nextValue: string) => {
+    setValue(nextValue);
+    Streamlit.setComponentValue(nextValue);
   };
 
-  const scheduleSyncValue = () => {
-    if (isComposingRef.current) return;
-    if (syncTimerRef.current !== null) {
-      window.clearTimeout(syncTimerRef.current);
-    }
-    syncTimerRef.current = window.setTimeout(() => {
-      syncTimerRef.current = null;
-      syncValue();
-    }, 120);
-  };
+  const insertText = (snippet: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
 
-  const focusMathField = () => {
-    window.setTimeout(() => mfRef.current?.focus(), 0);
-  };
+    const start = textarea.selectionStart ?? value.length;
+    const end = textarea.selectionEnd ?? value.length;
+    const nextValue = value.slice(0, start) + snippet + value.slice(end);
+    updateValue(nextValue);
 
-  const insertLatex = (latex: string) => {
-    const mf = mfRef.current;
-    if (!mf) return;
-    mf.insert(latex, {
-      mode: "math",
-      format: "latex",
-      selectionMode: "placeholder",
-      focus: true,
-    });
-    syncValue();
-    focusMathField();
+    const cursor = start + snippet.length;
+    window.setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(cursor, cursor);
+    }, 0);
   };
 
   const insertMatrix = () => {
     const rows = Math.min(Math.max(matrixRows, 1), MAX_MATRIX_SIZE);
     const cols = Math.min(Math.max(matrixCols, 1), MAX_MATRIX_SIZE);
     const body = Array.from({ length: rows }, () =>
-      Array.from({ length: cols }, () => "").join(" & ")
-    ).join(" \\\\ ");
-    insertLatex(`\\begin{pmatrix}${body}\\end{pmatrix}`);
+      Array.from({ length: cols }, () => "#?").join(" & ")
+    ).join(" \\\\\n");
+    insertText(`\\begin{pmatrix}\n${body}\n\\end{pmatrix}`);
   };
 
   useEffect(() => {
-    vkRef.current = initVirtualKeyboardInCurrentBrowsingContext();
-    refreshFrameHeight();
-  }, []);
-
-  useEffect(() => {
-    const mf = mfRef.current;
-    const vk = vkRef.current;
-
-    if (!mf) return;
-
     const nextValue = args.default_value || "";
-    if (document.activeElement !== mf && nextValue !== mf.value) {
-      mf.value = nextValue;
-      Streamlit.setComponentValue(nextValue);
+    if (document.activeElement !== textareaRef.current && nextValue !== value) {
+      setValue(nextValue);
     }
-
-    mf.mathVirtualKeyboardPolicy = "sandboxed";
-    mf.defaultMode = "text";
-    mf.menuItems = [];
-    mf.maxMatrixCols = MAX_MATRIX_SIZE;
-    mf.mathModeSpace = "\\;";
-    mf.smartFence = true;
-    mf.smartMode = false;
-    mf.popoverPolicy = "off";
-    mf.environmentPopoverPolicy = "off";
-
-    const handleInput = (e: any) => {
-      scheduleSyncValue();
-    };
-
-    const handleCompositionStart = () => {
-      isComposingRef.current = true;
-    };
-
-    const handleCompositionEnd = () => {
-      isComposingRef.current = false;
-      window.setTimeout(() => {
-        if (mf.lastOffset >= 0) {
-          mf.position = mf.lastOffset;
-        }
-      }, 0);
-      syncValue();
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        mf.insert("\\\\", { mode: "math", format: "latex", selectionMode: "after" });
-        syncValue();
-      }
-    };
-
-    const handleGeometryChange = () => {
-      refreshFrameHeight();
-    };
-
-    mf.addEventListener("input", handleInput);
-    mf.addEventListener("compositionstart", handleCompositionStart);
-    mf.addEventListener("compositionend", handleCompositionEnd);
-    mf.addEventListener("keydown", handleKeyDown);
-    mf.addEventListener("blur", syncValue);
-
-    if (vk) {
-      vk.addEventListener("geometrychange", handleGeometryChange);
-    }
-
-    refreshFrameHeight();
-
-    return () => {
-      if (syncTimerRef.current !== null) {
-        window.clearTimeout(syncTimerRef.current);
-        syncTimerRef.current = null;
-      }
-      mf.removeEventListener("input", handleInput);
-      mf.removeEventListener("compositionstart", handleCompositionStart);
-      mf.removeEventListener("compositionend", handleCompositionEnd);
-      mf.removeEventListener("keydown", handleKeyDown);
-      mf.removeEventListener("blur", syncValue);
-      if (vk) {
-        vk.removeEventListener("geometrychange", handleGeometryChange);
-      }
-    };
   }, [args.default_value]);
 
   useEffect(() => {
-    const style = document.createElement("style");
-    style.innerHTML = `
-      html, body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden !important;
-        background: white;
-      }
-
-      #root {
-        height: 100%;
-      }
-
-      math-virtual-keyboard {
-        position: fixed !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        width: 100% !important;
-        z-index: 2147483647 !important;
-      }
-
-      math-field::part(menu-toggle) {
-        display: none;
-      }
-
-      math-field {
-        --selection-color: #111827;
-        --selection-background-color: transparent;
-        caret-color: #111827;
-        color: #111827;
-      }
-    `;
-    document.head.appendChild(style);
-
-    return () => {
-      document.head.removeChild(style);
-    };
+    refreshFrameHeight();
   }, []);
 
   return (
-    <div
-      style={{
-        background: "white",
-        border: "1px solid #d9dee8",
-        borderRadius: "6px",
-        padding: "10px",
-        height: "500px",
-        boxSizing: "border-box",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "8px",
-          marginBottom: "8px",
-          flexWrap: "wrap",
-        }}
-      >
+    <div style={containerStyle}>
+      <div style={topRowStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <span style={{ fontSize: "12px", color: "#536075" }}>矩阵</span>
           <select
@@ -288,7 +127,7 @@ const MyComponent = ({ args }: ComponentProps) => {
           <button
             key={item.label}
             type="button"
-            onClick={() => insertLatex(item.latex)}
+            onClick={() => insertText(item.latex)}
             style={toolButtonStyle}
           >
             {item.label}
@@ -301,7 +140,7 @@ const MyComponent = ({ args }: ComponentProps) => {
           <button
             key={item.label}
             type="button"
-            onClick={() => insertLatex(item.latex)}
+            onClick={() => insertText(item.latex)}
             style={toolButtonStyle}
           >
             {item.label}
@@ -309,26 +148,33 @@ const MyComponent = ({ args }: ComponentProps) => {
         ))}
       </div>
 
-      <math-field
-        ref={mfRef}
-        style={{
-          width: "100%",
-          height: "220px",
-          minHeight: "220px",
-          display: "block",
-          boxSizing: "border-box",
-          fontSize: "24px",
-          border: "1px solid #d9dee8",
-          borderRadius: "6px",
-          padding: "12px",
-          outline: "none",
-          overflow: "auto",
-          background: "white",
-          color: "#111827",
-        }}
-      ></math-field>
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => updateValue(e.target.value)}
+        placeholder="请输入智能辅导问题，可直接输入文字，也可使用上方按钮插入 LaTeX 片段。"
+        style={textareaStyle}
+      />
     </div>
   );
+};
+
+const containerStyle: React.CSSProperties = {
+  background: "white",
+  border: "1px solid #d9dee8",
+  borderRadius: "6px",
+  padding: "10px",
+  height: "380px",
+  boxSizing: "border-box",
+  overflow: "hidden",
+};
+
+const topRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "8px",
+  marginBottom: "8px",
+  flexWrap: "wrap",
 };
 
 const toolbarStyle: React.CSSProperties = {
@@ -356,6 +202,23 @@ const selectStyle: React.CSSProperties = {
   color: "#263244",
   fontSize: "12px",
   height: "28px",
+};
+
+const textareaStyle: React.CSSProperties = {
+  width: "100%",
+  height: "205px",
+  boxSizing: "border-box",
+  resize: "none",
+  border: "1px solid #d9dee8",
+  borderRadius: "6px",
+  padding: "12px",
+  outline: "none",
+  background: "white",
+  color: "#111827",
+  fontSize: "18px",
+  lineHeight: 1.6,
+  fontFamily:
+    "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 };
 
 export default withStreamlitConnection(MyComponent);
