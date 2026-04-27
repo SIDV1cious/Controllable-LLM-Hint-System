@@ -1110,15 +1110,11 @@ elif st.session_state.page_mode == "results":
                     st.markdown(format_math(m["content"]))
 
             composer_input_key = f"composer_input_{qid}"
-            latex_key = f"composer_latex_{qid}"
             composer_reset_key = f"composer_reset_{qid}"
             math_widget_version_key = f"math_widget_version_{qid}"
 
             if composer_input_key not in st.session_state:
                 st.session_state[composer_input_key] = ""
-
-            if latex_key not in st.session_state:
-                st.session_state[latex_key] = ""
 
             if composer_reset_key not in st.session_state:
                 st.session_state[composer_reset_key] = False
@@ -1128,39 +1124,19 @@ elif st.session_state.page_mode == "results":
 
             if st.session_state[composer_reset_key]:
                 st.session_state[composer_input_key] = ""
-                st.session_state[latex_key] = ""
                 st.session_state[math_widget_version_key] += 1
                 st.session_state[composer_reset_key] = False
 
             st.markdown("#### ✍️ 请求智能辅导")
-
-            composer_box = st.empty()
-
-            st.markdown("##### 📐 公式输入")
+            st.markdown("##### 智能辅导输入")
             with st.container(border=True):
-                user_latex = math_input(
-                    default_value=st.session_state.get(latex_key, ""),
+                composer_value = math_input(
+                    default_value=st.session_state.get(composer_input_key, ""),
                     key=f"react_math_{qid}_{st.session_state[math_widget_version_key]}"
                 )
 
-                if user_latex is not None:
-                    st.session_state[latex_key] = user_latex
-
-                if st.button("插入公式到智能辅导提示词输入框", key=f"insert_formula_{qid}", use_container_width=True):
-                    latex = st.session_state.get(latex_key, "").strip()
-                    if latex:
-                        current = st.session_state.get(composer_input_key, "").strip()
-                        sep = "" if current == "" or current.endswith((" ", "\n")) else " "
-                        st.session_state[composer_input_key] = current + sep + f"${latex}$"
-                        st.session_state[latex_key] = ""
-                        st.session_state[math_widget_version_key] += 1
-                        st.rerun()
-
-            composer_box.text_area(
-                "请输入智能辅导提示词（支持文字 + LaTeX 公式）",
-                key=composer_input_key,
-                height=110
-            )
+                if composer_value is not None:
+                    st.session_state[composer_input_key] = composer_value
 
             send_col1, send_col2 = st.columns([5, 1])
 

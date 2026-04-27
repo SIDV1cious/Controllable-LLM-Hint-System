@@ -49,7 +49,7 @@ const ADVANCED_SYMBOLS = [
 const MyComponent = ({ args }: ComponentProps) => {
   const mfRef = useRef<any>(null);
   const vkRef = useRef<any>(null);
-  const [entryMode, setEntryMode] = useState<"math" | "text">("math");
+  const [entryMode, setEntryMode] = useState<"math" | "text">("text");
   const [matrixRows, setMatrixRows] = useState(2);
   const [matrixCols, setMatrixCols] = useState(2);
 
@@ -72,6 +72,8 @@ const MyComponent = ({ args }: ComponentProps) => {
   const insertLatex = (latex: string) => {
     const mf = mfRef.current;
     if (!mf) return;
+    mf.mode = "math";
+    setEntryMode("math");
     mf.insert(latex);
     syncValue();
     focusMathField();
@@ -113,6 +115,8 @@ const MyComponent = ({ args }: ComponentProps) => {
     }
 
     mf.mathVirtualKeyboardPolicy = "sandboxed";
+    mf.defaultMode = "text";
+    mf.mode = entryMode;
     mf.menuItems = [];
     mf.maxMatrixCols = MAX_MATRIX_SIZE;
     mf.mathModeSpace = "\\;";
@@ -217,14 +221,14 @@ const MyComponent = ({ args }: ComponentProps) => {
             onClick={() => switchMode("math")}
             style={modeButtonStyle(entryMode === "math")}
           >
-            LaTeX
+            公式
           </button>
           <button
             type="button"
             onClick={() => switchMode("text")}
             style={modeButtonStyle(entryMode === "text")}
           >
-            text
+            文字
           </button>
         </div>
 
