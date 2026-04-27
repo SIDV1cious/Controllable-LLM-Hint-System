@@ -15,7 +15,7 @@ declare global {
   }
 }
 
-const FRAME_HEIGHT = 430;
+const FRAME_HEIGHT = 455;
 const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 
@@ -53,8 +53,9 @@ const MyComponent = ({ args }: ComponentProps) => {
   const activeFormulaIdRef = useRef<string | null>(null);
   const lastValueRef = useRef(args.default_value || "");
   const idCounterRef = useRef(0);
-  const [matrixRows, setMatrixRows] = useState(2);
-  const [matrixCols, setMatrixCols] = useState(2);
+
+  const [matrixRows, setMatrixRows] = useState(1);
+  const [matrixCols, setMatrixCols] = useState(1);
 
   const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
 
@@ -74,6 +75,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     const range = selection.getRangeAt(0);
     if (!isInsideEditor(range.commonAncestorContainer)) return;
+    if (closestFormulaChipFromNode(range.commonAncestorContainer)) return;
 
     savedRangeRef.current = range.cloneRange();
   };
@@ -98,12 +100,20 @@ const MyComponent = ({ args }: ComponentProps) => {
       selection.rangeCount > 0 &&
       isInsideEditor(selection.getRangeAt(0).commonAncestorContainer)
     ) {
-      return selection.getRangeAt(0);
+      const range = selection.getRangeAt(0);
+      const formulaChip = closestFormulaChipFromNode(range.commonAncestorContainer);
+      if (!formulaChip) return range;
+
+      const afterFormula = document.createRange();
+      afterFormula.setStartAfter(formulaChip);
+      afterFormula.collapse(true);
+      return afterFormula;
     }
 
     if (
       savedRangeRef.current &&
-      isInsideEditor(savedRangeRef.current.commonAncestorContainer)
+      isInsideEditor(savedRangeRef.current.commonAncestorContainer) &&
+      !closestFormulaChipFromNode(savedRangeRef.current.commonAncestorContainer)
     ) {
       return savedRangeRef.current.cloneRange();
     }
@@ -176,7 +186,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "inline-formula-remove";
-    removeButton.textContent = "×";
+    removeButton.textContent = "x";
     removeButton.title = "删除公式框";
 
     chip.append(mathField, removeButton);
@@ -184,6 +194,12 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     chip.addEventListener("mousedown", (event) => {
       event.stopPropagation();
+      setActiveFormula(id);
+    });
+
+    chip.addEventListener("click", () => {
+      setActiveFormula(id);
+      mathField.focus();
     });
 
     mathField.addEventListener("focus", () => {
@@ -246,34 +262,61 @@ const MyComponent = ({ args }: ComponentProps) => {
     window.setTimeout(() => {
       mathField.focus();
       if (initialLatex) {
-        mathField.insert(initialLatex, {
-          mode: "math",
-          format: "latex",
-          selectionMode: "placeholder",
-          focus: true,
-        });
+        insertIntoMathField(mathField, initialLatex);
         chip.dataset.latex = mathField.value || "";
         syncValue();
       }
     }, 0);
   };
 
-  const insertLatexIntoFormula = (latex: string) => {
+  const getActiveMathField = () => {
     const activeId = activeFormulaIdRef.current;
-    const mathField = activeId ? formulaRefs.current[activeId] : null;
+    const activeField = activeId ? formulaRefs.current[activeId] : null;
+    if (activeField?.isConnected) return activeField;
+
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const selectionChip = closestFormulaChipFromNode(
+        selection.getRangeAt(0).commonAncestorContainer
+      );
+      const selectionId = selectionChip?.dataset.formulaId || null;
+      const selectionField = selectionId ? formulaRefs.current[selectionId] : null;
+      if (selectionField?.isConnected) {
+        setActiveFormula(selectionId);
+        return selectionField;
+      }
+    }
+
+    const focusedChip = closestFormulaChipFromNode(document.activeElement);
+    const focusedId = focusedChip?.dataset.formulaId || null;
+    const focusedField = focusedId ? formulaRefs.current[focusedId] : null;
+    if (focusedField?.isConnected) {
+      setActiveFormula(focusedId);
+      return focusedField;
+    }
+
+    const selectedChip = editorRef.current?.querySelector<HTMLElement>(
+      ".inline-formula-chip.active"
+    );
+    const selectedId = selectedChip?.dataset.formulaId || null;
+    const selectedField = selectedId ? formulaRefs.current[selectedId] : null;
+    if (selectedField?.isConnected) {
+      setActiveFormula(selectedId);
+      return selectedField;
+    }
+
+    return null;
+  };
+
+  const insertLatexIntoFormula = (latex: string) => {
+    const mathField = getActiveMathField();
 
     if (!mathField) {
       insertFormulaBox(latex);
       return;
     }
 
-    mathField.focus();
-    mathField.insert(latex, {
-      mode: "math",
-      format: "latex",
-      selectionMode: "placeholder",
-      focus: true,
-    });
+    insertIntoMathField(mathField, latex);
 
     const chip = mathField.closest(".inline-formula-chip") as HTMLElement | null;
     if (chip) chip.dataset.latex = mathField.value || "";
@@ -288,6 +331,21 @@ const MyComponent = ({ args }: ComponentProps) => {
     ).join(" \\\\ ");
 
     insertLatexIntoFormula(`\\begin{pmatrix}${body}\\end{pmatrix}`);
+  };
+
+  const openVirtualKeyboard = () => {
+    const mathField = getActiveMathField();
+
+    if (!mathField) {
+      insertFormulaBox();
+      window.setTimeout(() => {
+        const nextField = getActiveMathField();
+        if (nextField) showVirtualKeyboard(nextField);
+      }, 80);
+      return;
+    }
+
+    showVirtualKeyboard(mathField);
   };
 
   const removeAdjacentFormula = (direction: "backward" | "forward") => {
@@ -463,6 +521,42 @@ const MyComponent = ({ args }: ComponentProps) => {
           插入公式框
         </button>
 
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={openVirtualKeyboard}
+          style={toolButtonStyle}
+        >
+          虚拟键盘
+        </button>
+      </div>
+
+      <div style={toolbarStyle}>
+        {INSERT_TEMPLATES.map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => insertLatexIntoFormula(item.latex)}
+            style={toolButtonStyle}
+          >
+            {item.label}
+          </button>
+        ))}
+        {QUICK_SYMBOLS.map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => insertLatexIntoFormula(item.latex)}
+            style={toolButtonStyle}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={matrixRowStyle}>
         <div style={matrixPanelStyle}>
           <span style={{ fontSize: "12px", color: "#536075" }}>矩阵</span>
           <select
@@ -502,31 +596,6 @@ const MyComponent = ({ args }: ComponentProps) => {
             插入矩阵
           </button>
         </div>
-      </div>
-
-      <div style={toolbarStyle}>
-        {INSERT_TEMPLATES.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => insertLatexIntoFormula(item.latex)}
-            style={toolButtonStyle}
-          >
-            {item.label}
-          </button>
-        ))}
-        {QUICK_SYMBOLS.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => insertLatexIntoFormula(item.latex)}
-            style={toolButtonStyle}
-          >
-            {item.label}
-          </button>
-        ))}
       </div>
 
       <div
@@ -582,6 +651,30 @@ const serializeEditor = (root: HTMLElement) => {
   return value;
 };
 
+const insertIntoMathField = (mathField: any, latex: string) => {
+  configureMathField(mathField);
+  mathField.focus();
+  mathField.insert(latex, {
+    mode: "math",
+    format: "latex",
+    selectionMode: "placeholder",
+    focus: true,
+  });
+};
+
+const showVirtualKeyboard = (mathField: any) => {
+  configureMathField(mathField);
+  mathField.focus();
+
+  trySetMathFieldOption(() => {
+    mathField.executeCommand?.("showVirtualKeyboard");
+  });
+
+  trySetMathFieldOption(() => {
+    (window as any).mathVirtualKeyboard?.show?.();
+  });
+};
+
 const configureMathField = (mathField: any, attempt = 0) => {
   if (!mathField.isConnected) {
     if (attempt < 10) {
@@ -621,6 +714,15 @@ const isZeroWidthText = (node: Node | null): node is Text =>
 
 const isFormulaChip = (node: Node | null): node is HTMLElement =>
   node instanceof HTMLElement && node.classList.contains("inline-formula-chip");
+
+const closestFormulaChipFromNode = (node: Node | null) => {
+  if (!node) return null;
+  if (isFormulaChip(node)) return node;
+
+  const element =
+    node instanceof HTMLElement ? node : node.parentElement || null;
+  return element?.closest<HTMLElement>(".inline-formula-chip") || null;
+};
 
 const findFormulaChip = (node: Node | null) => {
   if (isFormulaChip(node)) return node;
@@ -664,7 +766,7 @@ const containerStyle: React.CSSProperties = {
   border: "1px solid #d9dee8",
   borderRadius: "8px",
   padding: "10px",
-  height: "395px",
+  height: "420px",
   boxSizing: "border-box",
   overflow: "hidden",
 };
@@ -683,6 +785,13 @@ const matrixPanelStyle: React.CSSProperties = {
   alignItems: "center",
   gap: "6px",
   flexWrap: "wrap",
+};
+
+const matrixRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "8px",
+  marginBottom: "8px",
 };
 
 const toolbarStyle: React.CSSProperties = {
@@ -726,7 +835,7 @@ const selectStyle: React.CSSProperties = {
 
 const editorStyle: React.CSSProperties = {
   width: "100%",
-  height: "245px",
+  height: "210px",
   boxSizing: "border-box",
   overflowY: "auto",
   border: "1px solid #d9dee8",
