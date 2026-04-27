@@ -142,6 +142,11 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     const handleCompositionEnd = () => {
       isComposingRef.current = false;
+      window.setTimeout(() => {
+        if (mf.lastOffset >= 0) {
+          mf.position = mf.lastOffset;
+        }
+      }, 0);
       syncValue();
     };
 
@@ -214,7 +219,8 @@ const MyComponent = ({ args }: ComponentProps) => {
 
       math-field {
         --selection-color: #111827;
-        --selection-background-color: rgba(17, 24, 39, 0.10);
+        --selection-background-color: transparent;
+        caret-color: #111827;
         color: #111827;
       }
     `;
