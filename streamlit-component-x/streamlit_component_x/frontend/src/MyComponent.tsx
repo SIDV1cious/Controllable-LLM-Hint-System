@@ -618,9 +618,9 @@ const MyComponent = ({ args }: ComponentProps) => {
       }
 
       .inline-formula-field::part(prompt) {
-        background: rgba(37, 99, 235, 0.16);
-        border: 1px dashed #2563eb;
-        border-radius: 3px;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
         cursor: text;
       }
 
@@ -921,17 +921,17 @@ const injectMathFieldPlaceholderStyles = (mathField: any, attempt = 0) => {
   style.textContent = `
     [part='prompt'],
     .ML__prompt {
-      background: rgba(37, 99, 235, 0.16) !important;
-      border: 1px dashed #2563eb !important;
-      border-radius: 3px !important;
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
       cursor: text !important;
       pointer-events: auto !important;
     }
 
     .ML__focusedPromptBox,
     .ML__prompt-atom:has(.ML__focusedPromptBox) {
-      background: rgba(37, 99, 235, 0.28) !important;
-      box-shadow: 0 0 0 1px #2563eb inset !important;
+      background: transparent !important;
+      box-shadow: none !important;
     }
 
     [part='placeholder'],

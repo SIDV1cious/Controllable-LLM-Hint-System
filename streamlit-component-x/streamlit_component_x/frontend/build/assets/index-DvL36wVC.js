@@ -3375,9 +3375,9 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
       }
 
       .inline-formula-field::part(prompt) {
-        background: rgba(37, 99, 235, 0.16);
-        border: 1px dashed #2563eb;
-        border-radius: 3px;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
         cursor: text;
       }
 
@@ -3402,17 +3402,17 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
 `;return}n.childNodes.forEach(r)}};return t.childNodes.forEach(r),e},pl=(t,e="latex",r="")=>{var n;if(!t)return r;try{const i=(n=t.getValue)==null?void 0:n.call(t,e);if(typeof i=="string")return i}catch{}return typeof t.value=="string"?t.value:r},g8=(t,e)=>{qy(t),t.focus(),t.insert(e,{mode:"math",format:"latex",selectionMode:"placeholder",focus:!0}),e.includes("\\placeholder[")&&window.setTimeout(()=>b7(t),0)},qy=(t,e=0)=>{if(!t.isConnected){e<10&&window.setTimeout(()=>qy(t,e+1),30);return}Po(()=>{t.defaultMode="math"}),Po(()=>{t.mathVirtualKeyboardPolicy="manual"}),Po(()=>{t.smartFence=!0}),Po(()=>{t.maxMatrixCols=il}),Po(()=>{t.menuItems=[]}),y7(t)},Po=t=>{try{t()}catch{}},y7=(t,e=0)=>{Po(()=>{t.style.setProperty("--placeholder-color","#1d4ed8"),t.style.setProperty("--placeholder-opacity","1")});const r=t.shadowRoot;if(!r){e<10&&window.setTimeout(()=>y7(t,e+1),30);return}if(r.getElementById(f8))return;const n=document.createElement("style");n.id=f8,n.textContent=`
     [part='prompt'],
     .ML__prompt {
-      background: rgba(37, 99, 235, 0.16) !important;
-      border: 1px dashed #2563eb !important;
-      border-radius: 3px !important;
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
       cursor: text !important;
       pointer-events: auto !important;
     }
 
     .ML__focusedPromptBox,
     .ML__prompt-atom:has(.ML__focusedPromptBox) {
-      background: rgba(37, 99, 235, 0.28) !important;
-      box-shadow: 0 0 0 1px #2563eb inset !important;
+      background: transparent !important;
+      box-shadow: none !important;
     }
 
     [part='placeholder'],
