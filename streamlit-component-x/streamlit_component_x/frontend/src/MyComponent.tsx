@@ -651,10 +651,7 @@ const MyComponent = ({ args }: ComponentProps) => {
               ...(openToolbarGroup === group.title ? summaryActiveStyle : {}),
             }}
           >
-            <span>{group.title}</span>
-            <span aria-hidden style={summaryArrowStyle}>
-              ⌄
-            </span>
+            {group.title}
           </button>
         ))}
 
@@ -673,10 +670,7 @@ const MyComponent = ({ args }: ComponentProps) => {
               : {}),
           }}
         >
-          <span>{COMMON_SYMBOLS_TITLE}</span>
-          <span aria-hidden style={summaryArrowStyle}>
-            ⌄
-          </span>
+          {COMMON_SYMBOLS_TITLE}
         </button>
       </div>
 
@@ -915,10 +909,13 @@ const toolbarHeaderStyle: React.CSSProperties = {
 
 const groupToolbarStyle: React.CSSProperties = {
   display: "flex",
-  gap: "6px",
-  flexWrap: "wrap",
+  gap: "5px",
+  flexWrap: "nowrap",
   alignItems: "flex-start",
   marginBottom: "8px",
+  overflowX: "auto",
+  overflowY: "hidden",
+  paddingBottom: "2px",
 };
 
 const matrixPanelStyle: React.CSSProperties = {
@@ -937,16 +934,20 @@ const matrixRowStyle: React.CSSProperties = {
 
 const summaryStyle: React.CSSProperties = {
   border: "1px solid #cfd6e3",
-  background: "#f8fafc",
+  backgroundColor: "#f8fafc",
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23536075' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 8px center",
+  backgroundSize: "10px 6px",
   color: "#263244",
   borderRadius: "7px",
-  padding: "6px 9px",
+  padding: "6px 24px 6px 9px",
   display: "flex",
   alignItems: "center",
-  justifyContent: "space-between",
-  gap: "6px",
   fontSize: "12px",
   cursor: "pointer",
+  flex: "0 0 auto",
   minHeight: "30px",
   listStyle: "none",
 };
@@ -954,13 +955,7 @@ const summaryStyle: React.CSSProperties = {
 const summaryActiveStyle: React.CSSProperties = {
   borderColor: "#2563eb",
   color: "#1d4ed8",
-  background: "#eff6ff",
-};
-
-const summaryArrowStyle: React.CSSProperties = {
-  color: "#536075",
-  fontSize: "14px",
-  lineHeight: 1,
+  backgroundColor: "#eff6ff",
 };
 
 const formulaPanelStyle: React.CSSProperties = {
