@@ -736,7 +736,8 @@ const MyComponent = ({ args }: ComponentProps) => {
         display: none;
       }
 
-      .inline-formula-field::part(placeholder) {
+      .inline-formula-field::part(placeholder),
+      .inline-formula-field::part(prompt) {
         display: inline-block;
         min-width: 0.9em;
         min-height: 0.9em;
@@ -747,13 +748,6 @@ const MyComponent = ({ args }: ComponentProps) => {
         border-radius: 3px;
         box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
         text-align: center;
-      }
-
-      .inline-formula-field::part(prompt) {
-        background: transparent;
-        border: 0;
-        box-shadow: none;
-        cursor: text;
       }
 
       .inline-formula-remove {
@@ -1086,10 +1080,21 @@ const injectMathFieldPlaceholderStyles = (mathField: any, attempt = 0) => {
   style.id = MATHFIELD_PLACEHOLDER_STYLE_ID;
   style.textContent = `
     [part='prompt'],
-    .ML__prompt {
-      background: transparent !important;
-      border: 0 !important;
-      box-shadow: none !important;
+    .ML__prompt,
+    [part='placeholder'],
+    .ML__placeholder {
+      display: inline-block !important;
+      min-width: 0.9em !important;
+      min-height: 0.9em !important;
+      opacity: 1 !important;
+      color: #1d4ed8 !important;
+      background: rgba(37, 99, 235, 0.22) !important;
+      border: 1px solid #2563eb !important;
+      border-radius: 3px !important;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16) !important;
+      box-sizing: border-box !important;
+      padding: 0 0.14em !important;
+      text-align: center !important;
       cursor: text !important;
       pointer-events: auto !important;
     }
@@ -1100,21 +1105,9 @@ const injectMathFieldPlaceholderStyles = (mathField: any, attempt = 0) => {
       box-shadow: none !important;
     }
 
-    [part='placeholder'],
-    .ML__placeholder {
-      display: inline-block !important;
-      min-width: 0.9em !important;
-      min-height: 0.9em !important;
-      opacity: 1 !important;
-      color: #1d4ed8 !important;
-      background: rgba(37, 99, 235, 0.22) !important;
-      border: 1px solid #2563eb;
-      border-radius: 3px;
-      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
-      padding: 0 0.14em !important;
-      text-align: center;
-    }
-
+    [part='prompt'].ML__prompt-selected,
+    .ML__prompt-selected,
+    .ML__selected .ML__prompt,
     [part='placeholder'].ML__placeholder-selected,
     .ML__placeholder-selected,
     .ML__selected .ML__placeholder {

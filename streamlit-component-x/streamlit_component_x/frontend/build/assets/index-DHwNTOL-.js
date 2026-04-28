@@ -3387,7 +3387,8 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
         display: none;
       }
 
-      .inline-formula-field::part(placeholder) {
+      .inline-formula-field::part(placeholder),
+      .inline-formula-field::part(prompt) {
         display: inline-block;
         min-width: 0.9em;
         min-height: 0.9em;
@@ -3398,13 +3399,6 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
         border-radius: 3px;
         box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
         text-align: center;
-      }
-
-      .inline-formula-field::part(prompt) {
-        background: transparent;
-        border: 0;
-        box-shadow: none;
-        cursor: text;
       }
 
       .inline-formula-remove {
@@ -3427,10 +3421,21 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
     `,document.head.appendChild(T),L(),()=>{document.head.removeChild(T)}},[]);const Y=g5.find(T=>T.title===g),ae=g===Aa?zA:(Y==null?void 0:Y.items)??[];return Ot.jsxs("div",{style:jA,children:[Ot.jsx("div",{style:VA,children:Ot.jsx("button",{type:"button",onMouseDown:T=>T.preventDefault(),onClick:()=>we(),style:XA,children:"插入公式框"})}),Ot.jsxs("div",{style:qA,children:[g5.map(T=>Ot.jsx("button",{className:`formula-toolbar-button${g===T.title?" is-active":""}`,type:"button",onMouseDown:w=>w.preventDefault(),onClick:w=>{w.currentTarget.blur(),b(I=>I===T.title?null:T.title)},style:{...b5,...g===T.title?v5:{}},children:T.title},T.title)),Ot.jsx("button",{className:`formula-toolbar-button${g===Aa?" is-active":""}`,type:"button",onMouseDown:T=>T.preventDefault(),onClick:T=>{T.currentTarget.blur(),b(w=>w===Aa?null:Aa)},style:{...b5,...g===Aa?v5:{}},children:Aa})]}),g&&ae.length>0&&Ot.jsx("div",{style:g===Aa?JA:v7,children:ae.map(T=>T.kind==="cases"?Ot.jsxs("select",{defaultValue:"","aria-label":"插入分段函数",onMouseDown:w=>w.stopPropagation(),onChange:w=>{const I=Number(w.currentTarget.value);I&&le(OA(I)),w.currentTarget.value=""},style:YA,children:[Ot.jsx("option",{value:"",disabled:!0,hidden:!0,children:T.label}),IA.map(w=>Ot.jsxs("option",{value:w,children:[w,"段"]},w))]},`${g}-${T.label}-cases`):Ot.jsx("button",{type:"button",onMouseDown:w=>w.preventDefault(),onClick:()=>T.latex&&le(T.latex),style:GA,children:T.label},`${g}-${T.label}-${T.latex}`))}),Ot.jsx("div",{style:HA,children:Ot.jsxs("div",{style:WA,children:[Ot.jsx("span",{style:{fontSize:"12px",color:"#536075"},children:"矩阵"}),Ot.jsx("select",{value:c,onChange:T=>d(Number(T.target.value)),onMouseDown:T=>T.stopPropagation(),style:Hg,children:Array.from({length:il},(T,w)=>w+1).map(T=>Ot.jsxs("option",{value:T,children:[T,"行"]},T))}),Ot.jsx("select",{value:p,onChange:T=>f(Number(T.target.value)),onMouseDown:T=>T.stopPropagation(),style:Hg,children:Array.from({length:il},(T,w)=>w+1).map(T=>Ot.jsxs("option",{value:T,children:[T,"列"]},T))}),Ot.jsx("button",{type:"button",onMouseDown:T=>T.preventDefault(),onClick:_e,style:x7,children:"插入矩阵"})]})}),Ot.jsx("div",{ref:e,className:"mixed-editor",contentEditable:!0,suppressContentEditableWarning:!0,onFocus:()=>{j(null),N()},onMouseUp:N,onKeyUp:N,onInput:()=>{N(),z()},onKeyDown:be,onPaste:ve,style:ZA})]})},RA=t=>{let e="";const r=n=>{if(n.nodeType===Node.TEXT_NODE){e+=(n.textContent||"").replaceAll(zl,"");return}if(n instanceof HTMLElement){if(n.classList.contains("inline-formula-chip")){const i=n.querySelector("math-field"),s=pl(i,"latex-without-placeholders",n.dataset.latex||"").trim();s&&(e+=`$${s}$`);return}if(n.tagName==="BR"){e+=`
 `;return}n.childNodes.forEach(r)}};return t.childNodes.forEach(r),e},pl=(t,e="latex",r="")=>{var n;if(!t)return r;try{const i=(n=t.getValue)==null?void 0:n.call(t,e);if(typeof i=="string")return i}catch{}return typeof t.value=="string"?t.value:r},y5=(t,e)=>{Wy(t),t.focus(),t.insert(e,{mode:"math",format:"latex",selectionMode:"placeholder",focus:!0}),e.includes("\\placeholder[")&&window.setTimeout(()=>b7(t),0)},Wy=(t,e=0)=>{if(!t.isConnected){e<10&&window.setTimeout(()=>Wy(t,e+1),30);return}Po(()=>{t.defaultMode="math"}),Po(()=>{t.mathVirtualKeyboardPolicy="manual"}),Po(()=>{t.smartFence=!0}),Po(()=>{t.maxMatrixCols=il}),Po(()=>{t.menuItems=[]}),y7(t)},Po=t=>{try{t()}catch{}},y7=(t,e=0)=>{Po(()=>{t.style.setProperty("--placeholder-color","#1d4ed8"),t.style.setProperty("--placeholder-opacity","1")});const r=t.shadowRoot;if(!r){e<10&&window.setTimeout(()=>y7(t,e+1),30);return}if(r.getElementById(m5))return;const n=document.createElement("style");n.id=m5,n.textContent=`
     [part='prompt'],
-    .ML__prompt {
-      background: transparent !important;
-      border: 0 !important;
-      box-shadow: none !important;
+    .ML__prompt,
+    [part='placeholder'],
+    .ML__placeholder {
+      display: inline-block !important;
+      min-width: 0.9em !important;
+      min-height: 0.9em !important;
+      opacity: 1 !important;
+      color: #1d4ed8 !important;
+      background: rgba(37, 99, 235, 0.22) !important;
+      border: 1px solid #2563eb !important;
+      border-radius: 3px !important;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16) !important;
+      box-sizing: border-box !important;
+      padding: 0 0.14em !important;
+      text-align: center !important;
       cursor: text !important;
       pointer-events: auto !important;
     }
@@ -3441,21 +3446,9 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
       box-shadow: none !important;
     }
 
-    [part='placeholder'],
-    .ML__placeholder {
-      display: inline-block !important;
-      min-width: 0.9em !important;
-      min-height: 0.9em !important;
-      opacity: 1 !important;
-      color: #1d4ed8 !important;
-      background: rgba(37, 99, 235, 0.22) !important;
-      border: 1px solid #2563eb;
-      border-radius: 3px;
-      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
-      padding: 0 0.14em !important;
-      text-align: center;
-    }
-
+    [part='prompt'].ML__prompt-selected,
+    .ML__prompt-selected,
+    .ML__selected .ML__prompt,
     [part='placeholder'].ML__placeholder-selected,
     .ML__placeholder-selected,
     .ML__selected .ML__placeholder {
