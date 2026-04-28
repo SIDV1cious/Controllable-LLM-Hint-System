@@ -276,7 +276,7 @@ const createCasesLatex = (segmentCount: number) => {
 const createCapturedAccentPromptLatex = (
   latex: string,
   promptId: string,
-  seed = "x"
+  seed = ""
 ) =>
   latex.replace(
     CAPTURED_ACCENT_TEMPLATE_PATTERN,
