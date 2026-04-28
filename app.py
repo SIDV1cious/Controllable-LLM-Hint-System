@@ -23,7 +23,6 @@ from prompts import (
     LEAKAGE_CHECK_PROMPT_SYSTEM,
     REWRITE_PROMPT_SYSTEM,
 )
-from math_comp import math_input
 
 load_dotenv()
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -1288,14 +1287,14 @@ elif st.session_state.page_mode == "results":
                 st.session_state[math_widget_version_key] += 1
                 st.session_state[composer_reset_key] = False
 
-            with st.container(border=True):
-                composer_value = math_input(
-                    default_value=st.session_state.get(composer_input_key, ""),
-                    key=f"react_math_{qid}_{st.session_state[math_widget_version_key]}"
-                )
-
-                if composer_value is not None:
-                    st.session_state[composer_input_key] = composer_value
+            st.markdown("#### ✍️ 请求智能辅导")
+            composer_value = st.text_area(
+                "请输入智能辅导提示词（支持文字 + LaTeX公式）：",
+                value=st.session_state.get(composer_input_key, ""),
+                height=130,
+                key=f"composer_text_{qid}_{st.session_state[math_widget_version_key]}",
+            )
+            st.session_state[composer_input_key] = composer_value
 
             send_col1, send_col2 = st.columns([5, 1])
 
