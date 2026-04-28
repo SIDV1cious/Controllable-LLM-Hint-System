@@ -31,7 +31,8 @@ const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "常用符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
-const ACCENT_TEMPLATE_PATTERN = /^\\(vec|hat|dot|ddot|overline)\{#\?\}$/;
+const ACCENT_TEMPLATE_PATTERN =
+  /^\\(vec|hat|widehat|tilde|widetilde|dot|ddot|overline|underline|overrightarrow|overleftarrow)\{#\?\}$/;
 const CASES_SEGMENT_COUNTS = [2, 3, 4, 5];
 
 const FORMULA_GROUPS: FormulaGroup[] = [
