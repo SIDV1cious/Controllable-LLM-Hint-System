@@ -569,6 +569,26 @@ const MyComponent = ({ args }: ComponentProps) => {
         box-shadow: none !important;
       }
 
+      .formula-toolbar-button,
+      .formula-toolbar-button:hover,
+      .formula-toolbar-button:active,
+      .formula-toolbar-button:focus,
+      .formula-toolbar-button:focus-visible {
+        border: 1px solid #cfd6e3 !important;
+        outline: none !important;
+        box-shadow: none !important;
+      }
+
+      .formula-toolbar-button.is-active,
+      .formula-toolbar-button.is-active:hover,
+      .formula-toolbar-button.is-active:active,
+      .formula-toolbar-button.is-active:focus,
+      .formula-toolbar-button.is-active:focus-visible {
+        border: 1px solid #2563eb !important;
+        color: #1d4ed8 !important;
+        background-color: #eff6ff !important;
+      }
+
       .inline-formula-chip {
         display: inline-flex;
         align-items: center;
@@ -681,13 +701,17 @@ const MyComponent = ({ args }: ComponentProps) => {
         {FORMULA_GROUPS.map((group) => (
           <button
             key={group.title}
+            className={`formula-toolbar-button${
+              openToolbarGroup === group.title ? " is-active" : ""
+            }`}
             type="button"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() =>
+            onClick={(event) => {
+              event.currentTarget.blur();
               setOpenToolbarGroup((current) =>
                 current === group.title ? null : group.title
-              )
-            }
+              );
+            }}
             style={{
               ...summaryStyle,
               ...(openToolbarGroup === group.title ? summaryActiveStyle : {}),
@@ -698,13 +722,17 @@ const MyComponent = ({ args }: ComponentProps) => {
         ))}
 
         <button
+          className={`formula-toolbar-button${
+            openToolbarGroup === COMMON_SYMBOLS_TITLE ? " is-active" : ""
+          }`}
           type="button"
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() =>
+          onClick={(event) => {
+            event.currentTarget.blur();
             setOpenToolbarGroup((current) =>
               current === COMMON_SYMBOLS_TITLE ? null : COMMON_SYMBOLS_TITLE
-            )
-          }
+            );
+          }}
           style={{
             ...summaryStyle,
             ...(openToolbarGroup === COMMON_SYMBOLS_TITLE
