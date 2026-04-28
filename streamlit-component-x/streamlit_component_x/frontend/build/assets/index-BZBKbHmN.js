@@ -3387,8 +3387,7 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
         display: none;
       }
 
-      .inline-formula-field::part(placeholder),
-      .inline-formula-field::part(prompt) {
+      .inline-formula-field::part(placeholder) {
         display: inline-block;
         min-width: 0.9em;
         min-height: 0.9em;
@@ -3398,6 +3397,20 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
         border: 1px solid #2563eb;
         border-radius: 3px;
         box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
+        text-align: center;
+      }
+
+      .inline-formula-field::part(prompt) {
+        display: inline-block;
+        min-width: 0.86em;
+        min-height: 0.76em;
+        padding: 0 0.08em;
+        line-height: 1;
+        color: #9a6700 !important;
+        background: rgba(245, 158, 11, 0.08) !important;
+        border: 1px solid #d4a55d;
+        border-radius: 3px;
+        box-shadow: none;
         text-align: center;
       }
 
@@ -3420,8 +3433,6 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
       }
     `,document.head.appendChild(F),k(),()=>{document.head.removeChild(F)}},[]);const he=y5.find(F=>F.title===g),Y=g===Aa?PA:(he==null?void 0:he.items)??[];return Ot.jsxs("div",{style:ZA,children:[Ot.jsx("div",{style:QA,children:Ot.jsx("button",{type:"button",onMouseDown:F=>F.preventDefault(),onClick:()=>ne(),style:iT,children:"插入公式框"})}),Ot.jsxs("div",{style:eT,children:[y5.map(F=>Ot.jsx("button",{className:`formula-toolbar-button${g===F.title?" is-active":""}`,type:"button",onMouseDown:z=>z.preventDefault(),onClick:z=>{z.currentTarget.blur(),b(M=>M===F.title?null:F.title)},style:{...v5,...g===F.title?x5:{}},children:F.title},F.title)),Ot.jsx("button",{className:`formula-toolbar-button${g===Aa?" is-active":""}`,type:"button",onMouseDown:F=>F.preventDefault(),onClick:F=>{F.currentTarget.blur(),b(z=>z===Aa?null:Aa)},style:{...v5,...g===Aa?x5:{}},children:Aa})]}),g&&Y.length>0&&Ot.jsx("div",{style:g===Aa?nT:S7,children:Y.map(F=>F.kind==="cases"?Ot.jsxs("select",{defaultValue:"","aria-label":"插入分段函数",onMouseDown:z=>z.stopPropagation(),onChange:z=>{const M=Number(z.currentTarget.value);M&&$($A(M)),z.currentTarget.value=""},style:aT,children:[Ot.jsx("option",{value:"",disabled:!0,hidden:!0,children:F.label}),RA.map(z=>Ot.jsxs("option",{value:z,children:[z,"段"]},z))]},`${g}-${F.label}-cases`):Ot.jsx("button",{type:"button",onMouseDown:z=>z.preventDefault(),onClick:()=>F.latex&&$(F.latex),style:oT,children:F.label},`${g}-${F.label}-${F.latex}`))}),Ot.jsx("div",{style:rT,children:Ot.jsxs("div",{style:tT,children:[Ot.jsx("span",{style:{fontSize:"12px",color:"#536075"},children:"矩阵"}),Ot.jsx("select",{value:c,onChange:F=>d(Number(F.target.value)),onMouseDown:F=>F.stopPropagation(),style:Jg,children:Array.from({length:il},(F,z)=>z+1).map(F=>Ot.jsxs("option",{value:F,children:[F,"行"]},F))}),Ot.jsx("select",{value:p,onChange:F=>f(Number(F.target.value)),onMouseDown:F=>F.stopPropagation(),style:Jg,children:Array.from({length:il},(F,z)=>z+1).map(F=>Ot.jsxs("option",{value:F,children:[F,"列"]},F))}),Ot.jsx("button",{type:"button",onMouseDown:F=>F.preventDefault(),onClick:ue,style:M7,children:"插入矩阵"})]})}),Ot.jsx("div",{ref:e,className:"mixed-editor",contentEditable:!0,suppressContentEditableWarning:!0,onFocus:()=>{O(null),L()},onMouseUp:L,onKeyUp:L,onInput:()=>{L(),D()},onKeyDown:ie,onPaste:be,style:sT})]})},jA=t=>{let e="";const r=n=>{if(n.nodeType===Node.TEXT_NODE){e+=(n.textContent||"").replaceAll(zl,"");return}if(n instanceof HTMLElement){if(n.classList.contains("inline-formula-chip")){const i=n.querySelector("math-field"),s=pl(i,"latex-without-placeholders",n.dataset.latex||"").trim();s&&(e+=`$${s}$`);return}if(n.tagName==="BR"){e+=`
 `;return}n.childNodes.forEach(r)}};return t.childNodes.forEach(r),e},pl=(t,e="latex",r="")=>{var n;if(!t)return r;try{const i=(n=t.getValue)==null?void 0:n.call(t,e);if(typeof i=="string")return i}catch{}return typeof t.value=="string"?t.value:r},b5=(t,e,r=!1)=>{Hy(t),t.focus();const n=r?k7(t):null;t.insert(e,{mode:"math",format:"latex",selectionMode:"placeholder",focus:!0}),r?(w7(t),VA(t,n)):e.includes("\\placeholder[")&&window.setTimeout(()=>x7(t),0)},Hy=(t,e=0)=>{if(!t.isConnected){e<10&&window.setTimeout(()=>Hy(t,e+1),30);return}Qr(()=>{t.defaultMode="math"}),Qr(()=>{t.mathVirtualKeyboardPolicy="manual"}),Qr(()=>{t.smartFence=!0}),Qr(()=>{t.maxMatrixCols=il}),Qr(()=>{t.menuItems=[]}),v7(t)},Qr=t=>{try{t()}catch{}},v7=(t,e=0)=>{Qr(()=>{t.style.setProperty("--placeholder-color","#1d4ed8"),t.style.setProperty("--placeholder-opacity","1")});const r=t.shadowRoot;if(!r){e<10&&window.setTimeout(()=>v7(t,e+1),30);return}if(r.getElementById(g5))return;const n=document.createElement("style");n.id=g5,n.textContent=`
-    [part='prompt'],
-    .ML__prompt,
     [part='placeholder'],
     .ML__placeholder {
       display: inline-block !important;
@@ -3435,6 +3446,25 @@ import "https://esm.run/@cortex-js/compute-engine"`),'["Error", "compute-engine-
       box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16) !important;
       box-sizing: border-box !important;
       padding: 0 0.14em !important;
+      text-align: center !important;
+      cursor: text !important;
+      pointer-events: auto !important;
+    }
+
+    [part='prompt'],
+    .ML__prompt {
+      display: inline-block !important;
+      min-width: 0.86em !important;
+      min-height: 0.76em !important;
+      opacity: 1 !important;
+      color: #9a6700 !important;
+      background: rgba(245, 158, 11, 0.08) !important;
+      border: 1px solid #d4a55d !important;
+      border-radius: 3px !important;
+      box-shadow: none !important;
+      box-sizing: border-box !important;
+      padding: 0 0.08em !important;
+      line-height: 1 !important;
       text-align: center !important;
       cursor: text !important;
       pointer-events: auto !important;
