@@ -273,6 +273,16 @@ const createCasesLatex = (segmentCount: number) => {
   return `\\begin{cases}${rows}\\end{cases}`;
 };
 
+const createCapturedAccentPromptLatex = (
+  latex: string,
+  promptId: string,
+  seed = "x"
+) =>
+  latex.replace(
+    CAPTURED_ACCENT_TEMPLATE_PATTERN,
+    (_match, command) => `\\${command}{\\placeholder[${promptId}]{${seed}}}`
+  );
+
 const MyComponent = ({ args }: ComponentProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
@@ -286,6 +296,7 @@ const MyComponent = ({ args }: ComponentProps) => {
   const [openToolbarGroup, setOpenToolbarGroup] = useState<string | null>(null);
 
   const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
+  const createPromptId = () => `hintPrompt${Date.now()}${idCounterRef.current++}`;
   const refreshFrameHeight = () => {
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 80);
@@ -544,15 +555,18 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const insertLatexIntoFormula = (latex: string) => {
     const mathField = getActiveMathField();
-    const shouldSelectNestedPlaceholder =
+    const shouldUseCapturedAccentPrompt =
       CAPTURED_ACCENT_TEMPLATE_PATTERN.test(latex);
+    const preparedLatex = shouldUseCapturedAccentPrompt
+      ? createCapturedAccentPromptLatex(latex, createPromptId())
+      : latex;
 
     if (!mathField) {
-      insertFormulaBox(latex, shouldSelectNestedPlaceholder);
+      insertFormulaBox(preparedLatex, false);
       return;
     }
 
-    insertIntoMathField(mathField, latex, shouldSelectNestedPlaceholder);
+    insertIntoMathField(mathField, preparedLatex, false);
 
     const chip = mathField.closest(".inline-formula-chip") as HTMLElement | null;
     if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
