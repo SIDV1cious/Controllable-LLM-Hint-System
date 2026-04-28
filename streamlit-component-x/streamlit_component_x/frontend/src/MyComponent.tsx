@@ -31,8 +31,8 @@ const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "常用符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
-const ACCENT_TEMPLATE_PATTERN =
-  /^\\(vec|hat|widehat|tilde|widetilde|dot|ddot|overline|underline|overrightarrow|overleftarrow)\{#\?\}$/;
+const CAPTURED_ACCENT_TEMPLATE_PATTERN =
+  /^\\(vec|hat|widehat|tilde|widetilde|dot|ddot)\{#\?\}$/;
 const CASES_SEGMENT_COUNTS = [2, 3, 4, 5];
 
 const FORMULA_GROUPS: FormulaGroup[] = [
@@ -544,7 +544,8 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const insertLatexIntoFormula = (latex: string) => {
     const mathField = getActiveMathField();
-    const shouldSelectNestedPlaceholder = ACCENT_TEMPLATE_PATTERN.test(latex);
+    const shouldSelectNestedPlaceholder =
+      CAPTURED_ACCENT_TEMPLATE_PATTERN.test(latex);
 
     if (!mathField) {
       insertFormulaBox(latex, shouldSelectNestedPlaceholder);
@@ -1020,6 +1021,7 @@ const insertIntoMathField = (
   });
 
   if (selectNestedPlaceholder) {
+    releaseCapturedAccentPlaceholders(mathField);
     scheduleNestedPlaceholderSelection(mathField, existingPlaceholders);
   } else if (latex.includes("\\placeholder[")) {
     window.setTimeout(() => selectFirstPrompt(mathField), 0);
@@ -1153,17 +1155,61 @@ const isSelectionOnPlaceholder = (mathField: any) => {
   return result;
 };
 
+const walkMathAtoms = (mathField: any, visitor: (atom: any) => void) => {
+  const root = mathField.model?.root;
+  if (!root) return;
+
+  const seen = new Set<any>();
+  const visit = (atom: any) => {
+    if (!atom || seen.has(atom)) return;
+    seen.add(atom);
+    visitor(atom);
+
+    const children = Array.isArray(atom.children) ? atom.children : [];
+    children.forEach(visit);
+  };
+
+  visit(root);
+};
+
+const atomContainsPlaceholder = (atom: any) => {
+  let found = false;
+
+  const visit = (candidate: any) => {
+    if (!candidate || found) return;
+    if (candidate.type === "placeholder") {
+      found = true;
+      return;
+    }
+
+    const children = Array.isArray(candidate.children) ? candidate.children : [];
+    children.forEach(visit);
+  };
+
+  visit(atom);
+  return found;
+};
+
+const releaseCapturedAccentPlaceholders = (mathField: any) => {
+  trySetMathFieldOption(() => {
+    walkMathAtoms(mathField, (atom) => {
+      if (atom?.type !== "accent" || !atomContainsPlaceholder(atom)) return;
+
+      // MathLive's AccentAtom captures selection by default, which prevents the
+      // inner normal #? placeholder from being selected directly.
+      atom.captureSelection = false;
+      atom.skipBoundary = false;
+    });
+  });
+};
+
 const collectPlaceholderAtoms = (mathField: any) => {
   const placeholders = new Set<any>();
 
   trySetMathFieldOption(() => {
-    const model = mathField.model;
-    if (!model?.at || typeof model.lastOffset !== "number") return;
-
-    for (let index = 0; index <= model.lastOffset; index += 1) {
-      const atom = model.at(index);
+    walkMathAtoms(mathField, (atom) => {
       if (atom?.type === "placeholder") placeholders.add(atom);
-    }
+    });
   });
 
   return placeholders;
@@ -1176,20 +1222,25 @@ const selectNewOrNearestPlaceholder = (
   let selected = false;
 
   trySetMathFieldOption(() => {
+    releaseCapturedAccentPlaceholders(mathField);
+
     const model = mathField.model;
-    if (!model?.findAtom || !model?.offsetOf || !model?.setSelection) return;
+    if (!model?.offsetOf || !model?.setSelection) return;
 
     const origin =
       typeof model.position === "number" ? Math.max(model.position, 0) : 0;
-    const isNewPlaceholder = (atom: any) =>
-      atom?.type === "placeholder" && !existingPlaceholders?.has(atom);
-    const isPlaceholder = (atom: any) => atom?.type === "placeholder";
-
-    const placeholder =
-      model.findAtom(isNewPlaceholder, origin, "forward") ||
-      model.findAtom(isNewPlaceholder, origin, "backward") ||
-      model.findAtom(isPlaceholder, origin, "forward") ||
-      model.findAtom(isPlaceholder, origin, "backward");
+    const placeholders = Array.from(collectPlaceholderAtoms(mathField));
+    const newPlaceholders = placeholders.filter(
+      (atom) => !existingPlaceholders?.has(atom)
+    );
+    const candidates = newPlaceholders.length > 0 ? newPlaceholders : placeholders;
+    const placeholder = candidates
+      .map((atom) => ({ atom, offset: model.offsetOf(atom) }))
+      .filter(({ offset }) => typeof offset === "number" && offset >= 0)
+      .sort(
+        (left, right) =>
+          Math.abs(left.offset - origin) - Math.abs(right.offset - origin)
+      )[0]?.atom;
 
     if (!placeholder) return;
 
