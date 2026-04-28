@@ -31,8 +31,6 @@ const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "常用符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
-const CAPTURED_ACCENT_TEMPLATE_PATTERN =
-  /^\\(vec|hat|widehat|tilde|widetilde|dot|ddot)\{#\?\}$/;
 const CASES_SEGMENT_COUNTS = [2, 3, 4, 5];
 
 const FORMULA_GROUPS: FormulaGroup[] = [
@@ -273,16 +271,6 @@ const createCasesLatex = (segmentCount: number) => {
   return `\\begin{cases}${rows}\\end{cases}`;
 };
 
-const createCapturedAccentPromptLatex = (
-  latex: string,
-  promptId: string,
-  seed = ""
-) =>
-  latex.replace(
-    CAPTURED_ACCENT_TEMPLATE_PATTERN,
-    (_match, command) => `\\${command}{\\placeholder[${promptId}]{${seed}}}`
-  );
-
 const MyComponent = ({ args }: ComponentProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
@@ -296,7 +284,6 @@ const MyComponent = ({ args }: ComponentProps) => {
   const [openToolbarGroup, setOpenToolbarGroup] = useState<string | null>(null);
 
   const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
-  const createPromptId = () => `hintPrompt${Date.now()}${idCounterRef.current++}`;
   const refreshFrameHeight = () => {
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 80);
@@ -489,7 +476,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     syncValue();
   };
 
-  const insertFormulaBox = (initialLatex = "", selectNestedPlaceholder = false) => {
+  const insertFormulaBox = (initialLatex = "") => {
     const editor = editorRef.current;
     const range = getEditorRange();
     if (!editor || !range) return;
@@ -507,7 +494,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     window.setTimeout(() => {
       mathField.focus();
       if (initialLatex) {
-        insertIntoMathField(mathField, initialLatex, selectNestedPlaceholder);
+        insertIntoMathField(mathField, initialLatex);
         chip.dataset.latex = getMathFieldLatex(mathField, "latex");
         syncValue();
       }
@@ -555,18 +542,13 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const insertLatexIntoFormula = (latex: string) => {
     const mathField = getActiveMathField();
-    const shouldUseCapturedAccentPrompt =
-      CAPTURED_ACCENT_TEMPLATE_PATTERN.test(latex);
-    const preparedLatex = shouldUseCapturedAccentPrompt
-      ? createCapturedAccentPromptLatex(latex, createPromptId())
-      : latex;
 
     if (!mathField) {
-      insertFormulaBox(preparedLatex, false);
+      insertFormulaBox(latex);
       return;
     }
 
-    insertIntoMathField(mathField, preparedLatex, false);
+    insertIntoMathField(mathField, latex);
 
     const chip = mathField.closest(".inline-formula-chip") as HTMLElement | null;
     if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
@@ -754,20 +736,6 @@ const MyComponent = ({ args }: ComponentProps) => {
         border: 1px solid #2563eb;
         border-radius: 3px;
         box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
-        text-align: center;
-      }
-
-      .inline-formula-field::part(prompt) {
-        display: inline-block;
-        min-width: 0.86em;
-        min-height: 0.76em;
-        padding: 0 0.08em;
-        line-height: 1;
-        color: #9a6700 !important;
-        background: rgba(245, 158, 11, 0.08) !important;
-        border: 1px solid #d4a55d;
-        border-radius: 3px;
-        box-shadow: none;
         text-align: center;
       }
 
@@ -1029,16 +997,9 @@ const getMathFieldLatex = (
   return typeof mathField.value === "string" ? mathField.value : fallback;
 };
 
-const insertIntoMathField = (
-  mathField: any,
-  latex: string,
-  selectNestedPlaceholder = false
-) => {
+const insertIntoMathField = (mathField: any, latex: string) => {
   configureMathField(mathField);
   mathField.focus();
-  const existingPlaceholders = selectNestedPlaceholder
-    ? collectPlaceholderAtoms(mathField)
-    : null;
 
   mathField.insert(latex, {
     mode: "math",
@@ -1047,10 +1008,7 @@ const insertIntoMathField = (
     focus: true,
   });
 
-  if (selectNestedPlaceholder) {
-    releaseCapturedAccentPlaceholders(mathField);
-    scheduleNestedPlaceholderSelection(mathField, existingPlaceholders);
-  } else if (latex.includes("\\placeholder[")) {
+  if (latex.includes("\\placeholder[")) {
     window.setTimeout(() => selectFirstPrompt(mathField), 0);
   }
 };
@@ -1128,34 +1086,6 @@ const injectMathFieldPlaceholderStyles = (mathField: any, attempt = 0) => {
       pointer-events: auto !important;
     }
 
-    [part='prompt'],
-    .ML__prompt {
-      display: inline-block !important;
-      min-width: 0.86em !important;
-      min-height: 0.76em !important;
-      opacity: 1 !important;
-      color: #9a6700 !important;
-      background: rgba(245, 158, 11, 0.08) !important;
-      border: 1px solid #d4a55d !important;
-      border-radius: 3px !important;
-      box-shadow: none !important;
-      box-sizing: border-box !important;
-      padding: 0 0.08em !important;
-      line-height: 1 !important;
-      text-align: center !important;
-      cursor: text !important;
-      pointer-events: auto !important;
-    }
-
-    .ML__focusedPromptBox,
-    .ML__prompt-atom:has(.ML__focusedPromptBox) {
-      background: transparent !important;
-      box-shadow: none !important;
-    }
-
-    [part='prompt'].ML__prompt-selected,
-    .ML__prompt-selected,
-    .ML__selected .ML__prompt,
     [part='placeholder'].ML__placeholder-selected,
     .ML__placeholder-selected,
     .ML__selected .ML__placeholder {
@@ -1176,155 +1106,6 @@ const selectFirstPrompt = (mathField: any) => {
       mathField.selection = range;
     }
   });
-};
-
-const scheduleNestedPlaceholderSelection = (
-  mathField: any,
-  existingPlaceholders: Set<any> | null
-) => {
-  [0, 16, 60, 140].forEach((delay) => {
-    window.setTimeout(() => {
-      if (!mathField?.isConnected) return;
-      if (isSelectionOnPlaceholder(mathField)) return;
-      selectNewOrNearestPlaceholder(mathField, existingPlaceholders);
-    }, delay);
-  });
-};
-
-const isSelectionOnPlaceholder = (mathField: any) => {
-  let result = false;
-  trySetMathFieldOption(() => {
-    result = Boolean(mathField.model?.selectionIsPlaceholder);
-  });
-  return result;
-};
-
-const walkMathAtoms = (mathField: any, visitor: (atom: any) => void) => {
-  const root = mathField.model?.root;
-  if (!root) return;
-
-  const seen = new Set<any>();
-  const visit = (atom: any) => {
-    if (!atom || seen.has(atom)) return;
-    seen.add(atom);
-    visitor(atom);
-
-    const children = Array.isArray(atom.children) ? atom.children : [];
-    children.forEach(visit);
-  };
-
-  visit(root);
-};
-
-const atomContainsPlaceholder = (atom: any) => {
-  let found = false;
-
-  const visit = (candidate: any) => {
-    if (!candidate || found) return;
-    if (candidate.type === "placeholder") {
-      found = true;
-      return;
-    }
-
-    const children = Array.isArray(candidate.children) ? candidate.children : [];
-    children.forEach(visit);
-  };
-
-  visit(atom);
-  return found;
-};
-
-const releaseCapturedAccentPlaceholders = (mathField: any) => {
-  trySetMathFieldOption(() => {
-    walkMathAtoms(mathField, (atom) => {
-      if (atom?.type !== "accent" || !atomContainsPlaceholder(atom)) return;
-
-      // MathLive's AccentAtom captures selection by default, which prevents the
-      // inner normal #? placeholder from being selected directly.
-      atom.captureSelection = false;
-      atom.skipBoundary = false;
-    });
-  });
-};
-
-const collectPlaceholderAtoms = (mathField: any) => {
-  const placeholders = new Set<any>();
-
-  trySetMathFieldOption(() => {
-    walkMathAtoms(mathField, (atom) => {
-      if (atom?.type === "placeholder") placeholders.add(atom);
-    });
-  });
-
-  return placeholders;
-};
-
-const selectNewOrNearestPlaceholder = (
-  mathField: any,
-  existingPlaceholders: Set<any> | null
-) => {
-  let selected = false;
-
-  trySetMathFieldOption(() => {
-    releaseCapturedAccentPlaceholders(mathField);
-
-    const model = mathField.model;
-    if (!model?.offsetOf || !model?.setSelection) return;
-
-    const origin =
-      typeof model.position === "number" ? Math.max(model.position, 0) : 0;
-    const placeholders = Array.from(collectPlaceholderAtoms(mathField));
-    const newPlaceholders = placeholders.filter(
-      (atom) => !existingPlaceholders?.has(atom)
-    );
-    const candidates = newPlaceholders.length > 0 ? newPlaceholders : placeholders;
-    const placeholder = candidates
-      .map((atom) => ({ atom, offset: model.offsetOf(atom) }))
-      .filter(({ offset }) => typeof offset === "number" && offset >= 0)
-      .sort(
-        (left, right) =>
-          Math.abs(left.offset - origin) - Math.abs(right.offset - origin)
-      )[0]?.atom;
-
-    if (!placeholder) return;
-
-    mathField.focus();
-    selected = selectPlaceholderAtom(mathField, placeholder);
-    model.announce?.("move");
-  });
-
-  if (selected && isSelectionOnPlaceholder(mathField)) return;
-
-  // MathLive's own placeholder navigation is more reliable for accent atoms.
-  trySetMathFieldOption(() => {
-    mathField.focus();
-    mathField.executeCommand?.("moveToPreviousPlaceholder");
-    if (!isSelectionOnPlaceholder(mathField)) {
-      mathField.executeCommand?.("moveToNextPlaceholder");
-    }
-  });
-};
-
-const selectPlaceholderAtom = (mathField: any, placeholder: any) => {
-  const model = mathField.model;
-  if (!model?.offsetOf || !model?.setSelection) return false;
-
-  const offset = model.offsetOf(placeholder);
-  if (typeof offset !== "number" || offset < 0) return false;
-
-  const ranges: Array<[number, number]> = [
-    [Math.max(offset - 1, 0), offset],
-    [offset, Math.min(offset + 1, model.lastOffset ?? offset + 1)],
-    [offset, offset],
-  ];
-
-  for (const [start, end] of ranges) {
-    model.setSelection(start, end);
-    if (isSelectionOnPlaceholder(mathField)) return true;
-  }
-
-  model.setPositionHandlingPlaceholder?.(offset);
-  return isSelectionOnPlaceholder(mathField);
 };
 
 const normalizeFilledPrompts = (mathField: any) => {
