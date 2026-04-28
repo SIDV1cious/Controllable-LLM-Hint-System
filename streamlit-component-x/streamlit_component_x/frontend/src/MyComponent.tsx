@@ -1020,10 +1020,7 @@ const insertIntoMathField = (
   });
 
   if (selectNestedPlaceholder) {
-    window.setTimeout(
-      () => selectNewOrNearestPlaceholder(mathField, existingPlaceholders),
-      0
-    );
+    scheduleNestedPlaceholderSelection(mathField, existingPlaceholders);
   } else if (latex.includes("\\placeholder[")) {
     window.setTimeout(() => selectFirstPrompt(mathField), 0);
   }
@@ -1135,6 +1132,27 @@ const selectFirstPrompt = (mathField: any) => {
   });
 };
 
+const scheduleNestedPlaceholderSelection = (
+  mathField: any,
+  existingPlaceholders: Set<any> | null
+) => {
+  [0, 16, 60, 140].forEach((delay) => {
+    window.setTimeout(() => {
+      if (!mathField?.isConnected) return;
+      if (isSelectionOnPlaceholder(mathField)) return;
+      selectNewOrNearestPlaceholder(mathField, existingPlaceholders);
+    }, delay);
+  });
+};
+
+const isSelectionOnPlaceholder = (mathField: any) => {
+  let result = false;
+  trySetMathFieldOption(() => {
+    result = Boolean(mathField.model?.selectionIsPlaceholder);
+  });
+  return result;
+};
+
 const collectPlaceholderAtoms = (mathField: any) => {
   const placeholders = new Set<any>();
 
@@ -1155,6 +1173,8 @@ const selectNewOrNearestPlaceholder = (
   mathField: any,
   existingPlaceholders: Set<any> | null
 ) => {
+  let selected = false;
+
   trySetMathFieldOption(() => {
     const model = mathField.model;
     if (!model?.findAtom || !model?.offsetOf || !model?.setSelection) return;
@@ -1173,11 +1193,43 @@ const selectNewOrNearestPlaceholder = (
 
     if (!placeholder) return;
 
-    const offset = model.offsetOf(placeholder);
     mathField.focus();
-    model.setSelection(Math.max(offset - 1, 0), offset);
+    selected = selectPlaceholderAtom(mathField, placeholder);
     model.announce?.("move");
   });
+
+  if (selected && isSelectionOnPlaceholder(mathField)) return;
+
+  // MathLive's own placeholder navigation is more reliable for accent atoms.
+  trySetMathFieldOption(() => {
+    mathField.focus();
+    mathField.executeCommand?.("moveToPreviousPlaceholder");
+    if (!isSelectionOnPlaceholder(mathField)) {
+      mathField.executeCommand?.("moveToNextPlaceholder");
+    }
+  });
+};
+
+const selectPlaceholderAtom = (mathField: any, placeholder: any) => {
+  const model = mathField.model;
+  if (!model?.offsetOf || !model?.setSelection) return false;
+
+  const offset = model.offsetOf(placeholder);
+  if (typeof offset !== "number" || offset < 0) return false;
+
+  const ranges: Array<[number, number]> = [
+    [Math.max(offset - 1, 0), offset],
+    [offset, Math.min(offset + 1, model.lastOffset ?? offset + 1)],
+    [offset, offset],
+  ];
+
+  for (const [start, end] of ranges) {
+    model.setSelection(start, end);
+    if (isSelectionOnPlaceholder(mathField)) return true;
+  }
+
+  model.setPositionHandlingPlaceholder?.(offset);
+  return isSelectionOnPlaceholder(mathField);
 };
 
 const normalizeFilledPrompts = (mathField: any) => {
