@@ -17,7 +17,8 @@ declare global {
 
 type FormulaItem = {
   label: string;
-  latex: string;
+  latex?: string;
+  kind?: "cases";
 };
 
 type FormulaGroup = {
@@ -31,6 +32,7 @@ const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "常用符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
 const ACCENT_TEMPLATE_PATTERN = /^\\(vec|hat|dot|ddot|overline)\{#\?\}$/;
+const CASES_SEGMENT_COUNTS = [2, 3, 4, 5];
 
 const FORMULA_GROUPS: FormulaGroup[] = [
   {
@@ -88,7 +90,7 @@ const FORMULA_GROUPS: FormulaGroup[] = [
       { label: "log", latex: "\\log_{#?}{#?}" },
       { label: "exp", latex: "\\exp(#?)" },
       { label: "lim", latex: "\\lim_{#?\\to#?}#?" },
-      { label: "分段函数", latex: "\\begin{cases}#?, & #? \\\\ #?, & #?\\end{cases}" },
+      { label: "分段函数", kind: "cases" },
     ],
   },
   {
@@ -167,6 +169,13 @@ const COMMON_SYMBOLS: FormulaItem[] = [
   { label: "Φ", latex: "\\Phi" },
   { label: "Ω", latex: "\\Omega" },
 ];
+
+const createCasesLatex = (segmentCount: number) => {
+  const rows = Array.from({ length: segmentCount }, () => "#?, & #?").join(
+    " \\\\ "
+  );
+  return `\\begin{cases}${rows}\\end{cases}`;
+};
 
 const MyComponent = ({ args }: ComponentProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -753,17 +762,43 @@ const MyComponent = ({ args }: ComponentProps) => {
               : formulaPanelStyle
           }
         >
-          {activeToolbarItems.map((item) => (
-            <button
-              key={`${openToolbarGroup}-${item.label}-${item.latex}`}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => insertLatexIntoFormula(item.latex)}
-              style={symbolButtonStyle}
-            >
-              {item.label}
-            </button>
-          ))}
+          {activeToolbarItems.map((item) =>
+            item.kind === "cases" ? (
+              <select
+                key={`${openToolbarGroup}-${item.label}-cases`}
+                defaultValue=""
+                aria-label="插入分段函数"
+                onMouseDown={(event) => event.stopPropagation()}
+                onChange={(event) => {
+                  const segmentCount = Number(event.currentTarget.value);
+                  if (segmentCount) {
+                    insertLatexIntoFormula(createCasesLatex(segmentCount));
+                  }
+                  event.currentTarget.value = "";
+                }}
+                style={formulaSelectStyle}
+              >
+                <option value="" disabled>
+                  {item.label}
+                </option>
+                {CASES_SEGMENT_COUNTS.map((count) => (
+                  <option key={count} value={count}>
+                    {count}段
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <button
+                key={`${openToolbarGroup}-${item.label}-${item.latex}`}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => item.latex && insertLatexIntoFormula(item.latex)}
+                style={symbolButtonStyle}
+              >
+                {item.label}
+              </button>
+            )
+          )}
         </div>
       )}
 
@@ -1211,6 +1246,13 @@ const selectStyle: React.CSSProperties = {
   fontSize: "12px",
   height: "30px",
   outline: "none",
+};
+
+const formulaSelectStyle: React.CSSProperties = {
+  ...selectStyle,
+  width: "100%",
+  minHeight: "30px",
+  padding: "0 7px",
 };
 
 const editorStyle: React.CSSProperties = {
