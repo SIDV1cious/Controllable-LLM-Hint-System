@@ -168,12 +168,20 @@ def apply_auth_page_style():
         """
 <style>
     .block-container {
-        min-height: calc(100vh - 3.5rem);
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .block-container > div:first-child {
+        min-height: 82vh;
         display: flex;
         flex-direction: column;
         justify-content: center;
-        padding-top: 0 !important;
-        padding-bottom: 8vh !important;
+    }
+
+    .block-container h1 {
+        margin-top: 0 !important;
+        margin-bottom: 1.4rem !important;
     }
 </style>
         """,
