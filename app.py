@@ -1125,7 +1125,27 @@ elif st.session_state.page_mode == "quiz":
     page = st.empty()
 
     with page.container():
-        st.warning("⚠️ 考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！")
+        st.markdown(
+            """
+<div role="alert" style="
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    margin: 0.75rem 0 1.4rem 0;
+    padding: 12px 18px;
+    border-radius: 8px;
+    background: #fff8db;
+    color: #6b4e00;
+    font-size: 16px;
+    line-height: 1.6;
+">
+    <span style="font-size: 22px; line-height: 1;">⚠️</span>
+    <span>考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         idx = st.session_state.current_question_index
         total = len(st.session_state.quiz_queue)
