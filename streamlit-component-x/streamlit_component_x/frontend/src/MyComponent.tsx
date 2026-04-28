@@ -589,6 +589,19 @@ const MyComponent = ({ args }: ComponentProps) => {
         display: none;
       }
 
+      .inline-formula-field::part(placeholder) {
+        display: inline-block;
+        min-width: 0.9em;
+        min-height: 0.9em;
+        padding: 0 0.14em;
+        color: #1d4ed8 !important;
+        background: rgba(37, 99, 235, 0.22) !important;
+        border: 1px solid #2563eb;
+        border-radius: 3px;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
+        text-align: center;
+      }
+
       .inline-formula-remove {
         flex: 0 0 auto;
         width: 18px;
@@ -859,18 +872,25 @@ const injectMathFieldPlaceholderStyles = (mathField: any, attempt = 0) => {
   const style = document.createElement("style");
   style.id = MATHFIELD_PLACEHOLDER_STYLE_ID;
   style.textContent = `
+    [part='placeholder'],
     .ML__placeholder {
+      display: inline-block !important;
+      min-width: 0.9em !important;
+      min-height: 0.9em !important;
       opacity: 1 !important;
       color: #1d4ed8 !important;
-      background: rgba(59, 130, 246, 0.16) !important;
-      border: 1px solid rgba(37, 99, 235, 0.65);
+      background: rgba(37, 99, 235, 0.22) !important;
+      border: 1px solid #2563eb;
       border-radius: 3px;
-      padding: 0 0.12em !important;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
+      padding: 0 0.14em !important;
+      text-align: center;
     }
 
+    [part='placeholder'].ML__placeholder-selected,
     .ML__placeholder-selected,
     .ML__selected .ML__placeholder {
-      background: rgba(37, 99, 235, 0.28) !important;
+      background: rgba(37, 99, 235, 0.34) !important;
       box-shadow: 0 0 0 1px #2563eb inset;
     }
   `;
