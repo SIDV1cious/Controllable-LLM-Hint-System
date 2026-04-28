@@ -29,8 +29,7 @@ const FRAME_HEIGHT = 520;
 const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "常用符号";
-const ACCENT_PLACEHOLDER_RESELECTION_PATTERN =
-  /^\\(?:vec|hat|dot|ddot|overline)\{#\?\}$/;
+const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
 
 const FORMULA_GROUPS: FormulaGroup[] = [
   {
@@ -796,24 +795,13 @@ const serializeEditor = (root: HTMLElement) => {
 const insertIntoMathField = (mathField: any, latex: string) => {
   configureMathField(mathField);
   mathField.focus();
-  const shouldReselectPlaceholder =
-    ACCENT_PLACEHOLDER_RESELECTION_PATTERN.test(latex);
 
   mathField.insert(latex, {
     mode: "math",
     format: "latex",
-    selectionMode: shouldReselectPlaceholder ? "after" : "placeholder",
+    selectionMode: "placeholder",
     focus: true,
   });
-
-  if (shouldReselectPlaceholder) {
-    window.setTimeout(() => {
-      mathField.focus();
-      trySetMathFieldOption(() => {
-        mathField.executeCommand?.("moveToPreviousPlaceholder");
-      });
-    }, 0);
-  }
 };
 
 const configureMathField = (mathField: any, attempt = 0) => {
@@ -839,6 +827,7 @@ const configureMathField = (mathField: any, attempt = 0) => {
   trySetMathFieldOption(() => {
     mathField.menuItems = [];
   });
+  injectMathFieldPlaceholderStyles(mathField);
 };
 
 const trySetMathFieldOption = (setter: () => void) => {
@@ -847,6 +836,45 @@ const trySetMathFieldOption = (setter: () => void) => {
   } catch {
     // Some MathLive properties are not writable until its internal model mounts.
   }
+};
+
+const injectMathFieldPlaceholderStyles = (mathField: any, attempt = 0) => {
+  trySetMathFieldOption(() => {
+    mathField.style.setProperty("--placeholder-color", "#1d4ed8");
+    mathField.style.setProperty("--placeholder-opacity", "1");
+  });
+
+  const root = mathField.shadowRoot as ShadowRoot | null;
+  if (!root) {
+    if (attempt < 10) {
+      window.setTimeout(
+        () => injectMathFieldPlaceholderStyles(mathField, attempt + 1),
+        30
+      );
+    }
+    return;
+  }
+  if (root.getElementById(MATHFIELD_PLACEHOLDER_STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = MATHFIELD_PLACEHOLDER_STYLE_ID;
+  style.textContent = `
+    .ML__placeholder {
+      opacity: 1 !important;
+      color: #1d4ed8 !important;
+      background: rgba(59, 130, 246, 0.16) !important;
+      border: 1px solid rgba(37, 99, 235, 0.65);
+      border-radius: 3px;
+      padding: 0 0.12em !important;
+    }
+
+    .ML__placeholder-selected,
+    .ML__selected .ML__placeholder {
+      background: rgba(37, 99, 235, 0.28) !important;
+      box-shadow: 0 0 0 1px #2563eb inset;
+    }
+  `;
+  root.appendChild(style);
 };
 
 const isZeroWidthText = (node: Node | null): node is Text =>
