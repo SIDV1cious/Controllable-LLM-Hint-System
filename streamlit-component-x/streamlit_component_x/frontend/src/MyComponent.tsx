@@ -563,6 +563,12 @@ const MyComponent = ({ args }: ComponentProps) => {
         box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.10);
       }
 
+      button:focus,
+      button:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+
       .inline-formula-chip {
         display: inline-flex;
         align-items: center;
@@ -1109,6 +1115,7 @@ const summaryStyle: React.CSSProperties = {
   cursor: "pointer",
   flex: "0 0 auto",
   minHeight: "30px",
+  outline: "none",
   listStyle: "none",
 };
 
@@ -1146,6 +1153,7 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 700,
   cursor: "pointer",
   minHeight: "32px",
+  outline: "none",
 };
 
 const toolButtonStyle: React.CSSProperties = {
@@ -1157,6 +1165,7 @@ const toolButtonStyle: React.CSSProperties = {
   fontSize: "12px",
   cursor: "pointer",
   minHeight: "28px",
+  outline: "none",
 };
 
 const symbolButtonStyle: React.CSSProperties = {
@@ -1172,6 +1181,7 @@ const selectStyle: React.CSSProperties = {
   color: "#263244",
   fontSize: "12px",
   height: "30px",
+  outline: "none",
 };
 
 const editorStyle: React.CSSProperties = {
