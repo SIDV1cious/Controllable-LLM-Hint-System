@@ -58,7 +58,7 @@ const FORMULA_GROUPS: FormulaGroup[] = [
     ],
   },
   {
-    title: "大型运算",
+    title: "运算",
     items: [
       { label: "求和", latex: "\\sum_{#?}^{#?}#?" },
       { label: "乘积", latex: "\\prod_{#?}^{#?}#?" },
@@ -909,13 +909,10 @@ const toolbarHeaderStyle: React.CSSProperties = {
 
 const groupToolbarStyle: React.CSSProperties = {
   display: "flex",
-  gap: "5px",
+  gap: "4px",
   flexWrap: "nowrap",
   alignItems: "flex-start",
   marginBottom: "8px",
-  overflowX: "auto",
-  overflowY: "hidden",
-  paddingBottom: "2px",
 };
 
 const matrixPanelStyle: React.CSSProperties = {
@@ -938,11 +935,11 @@ const summaryStyle: React.CSSProperties = {
   backgroundImage:
     "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23536075' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
   backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 8px center",
+  backgroundPosition: "right 7px center",
   backgroundSize: "10px 6px",
   color: "#263244",
   borderRadius: "7px",
-  padding: "6px 24px 6px 9px",
+  padding: "6px 21px 6px 8px",
   display: "flex",
   alignItems: "center",
   fontSize: "12px",
