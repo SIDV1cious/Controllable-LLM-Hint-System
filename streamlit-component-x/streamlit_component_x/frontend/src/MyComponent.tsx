@@ -286,13 +286,6 @@ const MyComponent = ({ args }: ComponentProps) => {
   const [openToolbarGroup, setOpenToolbarGroup] = useState<string | null>(null);
 
   const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
-  const createPromptId = () => `hintPrompt${Date.now()}${idCounterRef.current++}`;
-
-  const prepareLatexTemplate = (latex: string) =>
-    latex.replace(ACCENT_TEMPLATE_PATTERN, (_match, command) => {
-      return `\\${command}{\\placeholder[${createPromptId()}]{}}`;
-    });
-
   const refreshFrameHeight = () => {
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 80);
@@ -485,7 +478,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     syncValue();
   };
 
-  const insertFormulaBox = (initialLatex = "") => {
+  const insertFormulaBox = (initialLatex = "", selectNestedPlaceholder = false) => {
     const editor = editorRef.current;
     const range = getEditorRange();
     if (!editor || !range) return;
@@ -503,7 +496,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     window.setTimeout(() => {
       mathField.focus();
       if (initialLatex) {
-        insertIntoMathField(mathField, initialLatex);
+        insertIntoMathField(mathField, initialLatex, selectNestedPlaceholder);
         chip.dataset.latex = getMathFieldLatex(mathField, "latex");
         syncValue();
       }
@@ -551,14 +544,14 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const insertLatexIntoFormula = (latex: string) => {
     const mathField = getActiveMathField();
-    const preparedLatex = prepareLatexTemplate(latex);
+    const shouldSelectNestedPlaceholder = ACCENT_TEMPLATE_PATTERN.test(latex);
 
     if (!mathField) {
-      insertFormulaBox(preparedLatex);
+      insertFormulaBox(latex, shouldSelectNestedPlaceholder);
       return;
     }
 
-    insertIntoMathField(mathField, preparedLatex);
+    insertIntoMathField(mathField, latex, shouldSelectNestedPlaceholder);
 
     const chip = mathField.closest(".inline-formula-chip") as HTMLElement | null;
     if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
@@ -1008,9 +1001,16 @@ const getMathFieldLatex = (
   return typeof mathField.value === "string" ? mathField.value : fallback;
 };
 
-const insertIntoMathField = (mathField: any, latex: string) => {
+const insertIntoMathField = (
+  mathField: any,
+  latex: string,
+  selectNestedPlaceholder = false
+) => {
   configureMathField(mathField);
   mathField.focus();
+  const existingPlaceholders = selectNestedPlaceholder
+    ? collectPlaceholderAtoms(mathField)
+    : null;
 
   mathField.insert(latex, {
     mode: "math",
@@ -1019,7 +1019,12 @@ const insertIntoMathField = (mathField: any, latex: string) => {
     focus: true,
   });
 
-  if (latex.includes("\\placeholder[")) {
+  if (selectNestedPlaceholder) {
+    window.setTimeout(
+      () => selectNewOrNearestPlaceholder(mathField, existingPlaceholders),
+      0
+    );
+  } else if (latex.includes("\\placeholder[")) {
     window.setTimeout(() => selectFirstPrompt(mathField), 0);
   }
 };
@@ -1127,6 +1132,51 @@ const selectFirstPrompt = (mathField: any) => {
       mathField.focus();
       mathField.selection = range;
     }
+  });
+};
+
+const collectPlaceholderAtoms = (mathField: any) => {
+  const placeholders = new Set<any>();
+
+  trySetMathFieldOption(() => {
+    const model = mathField.model;
+    if (!model?.at || typeof model.lastOffset !== "number") return;
+
+    for (let index = 0; index <= model.lastOffset; index += 1) {
+      const atom = model.at(index);
+      if (atom?.type === "placeholder") placeholders.add(atom);
+    }
+  });
+
+  return placeholders;
+};
+
+const selectNewOrNearestPlaceholder = (
+  mathField: any,
+  existingPlaceholders: Set<any> | null
+) => {
+  trySetMathFieldOption(() => {
+    const model = mathField.model;
+    if (!model?.findAtom || !model?.offsetOf || !model?.setSelection) return;
+
+    const origin =
+      typeof model.position === "number" ? Math.max(model.position, 0) : 0;
+    const isNewPlaceholder = (atom: any) =>
+      atom?.type === "placeholder" && !existingPlaceholders?.has(atom);
+    const isPlaceholder = (atom: any) => atom?.type === "placeholder";
+
+    const placeholder =
+      model.findAtom(isNewPlaceholder, origin, "forward") ||
+      model.findAtom(isNewPlaceholder, origin, "backward") ||
+      model.findAtom(isPlaceholder, origin, "forward") ||
+      model.findAtom(isPlaceholder, origin, "backward");
+
+    if (!placeholder) return;
+
+    const offset = model.offsetOf(placeholder);
+    mathField.focus();
+    model.setSelection(Math.max(offset - 1, 0), offset);
+    model.announce?.("move");
   });
 };
 
