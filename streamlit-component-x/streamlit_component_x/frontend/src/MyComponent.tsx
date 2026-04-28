@@ -29,6 +29,8 @@ const FRAME_HEIGHT = 520;
 const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "常用符号";
+const ACCENT_PLACEHOLDER_RESELECTION_PATTERN =
+  /^\\(?:vec|hat|dot|ddot|overline)\{#\?\}$/;
 
 const FORMULA_GROUPS: FormulaGroup[] = [
   {
@@ -794,12 +796,24 @@ const serializeEditor = (root: HTMLElement) => {
 const insertIntoMathField = (mathField: any, latex: string) => {
   configureMathField(mathField);
   mathField.focus();
+  const shouldReselectPlaceholder =
+    ACCENT_PLACEHOLDER_RESELECTION_PATTERN.test(latex);
+
   mathField.insert(latex, {
     mode: "math",
     format: "latex",
-    selectionMode: "placeholder",
+    selectionMode: shouldReselectPlaceholder ? "after" : "placeholder",
     focus: true,
   });
+
+  if (shouldReselectPlaceholder) {
+    window.setTimeout(() => {
+      mathField.focus();
+      trySetMathFieldOption(() => {
+        mathField.executeCommand?.("moveToPreviousPlaceholder");
+      });
+    }, 0);
+  }
 };
 
 const configureMathField = (mathField: any, attempt = 0) => {
