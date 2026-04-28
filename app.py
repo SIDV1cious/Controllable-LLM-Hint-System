@@ -1,9 +1,3 @@
-"""Streamlit 应用入口。
-
-本文件承载学生测验、自动判题、受控提示生成、泄露检测与管理端统计。
-代码保留单文件结构，便于毕业设计答辩时直接展示核心链路。
-"""
-
 import streamlit as st
 import os
 import random
@@ -33,9 +27,6 @@ from math_comp import math_input
 
 load_dotenv()
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
-
-APP_TITLE = "基于LLM的可控解题提示生成系统"
-APP_SUBTITLE = "面向课程测验场景的受控提示生成与答案泄露抑制原型"
 
 
 class AppConfig:
@@ -547,7 +538,7 @@ def start_experiment_session(course_name: str):
         course_questions = [q_map[1000 + db_id] for db_id in selected_ids if 1000 + db_id in q_map]
 
     if not course_questions:
-        st.toast("题库内目前无该课程对应题目")
+        st.toast("题库内目前无该课程对应题目", icon="⚠️")
         return
 
     q_ids = ",".join([str(q['id']) for q in course_questions])
@@ -636,18 +627,14 @@ def submit_and_assess():
     st.rerun()
 
 
-st.set_page_config(page_title=APP_TITLE, layout="wide")
+st.set_page_config(page_title="基于LLM的可控解题提示生成系统", layout="wide")
 apply_global_style()
 
 if not st.session_state.logged_in:
-    st.markdown(f"<h1 style='text-align: center;'>{APP_TITLE}</h1>", unsafe_allow_html=True)
-    st.markdown(
-        f"<p style='text-align: center; color: #5b677a;'>{APP_SUBTITLE}</p>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h1 style='text-align: center;'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
-        tab_l, tab_r = st.tabs(["登录", "注册"])
+        tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
         with tab_l:
             with st.form("login_form"):
                 u_in = st.text_input("账号/学号")
@@ -675,7 +662,7 @@ if not st.session_state.logged_in:
                 reg_submitted = st.form_submit_button("立即注册", type="primary", use_container_width=True)
                 if reg_submitted:
                     if ru.strip() and rp.strip() == rp2.strip() and register_user(ru.strip(), rp.strip()):
-                        st.toast("注册成功！请切换到登录页面。")
+                        st.toast("注册成功！请切换到登录页面。", icon="✅")
                     else:
                         st.error("注册失败（学号已被占用或密码不一致）。")
     st.stop()
@@ -688,7 +675,7 @@ if st.session_state.page_mode != "grading":
             f"当前账号: `{st.session_state.current_user}` ({'管理员' if st.session_state.user_role == 'admin' else '学生'})")
         if st.session_state.user_role == 'student':
             if st.session_state.page_mode != "home":
-                if st.button("返回课程入口"):
+                if st.button("🏠 返回大厅"):
                     engine = get_database_engine()
                     with engine.connect() as conn:
                         conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"),
@@ -697,10 +684,10 @@ if st.session_state.page_mode != "grading":
                     st.session_state.page_mode = "home"
                     st.rerun()
             if st.session_state.page_mode != "report":
-                if st.button("个人学情报告"):
+                if st.button("📊 我的学情报告"):
                     st.session_state.page_mode = "report"
                     st.rerun()
-        if st.button("退出登录"):
+        if st.button("🚪 退出登录"):
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
@@ -708,16 +695,16 @@ else:
     sidebar_slot.empty()
 
 if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
-    st.markdown("<h1>教学实验管理后台</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
     tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["数据概览", "登录日志", "学习时长", "辅导交互抽查", "课程与题库管理",
-         "生成策略配置"])
+        ["📊 可视化数据大屏", "🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理",
+         "⚙️ 智能辅导大模型设置"])
     engine = get_database_engine()
     with engine.connect() as conn:
         with tab0:
-            st.subheader("系统运行与学习行为概览")
+            st.subheader("🎓 全系统学情实时监控看板")
             st.markdown("---")
-            st.markdown("#### 最近7天活跃用户趋势")
+            st.markdown("#### 🕒 最近7天系统活跃人数趋势")
             try:
                 sql_active = text(
                     "SELECT DATE(login_time) as login_date, COUNT(DISTINCT username) as user_count FROM login_logs WHERE login_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY login_date ORDER BY login_date;")
@@ -729,7 +716,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 logging.error(f"Dashboard Active Users Error: {e}")
 
             st.markdown("---")
-            st.markdown("#### 各课程学习时长占比")
+            st.markdown("#### 📘 各科课程学习时长占比")
             col_chart1, col_data1 = st.columns([2, 1])
             try:
                 sql_duration = text(
@@ -749,7 +736,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 logging.error(f"Dashboard Duration Error: {e}")
 
             st.markdown("---")
-            st.markdown("#### 各课程平均正确率")
+            st.markdown("#### ✅ 全系统题目平均正确率统计")
             try:
                 df_interact_raw = pd.read_sql(
                     "SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE '【答案提交】%%'", conn)
@@ -772,14 +759,14 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                             fig_bar.update_traces(width=0.2)
                         st.plotly_chart(fig_bar, use_container_width=True)
                     else:
-                        st.warning("无法生成图表：题号映射失败。")
+                        st.warning("⚠️ 无法生成图表：题号映射失败！")
                 else:
                     st.info("暂无答题提交数据，无法计算正确率。")
             except Exception as e:
-                st.error(f"图表加载失败: {e}")
+                st.error(f"⚠️ 图表加载报错: {e}")
 
             st.markdown("---")
-            st.markdown("#### 受控提示生成评估指标")
+            st.markdown("#### 🛡️ 智能辅导答案泄露控制统计")
             try:
                 df_leak = pd.read_sql(
                     "SELECT is_leaking_answer, leakage_score, rewrite_count FROM interaction_logs WHERE user_query LIKE '【辅导】%%'",
@@ -790,8 +777,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     rewrite_total = int(df_leak.get('rewrite_count', pd.Series([0] * total_hints)).fillna(0).astype(int).sum())
                     leak_rate = round(leaked_hints / total_hints * 100, 1)
                     c_leak1, c_leak2, c_leak3 = st.columns(3)
-                    c_leak1.metric("生成提示总数", total_hints)
-                    c_leak2.metric("最终泄露比例", f"{leak_rate} %")
+                    c_leak1.metric("辅导提示总数", total_hints)
+                    c_leak2.metric("最终泄露率", f"{leak_rate} %")
                     c_leak3.metric("自动重写次数", rewrite_total)
                     score_df = df_leak.groupby('leakage_score').size().reset_index(name='count')
                     fig_leak = px.bar(score_df, x='leakage_score', y='count',
@@ -799,7 +786,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                       color_discrete_sequence=['#2ca02c'])
                     st.plotly_chart(fig_leak, use_container_width=True)
                 else:
-                    st.info("暂无辅导提示数据，无法计算泄露控制指标。")
+                    st.info("暂无智能辅导提示数据，无法计算泄露控制指标。")
             except Exception as e:
                 logging.error(f"Leakage dashboard error: {e}")
                 st.info("当前数据库尚未记录泄露控制扩展指标。")
@@ -811,7 +798,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 conn)
             st.dataframe(df_login, use_container_width=True)
             if not df_login.empty:
-                st.download_button("导出登录日志 (CSV)", df_login.to_csv(index=False).encode('utf-8-sig'),
+                st.download_button("📥 导出登录日志 (CSV)", df_login.to_csv(index=False).encode('utf-8-sig'),
                                    "login_logs.csv", "text/csv", use_container_width=True)
 
         with tab2:
@@ -821,11 +808,11 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 conn)
             st.dataframe(df_study, use_container_width=True)
             if not df_study.empty:
-                st.download_button("导出学习时长记录 (CSV)", df_study.to_csv(index=False).encode('utf-8-sig'),
+                st.download_button("📥 导出学习时长记录 (CSV)", df_study.to_csv(index=False).encode('utf-8-sig'),
                                    "study_sessions.csv", "text/csv", use_container_width=True)
 
         with tab3:
-            st.subheader("辅导交互质量抽查")
+            st.subheader("大模型交互质量抽查")
             try:
                 df_chat = pd.read_sql(
                     "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', is_leaking_answer AS '是否泄露', leakage_score AS '泄露评分', rewrite_count AS '重写次数', leakage_reason AS '检测原因', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
@@ -836,13 +823,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     conn)
             st.dataframe(df_chat, use_container_width=True)
             if not df_chat.empty:
-                st.download_button("导出辅导交互记录 (CSV)", df_chat.to_csv(index=False).encode('utf-8-sig'),
+                st.download_button("📥 导出AI辅导监控记录 (CSV)", df_chat.to_csv(index=False).encode('utf-8-sig'),
                                    "ai_interaction_logs.csv", "text/csv", use_container_width=True)
 
         with tab4:
-            st.subheader("课程管理")
+            st.subheader("📚 课程管理")
             t_c_add, t_c_del, t_c_edit, t_c_view = st.tabs(
-                ["录入新课程", "删除自定义课程", "修改自定义课程", "预览自定义课程"])
+                ["➕ 录入新课程", "🗑️ 删除自定义课程", "✏️ 修改自定义课程", "👀 预览自定义课程"])
             with t_c_add:
                 with st.form("add_course_form"):
                     new_c_name = st.text_input("新课程名称")
@@ -854,13 +841,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                     text("INSERT INTO custom_courses (course_name, description) VALUES (:n, :d)"),
                                     {"n": new_c_name, "d": new_c_desc})
                                 conn.commit()
-                                st.toast(f"课程《{new_c_name}》添加成功！")
+                                st.toast(f"课程《{new_c_name}》添加成功！", icon="✅")
                                 time.sleep(0.5)
                                 st.rerun()
                             except Exception as e:
-                                st.toast(f"添加失败: {e}")
+                                st.toast(f"添加失败: {e}", icon="❌")
                         else:
-                            st.toast("请填写完整的课程信息！")
+                            st.toast("请填写完整的课程信息！", icon="⚠️")
 
             with t_c_del:
                 with st.form("delete_course_form"):
@@ -877,7 +864,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                             conn.execute(text("DELETE FROM custom_courses WHERE course_name = :c"), {"c": del_c_name})
                             conn.execute(text("DELETE FROM custom_questions WHERE category = :c"), {"c": del_c_name})
                             conn.commit()
-                            st.toast(f"已彻底删除课程《{del_c_name}》！")
+                            st.toast(f"已彻底删除课程《{del_c_name}》！", icon="✅")
                             time.sleep(0.5)
                             st.rerun()
                     else:
@@ -893,14 +880,14 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     edit_c_options = {}
 
                 if edit_c_options:
-                    edit_c_choice = st.selectbox("第一步：选择需要修改的课程", list(edit_c_options.keys()),
+                    edit_c_choice = st.selectbox("👇 第一步：选择需要修改的课程", list(edit_c_options.keys()),
                                                  key="edit_c_select")
                     selected_c_name, selected_c_desc = edit_c_options[edit_c_choice]
                     with st.form("edit_course_form"):
-                        st.write("第二步：在下方编辑并保存")
+                        st.write("👇 第二步：在下方直接编辑并保存")
                         updated_c_name = st.text_input("修改课程名称", value=selected_c_name)
                         updated_c_desc = st.text_input("修改课程简介描述", value=selected_c_desc)
-                        if st.form_submit_button("保存修改", type="primary", use_container_width=True):
+                        if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
                             if updated_c_name.strip() and updated_c_desc.strip():
                                 try:
                                     conn.execute(text(
@@ -912,13 +899,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                             "UPDATE custom_questions SET category = :new_n WHERE category = :old_n"),
                                             {"new_n": updated_c_name.strip(), "old_n": selected_c_name})
                                     conn.commit()
-                                    st.toast("课程修改成功！")
+                                    st.toast("课程修改成功！", icon="✅")
                                     time.sleep(0.5)
                                     st.rerun()
                                 except Exception as e:
-                                    st.toast(f"修改失败: {e}")
+                                    st.toast(f"修改失败: {e}", icon="❌")
                             else:
-                                st.toast("课程名称和描述不能为空！")
+                                st.toast("课程名称和描述不能为空！", icon="⚠️")
                 else:
                     st.info("暂无自定义课程可以修改。")
 
@@ -934,7 +921,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     st.warning(f"读取课程失败: {e}")
 
             st.divider()
-            st.subheader("题库管理")
+            st.subheader("📝 题库管理")
             hardcoded_c = ["高等数学", "线性代数", "概率统计", "C语言"]
             try:
                 custom_course_names = [
@@ -946,7 +933,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 all_c = hardcoded_c
 
             t_add, t_del, t_edit, t_view = st.tabs(
-                ["录入新题目", "删除自定义题目", "修改自定义题目", "预览自定义题库"])
+                ["➕ 录入新题目", "🗑️ 删除自定义题目", "✏️ 修改自定义题目", "👀 预览自定义题库"])
 
             with t_add:
                 with st.form("add_question_form"):
@@ -967,13 +954,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                     }
                                 )
                                 conn.commit()
-                                st.toast("题目添加成功！")
+                                st.toast("题目添加成功！", icon="✅")
                                 time.sleep(0.5)
                                 st.rerun()
                             except Exception as e:
-                                st.toast(f"题目添加失败: {e}")
+                                st.toast(f"题目添加失败: {e}", icon="❌")
                         else:
-                            st.toast("请填写完整的题目内容！")
+                            st.toast("请填写完整的题目内容！", icon="⚠️")
 
             with t_del:
                 with st.form("delete_question_form"):
@@ -990,7 +977,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                             conn.execute(text("DELETE FROM custom_questions WHERE id = :id"),
                                          {"id": del_q_options[del_q_choice]})
                             conn.commit()
-                            st.toast("指定题目已永久删除！")
+                            st.toast("指定题目已永久删除！", icon="✅")
                             time.sleep(0.5)
                             st.rerun()
                     else:
@@ -1007,7 +994,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     edit_q_options = {}
 
                 if edit_q_options:
-                    edit_q_choice = st.selectbox("第一步：选择需要修改的题目", list(edit_q_options.keys()),
+                    edit_q_choice = st.selectbox("👇 第一步：选择需要修改的题目", list(edit_q_options.keys()),
                                                  key="edit_q_select")
                     selected_id, selected_cat, selected_content, selected_answer, selected_solution = edit_q_options[edit_q_choice]
                     with st.form("edit_question_form"):
@@ -1016,7 +1003,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         new_content = st.text_area("修改题目内容 (支持 LaTeX 格式)", value=selected_content, height=150)
                         new_answer = st.text_input("修改标准答案", value=selected_answer)
                         new_solution = st.text_area("修改标准解析", value=selected_solution, height=120)
-                        if st.form_submit_button("保存修改", type="primary", use_container_width=True):
+                        if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
                             if new_content.strip():
                                 try:
                                     conn.execute(
@@ -1029,13 +1016,13 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                                             "id": selected_id,
                                         })
                                     conn.commit()
-                                    st.toast("题目修改成功！")
+                                    st.toast("题目修改成功！", icon="✅")
                                     time.sleep(0.5)
                                     st.rerun()
                                 except Exception as e:
-                                    st.toast(f"修改失败: {e}")
+                                    st.toast(f"修改失败: {e}", icon="❌")
                             else:
-                                st.toast("题目内容不能为空！")
+                                st.toast("题目内容不能为空！", icon="⚠️")
                 else:
                     st.info("暂无自定义题目可以修改。")
 
@@ -1052,8 +1039,8 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                     st.warning(f"读取题库失败: {e}")
 
         with tab5:
-            st.subheader("提示词与生成策略配置")
-            st.info("此处用于维护学生端受控提示生成的系统指令。保存后，新指令将用于后续辅导生成。")
+            st.subheader("🧠 大模型 Prompt 注入控制台")
+            st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
             try:
                 curr_prompt_res = conn.execute(
                     text("SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")).fetchone()
@@ -1063,24 +1050,24 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 current_prompt = SYSTEM_INSTRUCTION
 
             with st.form("prompt_update_form"):
-                new_prompt = st.text_area("当前系统指令 (System Prompt)", value=current_prompt, height=250)
-                if st.form_submit_button("保存并应用新指令", type="primary", use_container_width=True):
+                new_prompt = st.text_area("🔧 当前系统底层提示词 (System Prompt)", value=current_prompt, height=250)
+                if st.form_submit_button("💾 保存并全局应用新指令", type="primary", use_container_width=True):
                     if new_prompt.strip():
                         try:
                             conn.execute(text(
                                 "INSERT INTO system_configs (config_key, config_value) VALUES ('system_instruction', :val) ON DUPLICATE KEY UPDATE config_value = :val"),
                                 {"val": new_prompt.strip()})
                             conn.commit()
-                            st.toast("系统指令已更新，将用于后续辅导生成。")
+                            st.toast("大模型底层指令已热更新！全系统生效！", icon="✅")
                             time.sleep(0.5)
                             st.rerun()
                         except Exception as e:
-                            st.toast(f"更新失败: {e}")
+                            st.toast(f"更新失败: {e}", icon="❌")
                     else:
-                        st.toast("提示词不能为空！")
+                        st.toast("提示词不能为空！", icon="⚠️")
 
 elif st.session_state.page_mode == "home" and st.session_state.user_role == "student":
-    st.markdown("<h1 style='text-align: center;'>课程测验入口</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
     st.write("请选择你要进行随堂测验的课程模块：")
     st.divider()
     base_courses = [
@@ -1103,7 +1090,7 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
     cols = st.columns(4)
     for idx, (c_name, c_desc) in enumerate(base_courses):
         with cols[idx % 4]:
-            st.markdown(f"### {c_name}")
+            st.markdown(f"### 📘 {c_name}")
             st.caption(c_desc)
             if st.button(f"进入《{c_name}》测验", key=f"btn_{c_name}", use_container_width=True):
                 start_experiment_session(c_name)
@@ -1112,7 +1099,7 @@ elif st.session_state.page_mode == "quiz":
     page = st.empty()
 
     with page.container():
-        st.warning("测验进行中，请勿刷新网页或退出登录，否则未提交的作答记录可能丢失。")
+        st.warning("⚠️ 考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！")
 
         idx = st.session_state.current_question_index
         total = len(st.session_state.quiz_queue)
@@ -1122,7 +1109,7 @@ elif st.session_state.page_mode == "quiz":
         if current_ans_key in st.session_state:
             st.session_state.user_answers[idx] = st.session_state[current_ans_key]
 
-        st.markdown("### 题目列表")
+        st.markdown("### 🗂️ 题目列表")
         with st.container():
             cols_per_row = 10
             for i in range(0, total, cols_per_row):
@@ -1133,7 +1120,7 @@ elif st.session_state.page_mode == "quiz":
                         with cols[j]:
                             is_answered = bool(st.session_state.user_answers.get(q_idx, "").strip())
                             btn_type = "primary" if q_idx == idx else "secondary"
-                            btn_label = f"{q_idx + 1} 已答" if is_answered else str(q_idx + 1)
+                            btn_label = f"{q_idx + 1} ✅" if is_answered else str(q_idx + 1)
 
                             if st.button(btn_label, key=f"nav_btn_{q_idx}", type=btn_type, use_container_width=True):
                                 st.session_state.current_question_index = q_idx
@@ -1145,27 +1132,27 @@ elif st.session_state.page_mode == "quiz":
         st.markdown(f"### 第 {idx + 1} 题")
         st.info(format_math(q['content']))
 
-        st.markdown("#### 我的作答")
+        st.markdown("#### ✍️ 你的解答")
         ans = st.text_area("请输入你的答案（选择题请直接输入选项字母）：",
                            value=st.session_state.user_answers.get(idx, ""), height=150, key=f"ans_{idx}")
         st.session_state.user_answers[idx] = ans
 
         cols = st.columns(2)
         with cols[0]:
-            if idx > 0 and st.button("上一题", use_container_width=True):
+            if idx > 0 and st.button("⬅️ 上一题", use_container_width=True):
                 st.session_state.current_question_index -= 1
                 st.rerun()
 
         with cols[1]:
             if idx < total - 1:
-                if st.button("下一题", use_container_width=True):
+                if st.button("下一题 ➡️", use_container_width=True):
                     st.session_state.current_question_index += 1
                     st.rerun()
             else:
-                if st.button("提交测验", type="primary", use_container_width=True):
+                if st.button("✅ 提交试卷", type="primary", use_container_width=True):
                     missing = [str(i + 1) for i in range(total) if not st.session_state.user_answers.get(i, "").strip()]
                     if missing:
-                        st.warning(f"第 {'、'.join(missing)} 题尚未作答，请完成后再提交。")
+                        st.warning(f"⚠️ 第 {'、'.join(missing)} 题尚未作答，请完成后再提交。")
                     else:
                         st.session_state.is_grading = True
                         st.session_state.grading_started = False
@@ -1226,7 +1213,7 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 </style>
 <div style="height: 100vh; display: flex; align-items: center; justify-content: center;">
-    <h2>系统正在完成自动阅卷，请勿刷新或退出...</h2>
+    <h2>🧠 系统正在阅卷中，请勿刷新或退出...</h2>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1235,8 +1222,8 @@ html, body, [data-testid="stAppViewContainer"] {
         submit_and_assess()
 
 elif st.session_state.page_mode == "results":
-    st.title("作答结果与受控提示辅导")
-    if st.button("返回课程入口"):
+    st.title("📊 作答结果与辅导")
+    if st.button("🔄 返回大厅开启新课程"):
         st.session_state.page_mode = "home"
         st.rerun()
     st.divider()
@@ -1251,7 +1238,7 @@ elif st.session_state.page_mode == "results":
     metric_col3.metric("待复盘错题", wrong_count)
     metric_col4.metric("正确率", f"{accuracy} %")
     st.download_button(
-        "导出本次测验结果",
+        "📥 导出本次测验结果",
         build_result_export(st.session_state.assessment_results).encode("utf-8-sig"),
         file_name=f"quiz_result_{now_shanghai():%Y%m%d_%H%M%S}.md",
         mime="text/markdown",
@@ -1262,12 +1249,12 @@ elif st.session_state.page_mode == "results":
     with l_col:
         st.subheader("题目导航")
         for i, res in enumerate(st.session_state.assessment_results):
-            label = "正确" if res['is_correct'] else "错误"
+            label = "✅ 正确" if res['is_correct'] else "❌ 错误"
             if st.button(f"题 {i + 1} | {label}", key=f"n_{i}", use_container_width=True):
                 st.session_state.review_question_index = i
                 st.rerun()
     with r_col:
-        st.subheader("受控提示辅导")
+        st.subheader("智能辅导区")
         if st.session_state.review_question_index is not None:
             ridx = st.session_state.review_question_index
             data = st.session_state.assessment_results[ridx]
@@ -1278,7 +1265,7 @@ elif st.session_state.page_mode == "results":
             if qid not in st.session_state.chat_histories:
                 st.session_state.chat_histories[qid] = []
                 if not data['is_correct']:
-                    st.session_state.chat_histories[qid].append({"role": "assistant", "content": "你可以在这里提出希望获得提示的具体问题。系统会尽量提供启发式提示，而不是直接给出答案。"})
+                    st.session_state.chat_histories[qid].append({"role": "assistant", "content": "智能辅导"})
             for m in st.session_state.chat_histories[qid]:
                 with st.chat_message(m["role"]):
                     st.markdown(format_math(m["content"]))
@@ -1326,7 +1313,7 @@ elif st.session_state.page_mode == "results":
                 with st.chat_message("assistant"):
                     last_query = st.session_state.chat_histories[qid][-1]["content"]
                     try:
-                        with st.spinner("正在生成提示并进行答案泄露检测..."):
+                        with st.spinner("正在生成并进行答案泄露检测..."):
                             controlled = generate_controlled_hint(
                                 data['question_data'],
                                 data['user_answer'],
@@ -1355,7 +1342,7 @@ elif st.session_state.page_mode == "results":
                         log_interaction(qid, f"【辅导】{last_query}", fallback, leak=0)
 
 elif st.session_state.page_mode == "report" and st.session_state.user_role == "student":
-    st.markdown("<h1 style='text-align: center;'>个人学情报告与错题记录</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>📊 个人学情中心与错题记录</h1>", unsafe_allow_html=True)
     st.divider()
     engine = get_database_engine()
     with engine.connect() as conn:
@@ -1380,12 +1367,12 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
                     logging.error(f"Parse qid error: {e}")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("累计学习时长", f"{total_minutes} 分钟")
-    col2.metric("累计答对题数", f"{total_correct} 题")
-    col3.metric("历史平均正确率", f"{accuracy} %")
+    col1.metric("⏱️ 累计专注学习", f"{total_minutes} 分钟")
+    col2.metric("✅ 累计答对题数", f"{total_correct} 题")
+    col3.metric("🎯 历史平均正确率", f"{accuracy} %")
 
     st.markdown("---")
-    st.subheader("错题记录与辅导回顾")
+    st.subheader("📓 错题记录与智能辅导")
     if not wrong_qids:
         st.info("你目前没有任何错题记录")
     else:
@@ -1405,11 +1392,11 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
                 with st.expander(f"[{q_data['category']}] 错题回顾 (题号: {qid})"):
                     st.info(format_math(q_data['content']))
                     if qid in st.session_state.chat_histories and st.session_state.chat_histories[qid]:
-                        st.markdown("##### 辅导记录")
+                        st.markdown("##### 💬 智能辅导记录")
                         for m in st.session_state.chat_histories[qid]:
                             if m["role"] == "user":
-                                st.markdown(f"**学生提问**: {m['content']}")
+                                st.markdown(f"**🧑‍🎓 你**: {m['content']}")
                             else:
-                                st.markdown(f"**系统提示**: {m['content']}")
+                                st.markdown(f"**🤖 智能辅导员**: {m['content']}")
                     else:
                         st.caption("暂无针对此题的对话辅导记录。")
