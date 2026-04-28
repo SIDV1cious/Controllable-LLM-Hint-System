@@ -163,6 +163,24 @@ def apply_global_style():
     )
 
 
+def apply_auth_page_style():
+    st.markdown(
+        """
+<style>
+    .block-container {
+        min-height: calc(100vh - 3.5rem);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-top: 0 !important;
+        padding-bottom: 8vh !important;
+    }
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def verify_password(db_hash: str, pwd: str) -> bool:
     if db_hash.startswith("scrypt:") or db_hash.startswith("pbkdf2:"):
         return check_password_hash(db_hash, pwd)
@@ -630,6 +648,7 @@ st.set_page_config(page_title="基于LLM的可控解题提示生成系统", layo
 apply_global_style()
 
 if not st.session_state.logged_in:
+    apply_auth_page_style()
     st.markdown("<h1 style='text-align: center;'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
