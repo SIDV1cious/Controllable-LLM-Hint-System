@@ -335,6 +335,12 @@ const MyComponent = ({ args }: ComponentProps) => {
       setActiveFormula(id);
     });
 
+    mathField.addEventListener("blur", () => {
+      normalizeFilledPrompts(mathField);
+      chip.dataset.latex = getMathFieldLatex(mathField, "latex");
+      syncValue();
+    });
+
     mathField.addEventListener("keydown", (event: KeyboardEvent) => {
       event.stopPropagation();
     });
@@ -962,6 +968,33 @@ const selectFirstPrompt = (mathField: any) => {
       mathField.focus();
       mathField.selection = range;
     }
+  });
+};
+
+const normalizeFilledPrompts = (mathField: any) => {
+  trySetMathFieldOption(() => {
+    const promptIds = mathField.getPrompts?.({ locked: false });
+    if (!Array.isArray(promptIds) || promptIds.length === 0) return;
+
+    const hasEmptyPrompt = promptIds.some((id) => {
+      const value = mathField.getPromptValue?.(
+        id,
+        "latex-without-placeholders"
+      );
+      return !String(value || "").trim();
+    });
+    if (hasEmptyPrompt) return;
+
+    const plainLatex = getMathFieldLatex(
+      mathField,
+      "latex-without-placeholders"
+    ).trim();
+    if (!plainLatex) return;
+
+    mathField.setValue?.(plainLatex, {
+      selectionMode: "after",
+      silenceNotifications: true,
+    });
   });
 };
 
