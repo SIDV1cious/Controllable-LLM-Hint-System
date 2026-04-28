@@ -25,9 +25,10 @@ type FormulaGroup = {
   items: FormulaItem[];
 };
 
-const FRAME_HEIGHT = 475;
+const FRAME_HEIGHT = 520;
 const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
+const COMMON_SYMBOLS_TITLE = "常用符号";
 
 const FORMULA_GROUPS: FormulaGroup[] = [
   {
@@ -174,6 +175,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const [matrixRows, setMatrixRows] = useState(1);
   const [matrixCols, setMatrixCols] = useState(1);
+  const [openToolbarGroup, setOpenToolbarGroup] = useState<string | null>(null);
 
   const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
 
@@ -612,6 +614,14 @@ const MyComponent = ({ args }: ComponentProps) => {
     };
   }, []);
 
+  const activeFormulaGroup = FORMULA_GROUPS.find(
+    (group) => group.title === openToolbarGroup
+  );
+  const activeToolbarItems =
+    openToolbarGroup === COMMON_SYMBOLS_TITLE
+      ? COMMON_SYMBOLS
+      : activeFormulaGroup?.items ?? [];
+
   return (
     <div style={containerStyle}>
       <div style={toolbarHeaderStyle}>
@@ -627,51 +637,70 @@ const MyComponent = ({ args }: ComponentProps) => {
 
       <div style={groupToolbarStyle}>
         {FORMULA_GROUPS.map((group) => (
-          <details key={group.title} style={dropdownStyle}>
-            <summary style={summaryStyle}>
-              <span>{group.title}</span>
-              <span aria-hidden style={summaryArrowStyle}>
-                ⌄
-              </span>
-            </summary>
-            <div style={dropdownPanelStyle}>
-              {group.items.map((item) => (
-                <button
-                  key={`${group.title}-${item.label}`}
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => insertLatexIntoFormula(item.latex)}
-                  style={symbolButtonStyle}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </details>
-        ))}
-
-        <details style={dropdownStyle}>
-          <summary style={summaryStyle}>
-            <span>常用符号</span>
+          <button
+            key={group.title}
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() =>
+              setOpenToolbarGroup((current) =>
+                current === group.title ? null : group.title
+              )
+            }
+            style={{
+              ...summaryStyle,
+              ...(openToolbarGroup === group.title ? summaryActiveStyle : {}),
+            }}
+          >
+            <span>{group.title}</span>
             <span aria-hidden style={summaryArrowStyle}>
               ⌄
             </span>
-          </summary>
-          <div style={symbolPanelStyle}>
-            {COMMON_SYMBOLS.map((item) => (
-              <button
-                key={`${item.label}-${item.latex}`}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => insertLatexIntoFormula(item.latex)}
-                style={symbolButtonStyle}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </details>
+          </button>
+        ))}
+
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() =>
+            setOpenToolbarGroup((current) =>
+              current === COMMON_SYMBOLS_TITLE ? null : COMMON_SYMBOLS_TITLE
+            )
+          }
+          style={{
+            ...summaryStyle,
+            ...(openToolbarGroup === COMMON_SYMBOLS_TITLE
+              ? summaryActiveStyle
+              : {}),
+          }}
+        >
+          <span>{COMMON_SYMBOLS_TITLE}</span>
+          <span aria-hidden style={summaryArrowStyle}>
+            ⌄
+          </span>
+        </button>
       </div>
+
+      {openToolbarGroup && activeToolbarItems.length > 0 && (
+        <div
+          style={
+            openToolbarGroup === COMMON_SYMBOLS_TITLE
+              ? commonSymbolsPanelStyle
+              : formulaPanelStyle
+          }
+        >
+          {activeToolbarItems.map((item) => (
+            <button
+              key={`${openToolbarGroup}-${item.label}-${item.latex}`}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => insertLatexIntoFormula(item.latex)}
+              style={symbolButtonStyle}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={matrixRowStyle}>
         <div style={matrixPanelStyle}>
@@ -870,7 +899,7 @@ const containerStyle: React.CSSProperties = {
   border: "1px solid #d9dee8",
   borderRadius: "8px",
   padding: "10px",
-  height: "440px",
+  height: "485px",
   boxSizing: "border-box",
   overflow: "hidden",
 };
@@ -906,10 +935,6 @@ const matrixRowStyle: React.CSSProperties = {
   marginBottom: "8px",
 };
 
-const dropdownStyle: React.CSSProperties = {
-  position: "relative",
-};
-
 const summaryStyle: React.CSSProperties = {
   border: "1px solid #cfd6e3",
   background: "#f8fafc",
@@ -926,34 +951,34 @@ const summaryStyle: React.CSSProperties = {
   listStyle: "none",
 };
 
+const summaryActiveStyle: React.CSSProperties = {
+  borderColor: "#2563eb",
+  color: "#1d4ed8",
+  background: "#eff6ff",
+};
+
 const summaryArrowStyle: React.CSSProperties = {
   color: "#536075",
   fontSize: "14px",
   lineHeight: 1,
 };
 
-const dropdownPanelStyle: React.CSSProperties = {
+const formulaPanelStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(72px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
   gap: "6px",
-  position: "absolute",
-  zIndex: 20,
-  top: "34px",
-  left: 0,
-  minWidth: "180px",
   padding: "8px",
   border: "1px solid #d9dee8",
   borderRadius: "8px",
-  background: "white",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)",
+  background: "#fbfdff",
+  marginBottom: "8px",
 };
 
-const symbolPanelStyle: React.CSSProperties = {
-  ...dropdownPanelStyle,
-  gridTemplateColumns: "repeat(5, 34px)",
-  minWidth: "216px",
-  left: "auto",
-  right: 0,
+const commonSymbolsPanelStyle: React.CSSProperties = {
+  ...formulaPanelStyle,
+  gridTemplateColumns: "repeat(auto-fill, minmax(34px, 1fr))",
+  maxHeight: "118px",
+  overflowY: "auto",
 };
 
 const primaryButtonStyle: React.CSSProperties = {
@@ -996,7 +1021,7 @@ const selectStyle: React.CSSProperties = {
 
 const editorStyle: React.CSSProperties = {
   width: "100%",
-  height: "205px",
+  height: "215px",
   boxSizing: "border-box",
   overflowY: "auto",
   border: "1px solid #d9dee8",
