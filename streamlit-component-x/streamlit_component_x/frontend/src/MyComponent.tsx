@@ -623,13 +623,17 @@ const MyComponent = ({ args }: ComponentProps) => {
         >
           插入公式框
         </button>
-        <span style={toolbarHintStyle}>公式工具只会输入到当前公式框</span>
       </div>
 
       <div style={groupToolbarStyle}>
         {FORMULA_GROUPS.map((group) => (
           <details key={group.title} style={dropdownStyle}>
-            <summary style={summaryStyle}>{group.title}</summary>
+            <summary style={summaryStyle}>
+              <span>{group.title}</span>
+              <span aria-hidden style={summaryArrowStyle}>
+                ⌄
+              </span>
+            </summary>
             <div style={dropdownPanelStyle}>
               {group.items.map((item) => (
                 <button
@@ -647,7 +651,12 @@ const MyComponent = ({ args }: ComponentProps) => {
         ))}
 
         <details style={dropdownStyle}>
-          <summary style={summaryStyle}>常用符号</summary>
+          <summary style={summaryStyle}>
+            <span>常用符号</span>
+            <span aria-hidden style={summaryArrowStyle}>
+              ⌄
+            </span>
+          </summary>
           <div style={symbolPanelStyle}>
             {COMMON_SYMBOLS.map((item) => (
               <button
@@ -869,15 +878,10 @@ const containerStyle: React.CSSProperties = {
 const toolbarHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  justifyContent: "space-between",
+  justifyContent: "flex-start",
   gap: "8px",
   marginBottom: "8px",
   flexWrap: "wrap",
-};
-
-const toolbarHintStyle: React.CSSProperties = {
-  color: "#64748b",
-  fontSize: "12px",
 };
 
 const groupToolbarStyle: React.CSSProperties = {
@@ -912,10 +916,20 @@ const summaryStyle: React.CSSProperties = {
   color: "#263244",
   borderRadius: "7px",
   padding: "6px 9px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "6px",
   fontSize: "12px",
   cursor: "pointer",
   minHeight: "30px",
   listStyle: "none",
+};
+
+const summaryArrowStyle: React.CSSProperties = {
+  color: "#536075",
+  fontSize: "14px",
+  lineHeight: 1,
 };
 
 const dropdownPanelStyle: React.CSSProperties = {
@@ -936,8 +950,10 @@ const dropdownPanelStyle: React.CSSProperties = {
 
 const symbolPanelStyle: React.CSSProperties = {
   ...dropdownPanelStyle,
-  gridTemplateColumns: "repeat(6, 34px)",
-  minWidth: "252px",
+  gridTemplateColumns: "repeat(5, 34px)",
+  minWidth: "216px",
+  left: "auto",
+  right: 0,
 };
 
 const primaryButtonStyle: React.CSSProperties = {
