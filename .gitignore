@@ -1,5 +1,11 @@
 .env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 venv/
 .streamlit/
+.idea/
+**/node_modules/
+streamlit-component-x/streamlit_component_x/frontend/.env
+component-template/

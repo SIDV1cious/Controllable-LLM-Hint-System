@@ -9,9 +9,8 @@ import pandas as pd
 import plotly.express as px
 import logging
 import asyncio
-import streamlit.components.v1 as components
-from typing import List, Dict, Optional, Any
-from sqlalchemy import create_engine, text, Engine
+from typing import Any
+from sqlalchemy import bindparam, create_engine, text, Engine
 from openai import OpenAI, AsyncOpenAI
 from dotenv import load_dotenv
 from datetime import datetime
@@ -37,16 +36,132 @@ class AppConfig:
     DB_HOST = st.secrets.get("DB_HOST") or os.getenv("DB_HOST")
     DB_NAME = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
     BASE_URL = "https://api.deepseek.com"
+    LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
+    LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "45"))
+    LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "2"))
+    ASSESS_CONCURRENCY = int(os.getenv("ASSESS_CONCURRENCY", "5"))
+    QUIZ_SIZE = int(os.getenv("QUIZ_SIZE", "10"))
+    MAX_REWRITE_ATTEMPTS = int(os.getenv("MAX_REWRITE_ATTEMPTS", "2"))
 
 
-client = OpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
-aclient = AsyncOpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
+SHANGHAI_TZ = pytz.timezone('Asia/Shanghai')
+
+client = OpenAI(
+    api_key=AppConfig.LLM_API_KEY or "missing-api-key",
+    base_url=AppConfig.BASE_URL,
+    timeout=AppConfig.LLM_TIMEOUT_SECONDS,
+    max_retries=AppConfig.LLM_MAX_RETRIES,
+)
+aclient = AsyncOpenAI(
+    api_key=AppConfig.LLM_API_KEY or "missing-api-key",
+    base_url=AppConfig.BASE_URL,
+    timeout=AppConfig.LLM_TIMEOUT_SECONDS,
+    max_retries=AppConfig.LLM_MAX_RETRIES,
+)
 
 
 @st.cache_resource
 def get_database_engine() -> Engine:
     connection_url = f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
     return create_engine(connection_url, pool_recycle=1800, pool_pre_ping=True)
+
+
+def now_shanghai() -> datetime:
+    return datetime.now(SHANGHAI_TZ)
+
+
+def clamp_int(value: Any, default: int = 0, low: int = 0, high: int = 3) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, number))
+
+
+def fetch_custom_question_rows(conn, db_ids: list):
+    if not db_ids:
+        return []
+
+    stmt = text(
+        "SELECT id, category, content, answer, solution FROM custom_questions WHERE id IN :ids"
+    ).bindparams(bindparam("ids", expanding=True))
+    return conn.execute(stmt, {"ids": db_ids}).fetchall()
+
+
+def rows_to_question_map(rows) -> dict:
+    return {
+        1000 + r[0]: {
+            "id": 1000 + r[0],
+            "category": r[1],
+            "content": r[2],
+            "answer": r[3] or "",
+            "solution": r[4] or "",
+        }
+        for r in rows
+    }
+
+
+def build_result_export(assessment_results: list) -> str:
+    lines = ["# 本次测验结果", "", f"导出时间：{now_shanghai():%Y-%m-%d %H:%M:%S}", ""]
+    correct_count = sum(1 for item in assessment_results if item.get("is_correct"))
+    total = len(assessment_results)
+    accuracy = round(correct_count / total * 100, 1) if total else 0.0
+    lines.extend([f"- 总题数：{total}", f"- 答对题数：{correct_count}", f"- 正确率：{accuracy}%", ""])
+
+    for index, item in enumerate(assessment_results, start=1):
+        question = item.get("question_data", {})
+        lines.extend([
+            f"## 第 {index} 题",
+            "",
+            f"结果：{'正确' if item.get('is_correct') else '错误'}",
+            "",
+            "题目：",
+            str(question.get("content", "")),
+            "",
+            f"我的作答：{item.get('user_answer', '')}",
+            "",
+        ])
+
+    return "\n".join(lines)
+
+
+def apply_global_style():
+    st.markdown(
+        """
+<style>
+    .block-container {
+        max-width: 1180px;
+        padding-top: 1.25rem;
+        padding-bottom: 2rem;
+    }
+
+    [data-testid="stMetric"] {
+        background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+        border: 1px solid #d9e5f5;
+        border-radius: 14px;
+        padding: 14px 16px;
+        box-shadow: 0 10px 30px rgba(30, 64, 175, 0.06);
+    }
+
+    div.stButton > button,
+    div[data-testid="stDownloadButton"] > button {
+        border-radius: 10px;
+        font-weight: 650;
+    }
+
+    div[data-testid="stForm"] {
+        border-radius: 14px;
+        border-color: #d9e5f5;
+    }
+
+    section[data-testid="stSidebar"] {
+        background: #f8fafc;
+        border-right: 1px solid #e5e7eb;
+    }
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def verify_password(db_hash: str, pwd: str) -> bool:
@@ -82,8 +197,11 @@ def parse_json_object(raw_text: str) -> dict:
 
 
 def chat_completion_text(messages: list, temperature: float = 0.2) -> str:
+    if not AppConfig.LLM_API_KEY:
+        raise RuntimeError("未配置 LLM_API_KEY，无法调用大模型。")
+
     resp = client.chat.completions.create(
-        model="deepseek-chat",
+        model=AppConfig.LLM_MODEL,
         messages=messages,
         temperature=temperature
     )
@@ -222,7 +340,7 @@ def evaluate_hint_leakage(question_data: dict, candidate_hint: str) -> dict:
         if parsed:
             return {
                 "is_leaking": bool(parsed.get("is_leaking", False)),
-                "score": int(parsed.get("score", 0)),
+                "score": clamp_int(parsed.get("score", 0)),
                 "reason": str(parsed.get("reason", ""))[:255]
             }
     except Exception as e:
@@ -263,7 +381,7 @@ def generate_controlled_hint(question_data: dict, student_answer: str, is_correc
     leakage_result = evaluate_hint_leakage(question_data, final_hint)
     rewrite_count = 0
 
-    while leakage_result.get("is_leaking") and rewrite_count < 2:
+    while leakage_result.get("is_leaking") and rewrite_count < AppConfig.MAX_REWRITE_ATTEMPTS:
         rewrite_count += 1
         final_hint = rewrite_unsafe_hint(question_data, student_request, hint_plan, final_hint, leakage_result)
         leakage_result = evaluate_hint_leakage(question_data, final_hint)
@@ -309,7 +427,7 @@ def log_login(username: str):
     try:
         engine = get_database_engine()
         with engine.connect() as conn:
-            ts = datetime.now(pytz.timezone('Asia/Shanghai'))
+            ts = now_shanghai()
             conn.execute(text("INSERT INTO login_logs (username, login_time) VALUES (:u, :t)"),
                          {"u": username, "t": ts})
             conn.commit()
@@ -317,30 +435,22 @@ def log_login(username: str):
         logging.error(f"log_login error: {e}")
 
 
-def ensure_leakage_observability_columns():
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN leakage_score INT DEFAULT 0"))
-            conn.commit()
-    except Exception:
-        pass
+@st.cache_resource(show_spinner=False)
+def ensure_leakage_observability_columns() -> bool:
+    engine = get_database_engine()
+    ddl_statements = [
+        "ALTER TABLE interaction_logs ADD COLUMN leakage_score INT DEFAULT 0",
+        "ALTER TABLE interaction_logs ADD COLUMN rewrite_count INT DEFAULT 0",
+        "ALTER TABLE interaction_logs ADD COLUMN leakage_reason VARCHAR(255)",
+    ]
 
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN rewrite_count INT DEFAULT 0"))
-            conn.commit()
-    except Exception:
-        pass
-
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN leakage_reason VARCHAR(255)"))
-            conn.commit()
-    except Exception:
-        pass
+    for ddl in ddl_statements:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(ddl))
+        except Exception as e:
+            logging.debug(f"Skip leakage schema migration: {e}")
+    return True
 
 
 def log_interaction(
@@ -353,10 +463,10 @@ def log_interaction(
         leakage_reason: str = ""
 ):
     try:
+        ensure_leakage_observability_columns()
         engine = get_database_engine()
         with engine.connect() as conn:
-            ts = datetime.now(pytz.timezone('Asia/Shanghai'))
-            ensure_leakage_observability_columns()
+            ts = now_shanghai()
             try:
                 conn.execute(text(
                     "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, leakage_score, rewrite_count, leakage_reason, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, :time)"),
@@ -395,23 +505,18 @@ def sync_user_data(username: str):
         if u_res and u_res[0]:
             q_ids = [int(i) for i in u_res[0].split(",") if i.strip()]
             if q_ids:
-                db_ids = tuple([i - 1000 for i in q_ids])
+                db_ids = [i - 1000 for i in q_ids]
                 if db_ids:
-                    res = conn.execute(
-                        text("SELECT id, category, content, answer, solution FROM custom_questions WHERE id IN :ids"),
-                        {"ids": db_ids}).fetchall()
-                    fetched_qs = [{"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3] or "",
-                                   "solution": r[4] or ""} for r in res]
-                    q_map = {q['id']: q for q in fetched_qs}
+                    q_map = rows_to_question_map(fetch_custom_question_rows(conn, db_ids))
                     st.session_state.quiz_queue = [q_map[qid] for qid in q_ids if qid in q_map]
                     if st.session_state.quiz_queue:
                         st.session_state.current_course = st.session_state.quiz_queue[0].get('category', '继续测验')
                     st.session_state.page_mode = "quiz"
 
         logs = conn.execute(
-            text("SELECT question_id, user_query, ai_response FROM interaction_logs WHERE student_id = :u"),
+            text("SELECT question_id, user_query, ai_response FROM interaction_logs WHERE student_id = :u ORDER BY created_at DESC LIMIT 200"),
             {"u": username}).fetchall()
-        for row in logs:
+        for row in reversed(logs):
             qid, qry, rsp = row
             if qid not in st.session_state.chat_histories:
                 st.session_state.chat_histories[qid] = []
@@ -423,12 +528,14 @@ def sync_user_data(username: str):
 def start_experiment_session(course_name: str):
     engine = get_database_engine()
     with engine.connect() as conn:
-        res = conn.execute(text(
-            "SELECT id, category, content, answer, solution FROM custom_questions WHERE category = :c ORDER BY RAND() LIMIT 10"),
-            {"c": course_name}).fetchall()
-        course_questions = [
-            {"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3] or "", "solution": r[4] or ""} for r
-            in res]
+        id_rows = conn.execute(
+            text("SELECT id FROM custom_questions WHERE category = :c"),
+            {"c": course_name}
+        ).fetchall()
+        candidate_ids = [r[0] for r in id_rows]
+        selected_ids = random.sample(candidate_ids, k=min(AppConfig.QUIZ_SIZE, len(candidate_ids)))
+        q_map = rows_to_question_map(fetch_custom_question_rows(conn, selected_ids))
+        course_questions = [q_map[1000 + db_id] for db_id in selected_ids if 1000 + db_id in q_map]
 
     if not course_questions:
         st.toast("题库内目前无该课程对应题目", icon="⚠️")
@@ -438,7 +545,7 @@ def start_experiment_session(course_name: str):
     with engine.connect() as conn:
         conn.execute(text("UPDATE users SET current_quiz_ids = :ids WHERE username = :u"),
                      {"ids": q_ids, "u": st.session_state.current_user})
-        ts = datetime.now(pytz.timezone('Asia/Shanghai'))
+        ts = now_shanghai()
         res_insert = conn.execute(
             text("INSERT INTO study_sessions (username, course_name, start_time) VALUES (:u, :c, :t)"),
             {"u": st.session_state.current_user, "c": course_name, "t": ts})
@@ -467,7 +574,7 @@ async def async_assess_single(q: dict, ans: str) -> bool:
         prompt = f"题目：{q['content']}\n学生答案：{ans}\n任务：判断是否正确。正确输出PASS，错误输出FAIL。"
     try:
         resp = await aclient.chat.completions.create(
-            model="deepseek-chat",
+            model=AppConfig.LLM_MODEL,
             messages=[{"role": "system", "content": JUDGE_PROMPT_SYSTEM}, {"role": "user", "content": prompt}]
         )
         res_text = resp.choices[0].message.content.strip()
@@ -478,7 +585,13 @@ async def async_assess_single(q: dict, ans: str) -> bool:
 
 
 async def batch_assess(queue: list, answers: dict) -> list:
-    tasks = [async_assess_single(q, answers.get(i, "未作答")) for i, q in enumerate(queue)]
+    semaphore = asyncio.Semaphore(max(1, AppConfig.ASSESS_CONCURRENCY))
+
+    async def guarded_assess(index: int, question: dict) -> bool:
+        async with semaphore:
+            return await async_assess_single(question, answers.get(index, "未作答"))
+
+    tasks = [guarded_assess(i, q) for i, q in enumerate(queue)]
     return await asyncio.gather(*tasks)
 
 
@@ -491,10 +604,15 @@ def submit_and_assess():
         st.session_state.assessment_results.append({"question_data": q, "user_answer": ans, "is_correct": is_ok})
         log_interaction(q["id"], f"【答案提交】{ans}", "正确" if is_ok else "错误")
 
+    st.session_state.review_question_index = next(
+        (i for i, item in enumerate(st.session_state.assessment_results) if not item["is_correct"]),
+        0 if st.session_state.assessment_results else None,
+    )
+
     if st.session_state.study_session_id:
         engine = get_database_engine()
         with engine.connect() as conn:
-            ts = datetime.now(pytz.timezone('Asia/Shanghai'))
+            ts = now_shanghai()
             conn.execute(text(
                 "UPDATE study_sessions SET end_time = :t, duration_seconds = TIMESTAMPDIFF(SECOND, start_time, :t) WHERE id = :id"),
                 {"t": ts, "id": st.session_state.study_session_id})
@@ -510,6 +628,7 @@ def submit_and_assess():
 
 
 st.set_page_config(page_title="基于LLM的可控解题提示生成系统", layout="wide")
+apply_global_style()
 
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center;'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
@@ -805,8 +924,10 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             st.subheader("📝 题库管理")
             hardcoded_c = ["高等数学", "线性代数", "概率统计", "C语言"]
             try:
-                all_c = hardcoded_c + [r[0] for r in
-                                       conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()]
+                custom_course_names = [
+                    r[0] for r in conn.execute(text("SELECT course_name FROM custom_courses")).fetchall()
+                ]
+                all_c = list(dict.fromkeys(hardcoded_c + custom_course_names))
             except Exception as e:
                 logging.error(f"Load courses for questions error: {e}")
                 all_c = hardcoded_c
@@ -818,11 +939,20 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 with st.form("add_question_form"):
                     q_category = st.selectbox("选择所属课程", all_c)
                     q_content = st.text_area("输入题目内容 (支持 LaTeX 格式)")
+                    q_answer = st.text_input("标准答案（可选，但建议填写；选择题可填 A/B/C/D）")
+                    q_solution = st.text_area("标准解析（可选，用于判题和受控提示生成）", height=120)
                     if st.form_submit_button("确认录入题目", type="primary", use_container_width=True):
                         if q_category and q_content:
                             try:
-                                conn.execute(text("INSERT INTO custom_questions (category, content) VALUES (:c, :t)"),
-                                             {"c": q_category, "t": q_content})
+                                conn.execute(
+                                    text("INSERT INTO custom_questions (category, content, answer, solution) VALUES (:c, :t, :a, :s)"),
+                                    {
+                                        "c": q_category,
+                                        "t": q_content,
+                                        "a": q_answer.strip(),
+                                        "s": q_solution.strip(),
+                                    }
+                                )
                                 conn.commit()
                                 st.toast("题目添加成功！", icon="✅")
                                 time.sleep(0.5)
@@ -856,9 +986,9 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
 
             with t_edit:
                 try:
-                    edit_q_options = {f"[{r[1]}] (内部ID:{r[0]}) {r[2][:20]}...": (r[0], r[1], r[2]) for r in
+                    edit_q_options = {f"[{r[1]}] (内部ID:{r[0]}) {r[2][:20]}...": (r[0], r[1], r[2], r[3] or "", r[4] or "") for r in
                                       conn.execute(
-                                          text("SELECT id, category, content FROM custom_questions")).fetchall()}
+                                          text("SELECT id, category, content, answer, solution FROM custom_questions")).fetchall()}
                 except Exception as e:
                     logging.error(f"Load questions for edit error: {e}")
                     edit_q_options = {}
@@ -866,17 +996,25 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                 if edit_q_options:
                     edit_q_choice = st.selectbox("👇 第一步：选择需要修改的题目", list(edit_q_options.keys()),
                                                  key="edit_q_select")
-                    selected_id, selected_cat, selected_content = edit_q_options[edit_q_choice]
+                    selected_id, selected_cat, selected_content, selected_answer, selected_solution = edit_q_options[edit_q_choice]
                     with st.form("edit_question_form"):
                         new_category = st.selectbox("修改所属课程", all_c,
                                                     index=all_c.index(selected_cat) if selected_cat in all_c else 0)
                         new_content = st.text_area("修改题目内容 (支持 LaTeX 格式)", value=selected_content, height=150)
+                        new_answer = st.text_input("修改标准答案", value=selected_answer)
+                        new_solution = st.text_area("修改标准解析", value=selected_solution, height=120)
                         if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
                             if new_content.strip():
                                 try:
                                     conn.execute(
-                                        text("UPDATE custom_questions SET category = :c, content = :t WHERE id = :id"),
-                                        {"c": new_category, "t": new_content, "id": selected_id})
+                                        text("UPDATE custom_questions SET category = :c, content = :t, answer = :a, solution = :s WHERE id = :id"),
+                                        {
+                                            "c": new_category,
+                                            "t": new_content,
+                                            "a": new_answer.strip(),
+                                            "s": new_solution.strip(),
+                                            "id": selected_id,
+                                        })
                                     conn.commit()
                                     st.toast("题目修改成功！", icon="✅")
                                     time.sleep(0.5)
@@ -891,7 +1029,7 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
             with t_view:
                 try:
                     df_custom_q = pd.read_sql(
-                        "SELECT id AS '内部ID', category AS '所属课程', content AS '题目完整内容' FROM custom_questions ORDER BY id DESC",
+                        "SELECT id AS '内部ID', category AS '所属课程', content AS '题目完整内容', answer AS '标准答案', solution AS '标准解析' FROM custom_questions ORDER BY id DESC",
                         conn)
                     if not df_custom_q.empty:
                         st.dataframe(df_custom_q, use_container_width=True)
@@ -938,11 +1076,14 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
         ("概率统计", "包含随机变量、分布规律、信息熵等，结合实际应用场景。"),
         ("C语言", "包含指针、数组、结构体等核心语法，锻炼底层逻辑与编程思维。")
     ]
+    existing_course_names = {name for name, _ in base_courses}
     engine = get_database_engine()
     with engine.connect() as conn:
         try:
             for r in conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall():
-                base_courses.append((r[0], r[1]))
+                if r[0] not in existing_course_names:
+                    base_courses.append((r[0], r[1]))
+                    existing_course_names.add(r[0])
         except Exception as e:
             logging.error(f"Load courses error: {e}")
 
@@ -1086,14 +1227,34 @@ elif st.session_state.page_mode == "results":
         st.session_state.page_mode = "home"
         st.rerun()
     st.divider()
+
+    total_count = len(st.session_state.assessment_results)
+    correct_count = sum(1 for item in st.session_state.assessment_results if item["is_correct"])
+    wrong_count = total_count - correct_count
+    accuracy = round(correct_count / total_count * 100, 1) if total_count else 0.0
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    metric_col1.metric("本次题数", total_count)
+    metric_col2.metric("答对题数", correct_count)
+    metric_col3.metric("待复盘错题", wrong_count)
+    metric_col4.metric("正确率", f"{accuracy} %")
+    st.download_button(
+        "📥 导出本次测验结果",
+        build_result_export(st.session_state.assessment_results).encode("utf-8-sig"),
+        file_name=f"quiz_result_{now_shanghai():%Y%m%d_%H%M%S}.md",
+        mime="text/markdown",
+        use_container_width=True,
+    )
+
     l_col, r_col = st.columns([1, 1])
     with l_col:
+        st.subheader("题目导航")
         for i, res in enumerate(st.session_state.assessment_results):
             label = "✅ 正确" if res['is_correct'] else "❌ 错误"
             if st.button(f"题 {i + 1} | {label}", key=f"n_{i}", use_container_width=True):
                 st.session_state.review_question_index = i
                 st.rerun()
     with r_col:
+        st.subheader("智能辅导区")
         if st.session_state.review_question_index is not None:
             ridx = st.session_state.review_question_index
             data = st.session_state.assessment_results[ridx]
@@ -1207,7 +1368,7 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
 
     col1, col2, col3 = st.columns(3)
     col1.metric("⏱️ 累计专注学习", f"{total_minutes} 分钟")
-    col2.metric("✅ 累计答提示", f"{total_correct} 题")
+    col2.metric("✅ 累计答对题数", f"{total_correct} 题")
     col3.metric("🎯 历史平均正确率", f"{accuracy} %")
 
     st.markdown("---")
@@ -1215,13 +1376,12 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
     if not wrong_qids:
         st.info("你目前没有任何错题记录")
     else:
-        db_ids_tuple = tuple([int(qid) - 1000 for qid in wrong_qids])
+        db_ids = [int(qid) - 1000 for qid in wrong_qids]
         q_dict = {}
-        if db_ids_tuple:
+        if db_ids:
             with engine.connect() as conn:
                 try:
-                    res = conn.execute(text("SELECT id, category, content FROM custom_questions WHERE id IN :ids"),
-                                       {"ids": db_ids_tuple}).fetchall()
+                    res = fetch_custom_question_rows(conn, db_ids)
                     q_dict = {1000 + r[0]: {"category": r[1], "content": r[2]} for r in res}
                 except Exception as e:
                     logging.error(f"Fetch wrong questions error: {e}")
