@@ -30,6 +30,7 @@ const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "常用符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
+const ACCENT_TEMPLATE_PATTERN = /^\\(vec|hat|dot|ddot|overline)\{#\?\}$/;
 
 const FORMULA_GROUPS: FormulaGroup[] = [
   {
@@ -179,6 +180,12 @@ const MyComponent = ({ args }: ComponentProps) => {
   const [openToolbarGroup, setOpenToolbarGroup] = useState<string | null>(null);
 
   const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
+  const createPromptId = () => `hintPrompt${Date.now()}${idCounterRef.current++}`;
+
+  const prepareLatexTemplate = (latex: string) =>
+    latex.replace(ACCENT_TEMPLATE_PATTERN, (_match, command) => {
+      return `\\${command}{\\placeholder[${createPromptId()}]{}}`;
+    });
 
   const refreshFrameHeight = () => {
     window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
@@ -321,6 +328,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     chip.addEventListener("click", () => {
       setActiveFormula(id);
       mathField.focus();
+      window.setTimeout(() => selectFirstPrompt(mathField), 0);
     });
 
     mathField.addEventListener("focus", () => {
@@ -333,7 +341,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     mathField.addEventListener("input", (event: Event) => {
       event.stopPropagation();
-      chip.dataset.latex = mathField.value || "";
+      chip.dataset.latex = getMathFieldLatex(mathField, "latex");
       syncValue();
     });
 
@@ -384,7 +392,7 @@ const MyComponent = ({ args }: ComponentProps) => {
       mathField.focus();
       if (initialLatex) {
         insertIntoMathField(mathField, initialLatex);
-        chip.dataset.latex = mathField.value || "";
+        chip.dataset.latex = getMathFieldLatex(mathField, "latex");
         syncValue();
       }
     }, 0);
@@ -431,16 +439,17 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const insertLatexIntoFormula = (latex: string) => {
     const mathField = getActiveMathField();
+    const preparedLatex = prepareLatexTemplate(latex);
 
     if (!mathField) {
-      insertFormulaBox(latex);
+      insertFormulaBox(preparedLatex);
       return;
     }
 
-    insertIntoMathField(mathField, latex);
+    insertIntoMathField(mathField, preparedLatex);
 
     const chip = mathField.closest(".inline-formula-chip") as HTMLElement | null;
-    if (chip) chip.dataset.latex = mathField.value || "";
+    if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
     syncValue();
   };
 
@@ -600,6 +609,13 @@ const MyComponent = ({ args }: ComponentProps) => {
         border-radius: 3px;
         box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
         text-align: center;
+      }
+
+      .inline-formula-field::part(prompt) {
+        background: rgba(37, 99, 235, 0.16);
+        border: 1px dashed #2563eb;
+        border-radius: 3px;
+        cursor: text;
       }
 
       .inline-formula-remove {
@@ -788,7 +804,11 @@ const serializeEditor = (root: HTMLElement) => {
 
     if (node.classList.contains("inline-formula-chip")) {
       const mathField = node.querySelector("math-field") as any;
-      const latex = (mathField?.value || node.dataset.latex || "").trim();
+      const latex = getMathFieldLatex(
+        mathField,
+        "latex-without-placeholders",
+        node.dataset.latex || ""
+      ).trim();
       if (latex) value += `$${latex}$`;
       return;
     }
@@ -805,6 +825,23 @@ const serializeEditor = (root: HTMLElement) => {
   return value;
 };
 
+const getMathFieldLatex = (
+  mathField: any,
+  format: "latex" | "latex-without-placeholders" = "latex",
+  fallback = ""
+) => {
+  if (!mathField) return fallback;
+
+  try {
+    const value = mathField.getValue?.(format);
+    if (typeof value === "string") return value;
+  } catch {
+    // Fall back to the raw value for older MathLive versions.
+  }
+
+  return typeof mathField.value === "string" ? mathField.value : fallback;
+};
+
 const insertIntoMathField = (mathField: any, latex: string) => {
   configureMathField(mathField);
   mathField.focus();
@@ -815,6 +852,10 @@ const insertIntoMathField = (mathField: any, latex: string) => {
     selectionMode: "placeholder",
     focus: true,
   });
+
+  if (latex.includes("\\placeholder[")) {
+    window.setTimeout(() => selectFirstPrompt(mathField), 0);
+  }
 };
 
 const configureMathField = (mathField: any, attempt = 0) => {
@@ -872,6 +913,21 @@ const injectMathFieldPlaceholderStyles = (mathField: any, attempt = 0) => {
   const style = document.createElement("style");
   style.id = MATHFIELD_PLACEHOLDER_STYLE_ID;
   style.textContent = `
+    [part='prompt'],
+    .ML__prompt {
+      background: rgba(37, 99, 235, 0.16) !important;
+      border: 1px dashed #2563eb !important;
+      border-radius: 3px !important;
+      cursor: text !important;
+      pointer-events: auto !important;
+    }
+
+    .ML__focusedPromptBox,
+    .ML__prompt-atom:has(.ML__focusedPromptBox) {
+      background: rgba(37, 99, 235, 0.28) !important;
+      box-shadow: 0 0 0 1px #2563eb inset !important;
+    }
+
     [part='placeholder'],
     .ML__placeholder {
       display: inline-block !important;
@@ -895,6 +951,18 @@ const injectMathFieldPlaceholderStyles = (mathField: any, attempt = 0) => {
     }
   `;
   root.appendChild(style);
+};
+
+const selectFirstPrompt = (mathField: any) => {
+  trySetMathFieldOption(() => {
+    const promptIds = mathField.getPrompts?.({ locked: false });
+    const firstPromptId = Array.isArray(promptIds) ? promptIds[0] : null;
+    const range = firstPromptId ? mathField.getPromptRange?.(firstPromptId) : null;
+    if (range) {
+      mathField.focus();
+      mathField.selection = range;
+    }
+  });
 };
 
 const isZeroWidthText = (node: Node | null): node is Text =>
