@@ -88,6 +88,7 @@ const FORMULA_GROUPS: FormulaGroup[] = [
       { label: "log", latex: "\\log_{#?}{#?}" },
       { label: "exp", latex: "\\exp(#?)" },
       { label: "lim", latex: "\\lim_{#?\\to#?}#?" },
+      { label: "分段函数", latex: "\\begin{cases}#?, & #? \\\\ #?, & #?\\end{cases}" },
     ],
   },
   {
