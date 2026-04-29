@@ -1251,6 +1251,7 @@ elif st.session_state.page_mode == "results":
                 st.session_state[math_widget_version_key] += 1
                 st.session_state[composer_reset_key] = False
 
+            st.markdown("👇🏻请在下方输入智能辅导提示词")
             with st.container(border=True):
                 composer_value = math_input(
                     default_value=st.session_state.get(composer_input_key, ""),
