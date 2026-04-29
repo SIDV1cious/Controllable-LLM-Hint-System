@@ -3,10 +3,10 @@ import logging
 import streamlit as st
 from sqlalchemy import text
 
-from app_core import get_database_engine
+from hint_system_core import get_database_engine
 
 
-def render_quiz_warning():
+def render_assessment_integrity_warning():
     st.markdown(
         """
 <div style="padding-top: 34px; margin-top: 10px; overflow: visible;">
@@ -33,7 +33,7 @@ def render_quiz_warning():
     )
 
 
-def apply_global_style():
+def apply_platform_visual_theme():
     st.markdown(
         """
 <style>
@@ -88,7 +88,7 @@ def apply_global_style():
     )
 
 
-def apply_auth_layout_style():
+def apply_identity_page_layout():
     st.markdown(
         """
 <style>
@@ -131,16 +131,21 @@ def apply_auth_layout_style():
     )
 
 
-def render_course_card(course_name: str, course_desc: str, start_experiment_session):
+def render_course_assessment_card(course_name: str, course_desc: str, start_course_assessment_session):
     with st.container(border=True):
         st.markdown(f"### {course_name}")
         st.markdown(f"<div class='course-card-note'>{course_desc}</div>", unsafe_allow_html=True)
         if st.button(f"进入《{course_name}》测验", key=f"btn_{course_name}", use_container_width=True):
-            start_experiment_session(course_name)
+            start_course_assessment_session(course_name)
 
 
-def render_auth_page(authenticate_user, register_user, log_login, sync_user_data):
-    apply_auth_layout_style()
+def render_identity_access_page(
+    authenticate_learning_user,
+    register_learning_user,
+    record_login_event,
+    restore_user_learning_state,
+):
+    apply_identity_page_layout()
     st.markdown("<h1 class='auth-page-title'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
@@ -151,16 +156,16 @@ def render_auth_page(authenticate_user, register_user, log_login, sync_user_data
                 p_in = st.text_input("密码", type="password")
                 submitted = st.form_submit_button("进入系统", type="primary", use_container_width=True)
                 if submitted:
-                    is_auth, role = authenticate_user(u_in.strip(), p_in.strip())
+                    is_auth, role = authenticate_learning_user(u_in.strip(), p_in.strip())
                     if is_auth:
                         st.session_state.logged_in = True
                         st.session_state.current_user = u_in.strip()
                         st.session_state.user_role = role
-                        log_login(u_in.strip())
+                        record_login_event(u_in.strip())
                         if role == "admin":
                             st.session_state.page_mode = "admin"
                         else:
-                            sync_user_data(u_in.strip())
+                            restore_user_learning_state(u_in.strip())
                         st.rerun()
                     else:
                         st.error("账号或密码错误")
@@ -171,13 +176,13 @@ def render_auth_page(authenticate_user, register_user, log_login, sync_user_data
                 rp2 = st.text_input("确认密码", type="password")
                 reg_submitted = st.form_submit_button("立即注册", type="primary", use_container_width=True)
                 if reg_submitted:
-                    if ru.strip() and rp.strip() == rp2.strip() and register_user(ru.strip(), rp.strip()):
+                    if ru.strip() and rp.strip() == rp2.strip() and register_learning_user(ru.strip(), rp.strip()):
                         st.toast("注册成功！请切换到登录页面。", icon="✅")
                     else:
                         st.error("注册失败（学号已被占用或密码不一致）。")
 
 
-def render_home_page(start_experiment_session):
+def render_course_selection_portal(start_course_assessment_session):
     st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
     st.write("请选择你要进行随堂测验的课程模块：")
     st.divider()
@@ -201,4 +206,4 @@ def render_home_page(start_experiment_session):
     cols = st.columns(4)
     for idx, (course_name, course_desc) in enumerate(base_courses):
         with cols[idx % 4]:
-            render_course_card(course_name, course_desc, start_experiment_session)
+            render_course_assessment_card(course_name, course_desc, start_course_assessment_session)

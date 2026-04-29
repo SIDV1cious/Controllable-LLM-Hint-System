@@ -2,11 +2,11 @@ import logging
 
 import streamlit as st
 
-from app_core import format_math, generate_controlled_hint
+from hint_system_core import format_math, generate_controlled_hint
 from math_comp import math_input
 
 
-QUICK_HELP_REQUESTS = [
+PEDAGOGICAL_QUICK_REQUESTS = [
     ("提示下一步", "请只提示我下一步应该怎么思考，不要给出答案。"),
     ("检查错误", "请帮我指出当前作答最可能错在哪里，但不要直接给最终答案。"),
     ("只给思路", "请只给解题思路和关键概念提醒，避免泄露答案。"),
@@ -14,7 +14,7 @@ QUICK_HELP_REQUESTS = [
 ]
 
 
-def apply_tutoring_style():
+def apply_controlled_hint_panel_style():
     st.markdown(
         """
 <style>
@@ -59,7 +59,7 @@ def apply_tutoring_style():
     )
 
 
-def _normalize_history(history: list):
+def _normalize_hint_dialogue_history(history: list):
     if not history:
         history.append({"role": "assistant", "content": "请求智能辅导"})
         return
@@ -69,7 +69,7 @@ def _normalize_history(history: list):
             message["content"] = "请求智能辅导"
 
 
-def _render_chat_history(history: list):
+def _render_hint_dialogue_history(history: list):
     for message in history:
         with st.chat_message(message["role"]):
             if message.get("role") == "assistant" and message.get("content") == "请求智能辅导":
@@ -81,19 +81,19 @@ def _render_chat_history(history: list):
                 st.markdown(format_math(message["content"]))
 
 
-def render_tutoring_panel(data: dict, log_interaction):
-    apply_tutoring_style()
+def render_controlled_hint_panel(data: dict, record_learning_interaction):
+    apply_controlled_hint_panel_style()
 
     qid = data["question_data"]["id"]
     history = st.session_state.chat_histories.setdefault(qid, [])
-    _normalize_history(history)
+    _normalize_hint_dialogue_history(history)
 
     st.markdown("<div class='tutoring-title'>请求智能辅导</div>", unsafe_allow_html=True)
     st.markdown(
         "<div class='tutoring-subtitle'>系统会先生成启发式提示，再进行答案泄露检测与必要重写。</div>",
         unsafe_allow_html=True,
     )
-    _render_chat_history(history)
+    _render_hint_dialogue_history(history)
 
     composer_input_key = f"composer_input_{qid}"
     composer_reset_key = f"composer_reset_{qid}"
@@ -115,8 +115,8 @@ def render_tutoring_panel(data: dict, log_interaction):
 
     st.markdown("<div class='tutoring-divider'></div>", unsafe_allow_html=True)
     st.markdown("<div class='quick-request-label'>快捷请求</div>", unsafe_allow_html=True)
-    quick_cols = st.columns(len(QUICK_HELP_REQUESTS))
-    for quick_index, (quick_label, quick_prompt) in enumerate(QUICK_HELP_REQUESTS):
+    quick_cols = st.columns(len(PEDAGOGICAL_QUICK_REQUESTS))
+    for quick_index, (quick_label, quick_prompt) in enumerate(PEDAGOGICAL_QUICK_REQUESTS):
         with quick_cols[quick_index]:
             if st.button(quick_label, key=f"quick_help_{qid}_{quick_index}", use_container_width=True):
                 history.append({"role": "user", "content": quick_prompt})
@@ -164,7 +164,7 @@ def render_tutoring_panel(data: dict, log_interaction):
                 if controlled["rewrite_count"] > 0:
                     st.caption(f"已自动重写 {controlled['rewrite_count']} 次，以降低答案泄露风险。")
                 history.append({"role": "assistant", "content": final})
-                log_interaction(
+                record_learning_interaction(
                     qid,
                     f"【辅导】{last_query}",
                     final,
@@ -178,4 +178,4 @@ def render_tutoring_panel(data: dict, log_interaction):
                 fallback = "这道题我们先不急着看答案。你可以先指出题目中最关键的条件是什么，再想一想它对应哪个定义或公式？"
                 st.markdown(fallback)
                 history.append({"role": "assistant", "content": fallback})
-                log_interaction(qid, f"【辅导】{last_query}", fallback, leak=0)
+                record_learning_interaction(qid, f"【辅导】{last_query}", fallback, leak=0)

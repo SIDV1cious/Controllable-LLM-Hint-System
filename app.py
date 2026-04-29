@@ -7,7 +7,7 @@ import logging
 import asyncio
 from sqlalchemy import bindparam, text
 from werkzeug.security import generate_password_hash
-from app_core import (
+from hint_system_core import (
     AppConfig,
     batch_assess,
     ensure_leakage_observability_columns,
@@ -18,14 +18,22 @@ from app_core import (
     question_row_to_dict,
     verify_password,
 )
-from app_ui import apply_global_style, render_auth_page, render_home_page
-from quiz_ui import render_grading_page, render_quiz_page, render_results_page
+from learning_platform_ui import (
+    apply_platform_visual_theme,
+    render_course_selection_portal,
+    render_identity_access_page,
+)
+from assessment_ui import (
+    render_assessment_results_dashboard,
+    render_assessment_workspace,
+    render_automated_grading_screen,
+)
 from prompts import SYSTEM_INSTRUCTION
 
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def authenticate_user(u: str, p: str):
+def authenticate_learning_user(u: str, p: str):
     engine = get_database_engine()
     with engine.connect() as conn:
         res = conn.execute(text("SELECT password_hash, role FROM users WHERE username = :u"), {"u": u}).fetchone()
@@ -34,7 +42,7 @@ def authenticate_user(u: str, p: str):
         return False, None
 
 
-def register_user(u: str, p: str) -> bool:
+def register_learning_user(u: str, p: str) -> bool:
     engine = get_database_engine()
     with engine.connect() as conn:
         if conn.execute(text("SELECT id FROM users WHERE username = :u"), {"u": u}).fetchone():
@@ -45,7 +53,7 @@ def register_user(u: str, p: str) -> bool:
         return True
 
 
-def log_login(username: str):
+def record_login_event(username: str):
     try:
         engine = get_database_engine()
         with engine.connect() as conn:
@@ -54,10 +62,10 @@ def log_login(username: str):
                          {"u": username, "t": ts})
             conn.commit()
     except Exception as e:
-        logging.error(f"log_login error: {e}")
+        logging.error(f"record_login_event error: {e}")
 
 
-def log_interaction(
+def record_learning_interaction(
         qid: int,
         qry: str,
         rsp: str,
@@ -84,7 +92,7 @@ def log_interaction(
                      "time": ts})
             conn.commit()
     except Exception as e:
-        logging.error(f"log_interaction error: {e}")
+        logging.error(f"record_learning_interaction error: {e}")
 
 
 def init_session_state():
@@ -102,7 +110,7 @@ def init_session_state():
 init_session_state()
 
 
-def sync_user_data(username: str):
+def restore_user_learning_state(username: str):
     engine = get_database_engine()
     with engine.connect() as conn:
         u_res = conn.execute(text("SELECT current_quiz_ids FROM users WHERE username = :u"), {"u": username}).fetchone()
@@ -130,7 +138,7 @@ def sync_user_data(username: str):
                 st.session_state.chat_histories[qid].append({"role": "assistant", "content": rsp})
 
 
-def start_experiment_session(course_name: str):
+def start_course_assessment_session(course_name: str):
     engine = get_database_engine()
     with engine.connect() as conn:
         rows = conn.execute(text(
@@ -168,14 +176,14 @@ def start_experiment_session(course_name: str):
     st.rerun()
 
 
-def submit_and_assess():
+def submit_answers_and_run_assessment():
     st.session_state.assessment_results = []
     results = asyncio.run(batch_assess(st.session_state.quiz_queue, st.session_state.user_answers))
 
     for i, (q, is_ok) in enumerate(zip(st.session_state.quiz_queue, results)):
         ans = st.session_state.user_answers.get(i, "未作答")
         st.session_state.assessment_results.append({"question_data": q, "user_answer": ans, "is_correct": is_ok})
-        log_interaction(q["id"], f"【答案提交】{ans}", "正确" if is_ok else "错误")
+        record_learning_interaction(q["id"], f"【答案提交】{ans}", "正确" if is_ok else "错误")
 
     if st.session_state.study_session_id:
         engine = get_database_engine()
@@ -196,10 +204,15 @@ def submit_and_assess():
 
 
 st.set_page_config(page_title="基于LLM的可控解题提示生成系统", layout="wide")
-apply_global_style()
+apply_platform_visual_theme()
 
 if not st.session_state.logged_in:
-    render_auth_page(authenticate_user, register_user, log_login, sync_user_data)
+    render_identity_access_page(
+        authenticate_learning_user,
+        register_learning_user,
+        record_login_event,
+        restore_user_learning_state,
+    )
     st.stop()
 
 sidebar_slot = st.sidebar.empty()
@@ -583,16 +596,16 @@ if st.session_state.page_mode == "admin" and st.session_state.user_role == "admi
                         st.toast("提示词不能为空！", icon="⚠️")
 
 elif st.session_state.page_mode == "home" and st.session_state.user_role == "student":
-    render_home_page(start_experiment_session)
+    render_course_selection_portal(start_course_assessment_session)
 
 elif st.session_state.page_mode == "quiz":
-    render_quiz_page()
+    render_assessment_workspace()
 
 elif st.session_state.page_mode == "grading":
-    render_grading_page(sidebar_slot, submit_and_assess)
+    render_automated_grading_screen(sidebar_slot, submit_answers_and_run_assessment)
 
 elif st.session_state.page_mode == "results":
-    render_results_page(log_interaction)
+    render_assessment_results_dashboard(record_learning_interaction)
 
 elif st.session_state.page_mode == "report" and st.session_state.user_role == "student":
     st.markdown("<h1 style='text-align: center;'>📊 个人学情中心与错题记录</h1>", unsafe_allow_html=True)

@@ -1,11 +1,11 @@
 import streamlit as st
 
-from app_core import build_result_export, format_math, now_shanghai
-from app_ui import render_quiz_warning
-from tutoring_ui import render_tutoring_panel
+from hint_system_core import build_result_export, format_math, now_shanghai
+from learning_platform_ui import render_assessment_integrity_warning
+from controlled_hint_ui import render_controlled_hint_panel
 
 
-def apply_results_style():
+def apply_results_dashboard_style():
     st.markdown(
         """
 <style>
@@ -59,11 +59,11 @@ def apply_results_style():
     )
 
 
-def render_quiz_page():
+def render_assessment_workspace():
     page = st.empty()
 
     with page.container():
-        render_quiz_warning()
+        render_assessment_integrity_warning()
 
         idx = st.session_state.current_question_index
         total = len(st.session_state.quiz_queue)
@@ -131,7 +131,7 @@ def render_quiz_page():
                         st.rerun()
 
 
-def render_grading_page(sidebar_slot, submit_and_assess):
+def render_automated_grading_screen(sidebar_slot, submit_answers_and_run_assessment):
     st.session_state.is_grading = True
     sidebar_slot.empty()
 
@@ -184,11 +184,11 @@ body {
 
     if not st.session_state.grading_started:
         st.session_state.grading_started = True
-        submit_and_assess()
+        submit_answers_and_run_assessment()
 
 
-def render_results_page(log_interaction):
-    apply_results_style()
+def render_assessment_results_dashboard(record_learning_interaction):
+    apply_results_dashboard_style()
     st.markdown(
         """
 <div class="results-hero">
@@ -260,4 +260,4 @@ def render_results_page(log_interaction):
                 unsafe_allow_html=True,
             )
             st.divider()
-            render_tutoring_panel(data, log_interaction)
+            render_controlled_hint_panel(data, record_learning_interaction)

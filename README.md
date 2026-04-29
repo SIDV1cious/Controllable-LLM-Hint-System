@@ -25,10 +25,10 @@
 ```text
 .
 ├── app.py                         # Streamlit 主应用
-├── app_core.py                    # 配置、数据库工具、判题与受控辅导服务
-├── app_ui.py                      # 登录注册、课程大厅与通用界面样式
-├── quiz_ui.py                     # 考试页、阅卷页、结果页展示
-├── tutoring_ui.py                 # 智能辅导面板、快捷请求与公式输入
+├── hint_system_core.py            # 配置、数据库工具、判题与受控提示生成服务
+├── learning_platform_ui.py        # 登录注册、课程入口与平台通用视觉主题
+├── assessment_ui.py               # 课程评测流程、阅卷页与结果仪表盘
+├── controlled_hint_ui.py          # 受控解题提示面板、快捷请求与公式输入
 ├── prompts.py                     # 判题、提示计划、泄露检测、重写等 Prompt
 ├── math_comp.py                   # MathLive 公式输入组件封装
 ├── questions.py                   # 离线备用题库，4类课程共240题
