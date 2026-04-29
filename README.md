@@ -61,6 +61,11 @@ DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=llm_project
 LLM_API_KEY=your_api_key
+LLM_MODEL=deepseek-chat
+LLM_TIMEOUT_SECONDS=45
+LLM_MAX_RETRIES=2
+ASSESS_CONCURRENCY=5
+QUIZ_SIZE=10
 MY_ID=your_student_id
 ```
 

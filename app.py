@@ -9,9 +9,7 @@ import pandas as pd
 import plotly.express as px
 import logging
 import asyncio
-import streamlit.components.v1 as components
-from typing import List, Dict, Optional, Any
-from sqlalchemy import create_engine, text, Engine
+from sqlalchemy import bindparam, create_engine, text, Engine
 from openai import OpenAI, AsyncOpenAI
 from dotenv import load_dotenv
 from datetime import datetime
@@ -37,16 +35,109 @@ class AppConfig:
     DB_HOST = st.secrets.get("DB_HOST") or os.getenv("DB_HOST")
     DB_NAME = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
     BASE_URL = "https://api.deepseek.com"
+    LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
+    LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "45"))
+    LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "2"))
+    ASSESS_CONCURRENCY = int(os.getenv("ASSESS_CONCURRENCY", "5"))
+    QUIZ_SIZE = int(os.getenv("QUIZ_SIZE", "10"))
 
 
-client = OpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
-aclient = AsyncOpenAI(api_key=AppConfig.LLM_API_KEY, base_url=AppConfig.BASE_URL)
+SHANGHAI_TZ = pytz.timezone('Asia/Shanghai')
+
+client = OpenAI(
+    api_key=AppConfig.LLM_API_KEY or "missing-api-key",
+    base_url=AppConfig.BASE_URL,
+    timeout=AppConfig.LLM_TIMEOUT_SECONDS,
+    max_retries=AppConfig.LLM_MAX_RETRIES,
+)
+aclient = AsyncOpenAI(
+    api_key=AppConfig.LLM_API_KEY or "missing-api-key",
+    base_url=AppConfig.BASE_URL,
+    timeout=AppConfig.LLM_TIMEOUT_SECONDS,
+    max_retries=AppConfig.LLM_MAX_RETRIES,
+)
 
 
 @st.cache_resource
 def get_database_engine() -> Engine:
     connection_url = f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
     return create_engine(connection_url, pool_recycle=1800, pool_pre_ping=True)
+
+
+def now_shanghai() -> datetime:
+    return datetime.now(SHANGHAI_TZ)
+
+
+def question_row_to_dict(row) -> dict:
+    return {
+        "id": 1000 + row[0],
+        "category": row[1],
+        "content": row[2],
+        "answer": row[3] or "",
+        "solution": row[4] or "",
+    }
+
+
+def fetch_custom_question_rows(conn, db_ids: list):
+    if not db_ids:
+        return []
+
+    stmt = text(
+        "SELECT id, category, content, answer, solution FROM custom_questions WHERE id IN :ids"
+    ).bindparams(bindparam("ids", expanding=True))
+    return conn.execute(stmt, {"ids": list(db_ids)}).fetchall()
+
+
+def build_result_export(assessment_results: list) -> str:
+    total = len(assessment_results)
+    correct_count = sum(1 for item in assessment_results if item.get("is_correct"))
+    accuracy = round(correct_count / total * 100, 1) if total else 0.0
+    lines = [
+        "# 本次测验结果",
+        "",
+        f"导出时间：{now_shanghai():%Y-%m-%d %H:%M:%S}",
+        f"总题数：{total}",
+        f"答对题数：{correct_count}",
+        f"正确率：{accuracy}%",
+        "",
+    ]
+
+    for index, item in enumerate(assessment_results, start=1):
+        question = item.get("question_data", {})
+        lines.extend([
+            f"## 第 {index} 题",
+            "",
+            f"结果：{'正确' if item.get('is_correct') else '错误'}",
+            f"题目：{question.get('content', '')}",
+            f"我的作答：{item.get('user_answer', '')}",
+            "",
+        ])
+
+    return "\n".join(lines)
+
+
+def render_quiz_warning():
+    st.markdown(
+        """
+<div role="alert" style="
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    margin: 0.75rem 0 1.4rem 0;
+    padding: 12px 18px;
+    border-radius: 8px;
+    background: #fff8db;
+    color: #6b4e00;
+    font-size: 16px;
+    line-height: 1.6;
+">
+    <span style="font-size: 22px; line-height: 1;">⚠️</span>
+    <span>考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def verify_password(db_hash: str, pwd: str) -> bool:
@@ -82,8 +173,11 @@ def parse_json_object(raw_text: str) -> dict:
 
 
 def chat_completion_text(messages: list, temperature: float = 0.2) -> str:
+    if not AppConfig.LLM_API_KEY:
+        raise RuntimeError("未配置 LLM_API_KEY，无法调用大模型。")
+
     resp = client.chat.completions.create(
-        model="deepseek-chat",
+        model=AppConfig.LLM_MODEL,
         messages=messages,
         temperature=temperature
     )
@@ -309,7 +403,7 @@ def log_login(username: str):
     try:
         engine = get_database_engine()
         with engine.connect() as conn:
-            ts = datetime.now(pytz.timezone('Asia/Shanghai'))
+            ts = now_shanghai()
             conn.execute(text("INSERT INTO login_logs (username, login_time) VALUES (:u, :t)"),
                          {"u": username, "t": ts})
             conn.commit()
@@ -317,6 +411,7 @@ def log_login(username: str):
         logging.error(f"log_login error: {e}")
 
 
+@st.cache_resource
 def ensure_leakage_observability_columns():
     try:
         engine = get_database_engine()
@@ -342,6 +437,8 @@ def ensure_leakage_observability_columns():
     except Exception:
         pass
 
+    return True
+
 
 def log_interaction(
         qid: int,
@@ -355,7 +452,7 @@ def log_interaction(
     try:
         engine = get_database_engine()
         with engine.connect() as conn:
-            ts = datetime.now(pytz.timezone('Asia/Shanghai'))
+            ts = now_shanghai()
             ensure_leakage_observability_columns()
             try:
                 conn.execute(text(
@@ -395,18 +492,14 @@ def sync_user_data(username: str):
         if u_res and u_res[0]:
             q_ids = [int(i) for i in u_res[0].split(",") if i.strip()]
             if q_ids:
-                db_ids = tuple([i - 1000 for i in q_ids])
-                if db_ids:
-                    res = conn.execute(
-                        text("SELECT id, category, content, answer, solution FROM custom_questions WHERE id IN :ids"),
-                        {"ids": db_ids}).fetchall()
-                    fetched_qs = [{"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3] or "",
-                                   "solution": r[4] or ""} for r in res]
-                    q_map = {q['id']: q for q in fetched_qs}
-                    st.session_state.quiz_queue = [q_map[qid] for qid in q_ids if qid in q_map]
-                    if st.session_state.quiz_queue:
-                        st.session_state.current_course = st.session_state.quiz_queue[0].get('category', '继续测验')
-                    st.session_state.page_mode = "quiz"
+                db_ids = [i - 1000 for i in q_ids]
+                res = fetch_custom_question_rows(conn, db_ids)
+                fetched_qs = [question_row_to_dict(r) for r in res]
+                q_map = {q['id']: q for q in fetched_qs}
+                st.session_state.quiz_queue = [q_map[qid] for qid in q_ids if qid in q_map]
+                if st.session_state.quiz_queue:
+                    st.session_state.current_course = st.session_state.quiz_queue[0].get('category', '继续测验')
+                st.session_state.page_mode = "quiz"
 
         logs = conn.execute(
             text("SELECT question_id, user_query, ai_response FROM interaction_logs WHERE student_id = :u"),
@@ -423,12 +516,12 @@ def sync_user_data(username: str):
 def start_experiment_session(course_name: str):
     engine = get_database_engine()
     with engine.connect() as conn:
-        res = conn.execute(text(
-            "SELECT id, category, content, answer, solution FROM custom_questions WHERE category = :c ORDER BY RAND() LIMIT 10"),
+        rows = conn.execute(text(
+            "SELECT id, category, content, answer, solution FROM custom_questions WHERE category = :c"),
             {"c": course_name}).fetchall()
-        course_questions = [
-            {"id": 1000 + r[0], "category": r[1], "content": r[2], "answer": r[3] or "", "solution": r[4] or ""} for r
-            in res]
+        quiz_size = max(1, AppConfig.QUIZ_SIZE)
+        selected_rows = random.sample(rows, min(quiz_size, len(rows))) if rows else []
+        course_questions = [question_row_to_dict(r) for r in selected_rows]
 
     if not course_questions:
         st.toast("题库内目前无该课程对应题目", icon="⚠️")
@@ -438,7 +531,7 @@ def start_experiment_session(course_name: str):
     with engine.connect() as conn:
         conn.execute(text("UPDATE users SET current_quiz_ids = :ids WHERE username = :u"),
                      {"ids": q_ids, "u": st.session_state.current_user})
-        ts = datetime.now(pytz.timezone('Asia/Shanghai'))
+        ts = now_shanghai()
         res_insert = conn.execute(
             text("INSERT INTO study_sessions (username, course_name, start_time) VALUES (:u, :c, :t)"),
             {"u": st.session_state.current_user, "c": course_name, "t": ts})
@@ -458,7 +551,11 @@ def start_experiment_session(course_name: str):
     st.rerun()
 
 
-async def async_assess_single(q: dict, ans: str) -> bool:
+async def async_assess_single(q: dict, ans: str, semaphore: asyncio.Semaphore) -> bool:
+    if not AppConfig.LLM_API_KEY:
+        logging.error("LLM_API_KEY is missing; assessment request skipped.")
+        return False
+
     std_ans = q.get("answer", "")
     std_sol = q.get("solution", "")
     if std_ans or std_sol:
@@ -466,10 +563,11 @@ async def async_assess_single(q: dict, ans: str) -> bool:
     else:
         prompt = f"题目：{q['content']}\n学生答案：{ans}\n任务：判断是否正确。正确输出PASS，错误输出FAIL。"
     try:
-        resp = await aclient.chat.completions.create(
-            model="deepseek-chat",
-            messages=[{"role": "system", "content": JUDGE_PROMPT_SYSTEM}, {"role": "user", "content": prompt}]
-        )
+        async with semaphore:
+            resp = await aclient.chat.completions.create(
+                model=AppConfig.LLM_MODEL,
+                messages=[{"role": "system", "content": JUDGE_PROMPT_SYSTEM}, {"role": "user", "content": prompt}]
+            )
         res_text = resp.choices[0].message.content.strip()
         return "PASS" in res_text and "FAIL" not in res_text
     except Exception as e:
@@ -478,7 +576,8 @@ async def async_assess_single(q: dict, ans: str) -> bool:
 
 
 async def batch_assess(queue: list, answers: dict) -> list:
-    tasks = [async_assess_single(q, answers.get(i, "未作答")) for i, q in enumerate(queue)]
+    semaphore = asyncio.Semaphore(max(1, AppConfig.ASSESS_CONCURRENCY))
+    tasks = [async_assess_single(q, answers.get(i, "未作答"), semaphore) for i, q in enumerate(queue)]
     return await asyncio.gather(*tasks)
 
 
@@ -494,7 +593,7 @@ def submit_and_assess():
     if st.session_state.study_session_id:
         engine = get_database_engine()
         with engine.connect() as conn:
-            ts = datetime.now(pytz.timezone('Asia/Shanghai'))
+            ts = now_shanghai()
             conn.execute(text(
                 "UPDATE study_sessions SET end_time = :t, duration_seconds = TIMESTAMPDIFF(SECOND, start_time, :t) WHERE id = :id"),
                 {"t": ts, "id": st.session_state.study_session_id})
@@ -938,11 +1037,14 @@ elif st.session_state.page_mode == "home" and st.session_state.user_role == "stu
         ("概率统计", "包含随机变量、分布规律、信息熵等，结合实际应用场景。"),
         ("C语言", "包含指针、数组、结构体等核心语法，锻炼底层逻辑与编程思维。")
     ]
+    existing_course_names = {name for name, _ in base_courses}
     engine = get_database_engine()
     with engine.connect() as conn:
         try:
             for r in conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall():
-                base_courses.append((r[0], r[1]))
+                if r[0] not in existing_course_names:
+                    base_courses.append((r[0], r[1]))
+                    existing_course_names.add(r[0])
         except Exception as e:
             logging.error(f"Load courses error: {e}")
 
@@ -958,7 +1060,7 @@ elif st.session_state.page_mode == "quiz":
     page = st.empty()
 
     with page.container():
-        st.warning("⚠️ 考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！")
+        render_quiz_warning()
 
         idx = st.session_state.current_question_index
         total = len(st.session_state.quiz_queue)
@@ -1085,6 +1187,26 @@ elif st.session_state.page_mode == "results":
     if st.button("🔄 返回大厅开启新课程"):
         st.session_state.page_mode = "home"
         st.rerun()
+
+    results = st.session_state.assessment_results
+    if results:
+        total_count = len(results)
+        correct_count = sum(1 for item in results if item.get("is_correct"))
+        wrong_count = total_count - correct_count
+        accuracy = round(correct_count / total_count * 100, 1) if total_count else 0.0
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("本次题数", total_count)
+        m2.metric("答对题数", correct_count)
+        m3.metric("待复盘错题", wrong_count)
+        m4.metric("正确率", f"{accuracy}%")
+        st.download_button(
+            "📥 导出本次测验结果",
+            build_result_export(results).encode("utf-8-sig"),
+            file_name=f"quiz_result_{now_shanghai():%Y%m%d_%H%M%S}.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
+
     st.divider()
     l_col, r_col = st.columns([1, 1])
     with l_col:
@@ -1215,13 +1337,15 @@ elif st.session_state.page_mode == "report" and st.session_state.user_role == "s
     if not wrong_qids:
         st.info("你目前没有任何错题记录")
     else:
-        db_ids_tuple = tuple([int(qid) - 1000 for qid in wrong_qids])
+        db_ids = [int(qid) - 1000 for qid in wrong_qids]
         q_dict = {}
-        if db_ids_tuple:
+        if db_ids:
             with engine.connect() as conn:
                 try:
-                    res = conn.execute(text("SELECT id, category, content FROM custom_questions WHERE id IN :ids"),
-                                       {"ids": db_ids_tuple}).fetchall()
+                    stmt = text(
+                        "SELECT id, category, content FROM custom_questions WHERE id IN :ids"
+                    ).bindparams(bindparam("ids", expanding=True))
+                    res = conn.execute(stmt, {"ids": db_ids}).fetchall()
                     q_dict = {1000 + r[0]: {"category": r[1], "content": r[2]} for r in res}
                 except Exception as e:
                     logging.error(f"Fetch wrong questions error: {e}")
