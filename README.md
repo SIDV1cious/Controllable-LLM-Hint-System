@@ -9,14 +9,6 @@
 - 可控生成：私有提示计划、受控提示生成、答案泄露检测、自动重写、泄露指标记录与可视化。
 - 数学输入：通过 Streamlit 自定义组件接入 MathLive，支持 LaTeX 公式输入。
 
-## 工程优化亮点
-
-- 稳定性：DeepSeek 调用统一设置超时、重试、模型名和并发参数，避免阅卷或辅导时长时间卡死。
-- 运行速度：课程抽题不再使用数据库 `ORDER BY RAND()`，改为先查询题目 ID 后在应用层随机抽样，更适合题库扩容。
-- 可维护性：泄露检测相关数据库字段只在进程内自检一次，减少每次辅导记录写入时的重复 DDL 开销。
-- 使用体验：结果页默认定位到第一道错题，展示本次正确率，并支持导出本次测验结果 Markdown。
-- 答辩展示：管理端保留泄露率、重写次数、泄露评分等指标，可直接支撑“可控生成闭环”的实验展示。
-
 ## 可控提示生成链路
 
 当前系统将智能辅导从“直接生成回复”升级为四阶段链路：
@@ -72,17 +64,6 @@ LLM_API_KEY=your_api_key
 MY_ID=your_student_id
 ```
 
-可选运行参数：
-
-```text
-LLM_MODEL=deepseek-chat
-LLM_TIMEOUT_SECONDS=45
-LLM_MAX_RETRIES=2
-ASSESS_CONCURRENCY=5
-QUIZ_SIZE=10
-MAX_REWRITE_ATTEMPTS=2
-```
-
 4. 导入题库：
 
 ```powershell
@@ -93,14 +74,4 @@ python reset_db.py
 
 ```powershell
 streamlit run app.py
-```
-
-## 公式组件开发
-
-普通运行系统时不需要重新构建前端组件，仓库已保留 `streamlit-component-x/streamlit_component_x/frontend/build`。如果修改了公式输入组件源码，再执行：
-
-```powershell
-cd streamlit-component-x/streamlit_component_x/frontend
-npm install
-npm run build
 ```
