@@ -36,23 +36,28 @@ QUICK_HELP_REQUESTS = [
 def render_quiz_warning():
     st.markdown(
         """
+<div style="padding-top: 10px; overflow: visible;">
 <div role="alert" style="
     display: flex;
-    align-items: center;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 14px;
     box-sizing: border-box;
-    min-height: 54px;
-    margin: 0.75rem 0 1.4rem 0;
-    padding: 15px 20px 14px 20px;
-    border-radius: 8px;
+    margin: 0.25rem 0 1.4rem 0;
+    padding: 18px 22px 18px 22px;
+    border-radius: 10px;
     background: #fff8db;
     color: #6b4e00;
     font-size: 16px;
     line-height: 1.75;
     overflow: visible;
 ">
-    <span style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 28px; height: 28px; font-size: 24px; line-height: 1.2; font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;">⚠️</span>
-    <span style="display: block; line-height: 1.75;">考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
+    <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" style="display: block; flex: 0 0 28px; margin-top: 1px; overflow: visible;">
+        <path d="M12 2.6 22.2 21H1.8L12 2.6Z" fill="#ffdf3a" stroke="#111827" stroke-width="1.8" stroke-linejoin="round"></path>
+        <path d="M12 8v6" stroke="#111827" stroke-width="2" stroke-linecap="round"></path>
+        <circle cx="12" cy="17.2" r="1.15" fill="#111827"></circle>
+    </svg>
+    <span style="display: block; padding-top: 0; font-size: 16px; line-height: 1.75; font-weight: 600;">考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
+</div>
 </div>
         """,
         unsafe_allow_html=True,
