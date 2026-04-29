@@ -51,11 +51,7 @@ def render_quiz_warning():
     line-height: 1.75;
     overflow: visible;
 ">
-    <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" style="display: block; flex: 0 0 28px; margin-top: 1px; overflow: visible;">
-        <path d="M12 2.6 22.2 21H1.8L12 2.6Z" fill="#ffdf3a" stroke="#111827" stroke-width="1.8" stroke-linejoin="round"></path>
-        <path d="M12 8v6" stroke="#111827" stroke-width="2" stroke-linecap="round"></path>
-        <circle cx="12" cy="17.2" r="1.15" fill="#111827"></circle>
-    </svg>
+    <span style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; margin-top: 1px; font-size: 24px; line-height: 1; font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;">⚠️</span>
     <span style="display: block; padding-top: 0; font-size: 16px; line-height: 1.75; font-weight: 600;">考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
 </div>
 </div>
