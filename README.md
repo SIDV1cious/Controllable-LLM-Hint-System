@@ -5,7 +5,7 @@
 ## 核心能力
 
 - 学生端：登录注册、课程测验、自动判题、错题回顾、智能辅导、个人学情报告。
-- 管理端：登录日志、学习时长统计、正确率分析、AI辅导记录抽查、课程题库管理、Prompt热更新。
+- 管理端：登录日志、学习时长统计、正确率分析、实验分析看板、AI辅导记录抽查、课程题库管理、Prompt热更新。
 - 可控生成：私有提示计划、受控提示生成、答案泄露检测、自动重写、泄露指标记录与可视化。
 - 数学输入：通过 Streamlit 自定义组件接入 MathLive，支持 LaTeX 公式输入。
 
@@ -28,9 +28,11 @@
 ├── controlled_hint_system_app.py   # 系统主流程与页面路由入口
 ├── hint_system_core.py            # 配置、数据库工具、判题与受控提示生成服务
 ├── learning_session_service.py     # 学习会话、登录注册、抽题与交互记录服务
+├── experiment_analytics_service.py # 提示强度、教学意图与泄露指标统计服务
 ├── learning_platform_ui.py        # 登录注册、课程入口与平台通用视觉主题
 ├── assessment_ui.py               # 课程评测流程、阅卷页与结果仪表盘
 ├── controlled_hint_ui.py          # 受控解题提示面板、快捷请求与公式输入
+├── experiment_admin_ui.py          # 管理端实验分析看板与数据导出
 ├── prompts.py                     # 判题、提示计划、泄露检测、重写等 Prompt
 ├── math_comp.py                   # MathLive 公式输入组件封装
 ├── questions.py                   # 离线备用题库，4类课程共240题

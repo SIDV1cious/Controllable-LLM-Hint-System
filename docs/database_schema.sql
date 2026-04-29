@@ -57,11 +57,16 @@ CREATE TABLE IF NOT EXISTS interaction_logs (
     leakage_score INT NOT NULL DEFAULT 0,
     rewrite_count INT NOT NULL DEFAULT 0,
     leakage_reason VARCHAR(255),
+    hint_strength VARCHAR(32),
+    pedagogical_intent VARCHAR(64),
+    hint_safety_status VARCHAR(64),
     created_at DATETIME NOT NULL,
     INDEX idx_interaction_student (student_id),
     INDEX idx_interaction_question (question_id),
     INDEX idx_interaction_created_at (created_at),
-    INDEX idx_interaction_leakage (is_leaking_answer, leakage_score)
+    INDEX idx_interaction_leakage (is_leaking_answer, leakage_score),
+    INDEX idx_interaction_hint_strength (hint_strength),
+    INDEX idx_interaction_pedagogical_intent (pedagogical_intent)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS system_configs (

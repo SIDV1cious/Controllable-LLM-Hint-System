@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import random
+import re
 
 import streamlit as st
 from sqlalchemy import text
@@ -16,6 +17,15 @@ from hint_system_core import (
     question_row_to_dict,
     verify_password,
 )
+
+
+HINT_STRENGTH_MARK_PATTERN = re.compile(r"【提示强度：[^】]+】")
+
+
+def _clean_restored_tutoring_query(query: str) -> str:
+    cleaned = str(query or "").replace("【辅导】", "")
+    cleaned = HINT_STRENGTH_MARK_PATTERN.sub("", cleaned)
+    return cleaned.strip()
 
 
 def authenticate_learning_user(u: str, p: str):
@@ -62,6 +72,9 @@ def record_learning_interaction(
     leakage_score: int = 0,
     rewrite_count: int = 0,
     leakage_reason: str = "",
+    hint_strength: str = "",
+    pedagogical_intent: str = "",
+    hint_safety_status: str = "",
 ):
     try:
         engine = get_database_engine()
@@ -71,7 +84,7 @@ def record_learning_interaction(
             try:
                 conn.execute(
                     text(
-                        "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, leakage_score, rewrite_count, leakage_reason, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, :time)"
+                        "INSERT INTO interaction_logs (question_id, student_id, user_query, ai_response, is_leaking_answer, leakage_score, rewrite_count, leakage_reason, hint_strength, pedagogical_intent, hint_safety_status, created_at) VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, :strength, :intent, :status, :time)"
                     ),
                     {
                         "qid": qid,
@@ -82,6 +95,9 @@ def record_learning_interaction(
                         "score": leakage_score,
                         "rewrites": rewrite_count,
                         "reason": leakage_reason[:255],
+                        "strength": hint_strength[:32],
+                        "intent": pedagogical_intent[:64],
+                        "status": hint_safety_status[:64],
                         "time": ts,
                     },
                 )
@@ -152,7 +168,7 @@ def restore_user_learning_state(username: str):
             if qid not in st.session_state.chat_histories:
                 st.session_state.chat_histories[qid] = []
             if "【辅导】" in qry:
-                st.session_state.chat_histories[qid].append({"role": "user", "content": qry.replace("【辅导】", "")})
+                st.session_state.chat_histories[qid].append({"role": "user", "content": _clean_restored_tutoring_query(qry)})
                 st.session_state.chat_histories[qid].append({"role": "assistant", "content": rsp})
 
 

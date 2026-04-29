@@ -435,29 +435,27 @@ def generate_controlled_hint(
 
 @st.cache_resource
 def ensure_leakage_observability_columns():
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN leakage_score INT DEFAULT 0"))
-            conn.commit()
-    except Exception:
-        pass
+    column_statements = [
+        "ALTER TABLE interaction_logs ADD COLUMN leakage_score INT DEFAULT 0",
+        "ALTER TABLE interaction_logs ADD COLUMN rewrite_count INT DEFAULT 0",
+        "ALTER TABLE interaction_logs ADD COLUMN leakage_reason VARCHAR(255)",
+        "ALTER TABLE interaction_logs ADD COLUMN hint_strength VARCHAR(32)",
+        "ALTER TABLE interaction_logs ADD COLUMN pedagogical_intent VARCHAR(64)",
+        "ALTER TABLE interaction_logs ADD COLUMN hint_safety_status VARCHAR(64)",
+    ]
+    index_statements = [
+        "ALTER TABLE interaction_logs ADD INDEX idx_interaction_hint_strength (hint_strength)",
+        "ALTER TABLE interaction_logs ADD INDEX idx_interaction_pedagogical_intent (pedagogical_intent)",
+    ]
 
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN rewrite_count INT DEFAULT 0"))
-            conn.commit()
-    except Exception:
-        pass
-
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE interaction_logs ADD COLUMN leakage_reason VARCHAR(255)"))
-            conn.commit()
-    except Exception:
-        pass
+    engine = get_database_engine()
+    for ddl in column_statements + index_statements:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(ddl))
+                conn.commit()
+        except Exception:
+            pass
 
     return True
 

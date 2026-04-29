@@ -28,6 +28,7 @@ from assessment_ui import (
     render_assessment_workspace,
     render_automated_grading_screen,
 )
+from experiment_admin_ui import render_experiment_analytics_dashboard
 from prompts import SYSTEM_INSTRUCTION
 
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -78,8 +79,8 @@ def run_controlled_hint_system():
 
     if st.session_state.page_mode == "admin" and st.session_state.user_role == "admin":
         st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
-        tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(
-            ["📊 可视化数据大屏", "🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理",
+        tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+            ["📊 可视化数据大屏", "🧪 实验分析", "🕒 登录日志", "⏱️ 学习时长追踪", "💬 AI辅导监控", "🛠️ 课程与题库管理",
              "⚙️ 智能辅导大模型设置"])
         engine = get_database_engine()
         with engine.connect() as conn:
@@ -174,6 +175,9 @@ def run_controlled_hint_system():
                     st.info("当前数据库尚未记录泄露控制扩展指标。")
 
             with tab1:
+                render_experiment_analytics_dashboard(conn)
+
+            with tab2:
                 st.subheader("学生活跃度监控")
                 df_login = pd.read_sql(
                     "SELECT username AS '学号', login_time AS '登录时间' FROM login_logs ORDER BY login_time DESC LIMIT 50",
@@ -183,7 +187,7 @@ def run_controlled_hint_system():
                     st.download_button("📥 导出登录日志 (CSV)", df_login.to_csv(index=False).encode('utf-8-sig'),
                                        "login_logs.csv", "text/csv", use_container_width=True)
 
-            with tab2:
+            with tab3:
                 st.subheader("各科课程学习时长分析")
                 df_study = pd.read_sql(
                     "SELECT username AS '学号', course_name AS '课程', start_time AS '开始时间', end_time AS '结束时间', duration_seconds AS '学习时长(秒)' FROM study_sessions ORDER BY start_time DESC LIMIT 50",
@@ -193,11 +197,11 @@ def run_controlled_hint_system():
                     st.download_button("📥 导出学习时长记录 (CSV)", df_study.to_csv(index=False).encode('utf-8-sig'),
                                        "study_sessions.csv", "text/csv", use_container_width=True)
 
-            with tab3:
+            with tab4:
                 st.subheader("大模型交互质量抽查")
                 try:
                     df_chat = pd.read_sql(
-                        "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', ai_response AS '系统反馈', is_leaking_answer AS '是否泄露', leakage_score AS '泄露评分', rewrite_count AS '重写次数', leakage_reason AS '检测原因', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
+                        "SELECT student_id AS '学号', question_id AS '题号', hint_strength AS '提示强度', pedagogical_intent AS '教学意图', hint_safety_status AS '安全状态', user_query AS '学生提问', ai_response AS '系统反馈', is_leaking_answer AS '是否泄露', leakage_score AS '泄露评分', rewrite_count AS '重写次数', leakage_reason AS '检测原因', created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
                         conn)
                 except Exception:
                     df_chat = pd.read_sql(
@@ -208,7 +212,7 @@ def run_controlled_hint_system():
                     st.download_button("📥 导出AI辅导监控记录 (CSV)", df_chat.to_csv(index=False).encode('utf-8-sig'),
                                        "ai_interaction_logs.csv", "text/csv", use_container_width=True)
 
-            with tab4:
+            with tab5:
                 st.subheader("📚 课程管理")
                 t_c_add, t_c_del, t_c_edit, t_c_view = st.tabs(
                     ["➕ 录入新课程", "🗑️ 删除自定义课程", "✏️ 修改自定义课程", "👀 预览自定义课程"])
@@ -291,7 +295,7 @@ def run_controlled_hint_system():
                     else:
                         st.info("暂无自定义课程可以修改。")
 
-                with t_view:
+                with t_c_view:
                     try:
                         df_custom_c = pd.read_sql(
                             "SELECT course_name AS '课程名称', description AS '课程简介描述' FROM custom_courses", conn)
@@ -401,7 +405,7 @@ def run_controlled_hint_system():
                     except Exception as e:
                         st.warning(f"读取题库失败: {e}")
 
-            with tab5:
+            with tab6:
                 st.subheader("🧠 大模型 Prompt 注入控制台")
                 st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
                 try:

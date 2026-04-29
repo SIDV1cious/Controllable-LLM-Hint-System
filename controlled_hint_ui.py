@@ -8,10 +8,26 @@ from math_comp import math_input
 
 
 PEDAGOGICAL_QUICK_REQUESTS = [
-    ("提示下一步", "请只提示我下一步应该怎么思考，不要给出答案。"),
-    ("检查错误", "请帮我指出当前作答最可能错在哪里，但不要直接给最终答案。"),
-    ("只给思路", "请只给解题思路和关键概念提醒，避免泄露答案。"),
-    ("复习知识点", "请总结这道题涉及的知识点，并给我一个复习方向。"),
+    {
+        "label": "提示下一步",
+        "intent": "下一步引导",
+        "prompt": "请只提示我下一步应该怎么思考，不要给出答案。",
+    },
+    {
+        "label": "检查错误",
+        "intent": "错因诊断",
+        "prompt": "请帮我指出当前作答最可能错在哪里，但不要直接给最终答案。",
+    },
+    {
+        "label": "只给思路",
+        "intent": "概念提示",
+        "prompt": "请只给解题思路和关键概念提醒，避免泄露答案。",
+    },
+    {
+        "label": "复习知识点",
+        "intent": "知识点复习",
+        "prompt": "请总结这道题涉及的知识点，并给我一个复习方向。",
+    },
 ]
 
 HINT_STRENGTH_OPTIONS = {
@@ -184,6 +200,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
     _normalize_hint_dialogue_history(history)
     hint_strength_key = f"hint_strength_{qid}"
     safety_status_key = f"hint_safety_status_{qid}"
+    pending_intent_key = f"pending_pedagogical_intent_{qid}"
 
     st.markdown("<div class='tutoring-title'>请求智能辅导</div>", unsafe_allow_html=True)
     st.markdown(
@@ -227,10 +244,11 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
 
     st.markdown("<div class='quick-request-label'>快捷请求</div>", unsafe_allow_html=True)
     quick_cols = st.columns(len(PEDAGOGICAL_QUICK_REQUESTS))
-    for quick_index, (quick_label, quick_prompt) in enumerate(PEDAGOGICAL_QUICK_REQUESTS):
+    for quick_index, request_config in enumerate(PEDAGOGICAL_QUICK_REQUESTS):
         with quick_cols[quick_index]:
-            if st.button(quick_label, key=f"quick_help_{qid}_{quick_index}", use_container_width=True):
-                history.append({"role": "user", "content": quick_prompt})
+            if st.button(request_config["label"], key=f"quick_help_{qid}_{quick_index}", use_container_width=True):
+                history.append({"role": "user", "content": request_config["prompt"]})
+                st.session_state[pending_intent_key] = request_config["intent"]
                 st.session_state[composer_input_key] = ""
                 st.session_state[composer_reset_key] = True
                 st.rerun()
@@ -254,6 +272,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
             query = st.session_state.get(composer_input_key, "").strip()
             if query:
                 history.append({"role": "user", "content": query})
+                st.session_state[pending_intent_key] = "自主提问"
                 st.session_state[composer_reset_key] = True
                 st.rerun()
             else:
@@ -262,6 +281,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
     if history and history[-1]["role"] == "user":
         with st.chat_message("assistant"):
             last_query = history[-1]["content"]
+            pedagogical_intent = st.session_state.get(pending_intent_key, "自主提问")
             try:
                 with st.spinner("正在生成智能辅导并进行答案泄露检测....."):
                     controlled = generate_controlled_hint(
@@ -287,6 +307,9 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                     leakage_score=controlled["leakage_score"],
                     rewrite_count=controlled["rewrite_count"],
                     leakage_reason=controlled["leakage_reason"],
+                    hint_strength=selected_strength,
+                    pedagogical_intent=pedagogical_intent,
+                    hint_safety_status=status["label"],
                 )
             except Exception as exc:
                 logging.error(f"Controlled hint generation error: {exc}")
@@ -300,4 +323,12 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                 }
                 st.session_state[safety_status_key] = fallback_status
                 _render_safety_status(fallback_status)
-                record_learning_interaction(qid, f"【辅导】【提示强度：{selected_strength}】{last_query}", fallback, leak=0)
+                record_learning_interaction(
+                    qid,
+                    f"【辅导】【提示强度：{selected_strength}】{last_query}",
+                    fallback,
+                    leak=0,
+                    hint_strength=selected_strength,
+                    pedagogical_intent=pedagogical_intent,
+                    hint_safety_status=fallback_status["label"],
+                )
