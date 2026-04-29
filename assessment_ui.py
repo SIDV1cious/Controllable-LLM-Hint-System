@@ -244,7 +244,7 @@ def render_assessment_results_dashboard(record_learning_interaction):
     with right_col:
         if st.session_state.review_question_index is None:
             with st.container(border=True):
-                st.info("请先在左侧选择一道题，查看题目详情并请求智能辅导。")
+                st.info("👈🏻请先在左侧选择一道题，查看题目详情并请求智能辅导。")
             return
 
         review_index = st.session_state.review_question_index
