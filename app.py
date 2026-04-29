@@ -121,11 +121,15 @@ def apply_auth_layout_style():
 <style>
     .block-container {
         min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .block-container > div:first-child {
+        min-height: 100vh;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
     }
 
     .auth-page-title {
@@ -139,9 +143,13 @@ def apply_auth_layout_style():
 
     @media (max-height: 760px) {
         .block-container {
-            justify-content: flex-start;
             padding-top: 3rem !important;
             padding-bottom: 2rem !important;
+        }
+
+        .block-container > div:first-child {
+            min-height: auto;
+            justify-content: flex-start !important;
         }
     }
 </style>
