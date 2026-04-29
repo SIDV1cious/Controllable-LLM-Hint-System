@@ -27,6 +27,7 @@
 ├── app.py                         # Streamlit 部署入口
 ├── controlled_hint_system_app.py   # 系统主流程与页面路由入口
 ├── hint_system_core.py            # 配置、数据库工具、判题与受控提示生成服务
+├── learning_session_service.py     # 学习会话、登录注册、抽题与交互记录服务
 ├── learning_platform_ui.py        # 登录注册、课程入口与平台通用视觉主题
 ├── assessment_ui.py               # 课程评测流程、阅卷页与结果仪表盘
 ├── controlled_hint_ui.py          # 受控解题提示面板、快捷请求与公式输入

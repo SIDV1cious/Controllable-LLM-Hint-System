@@ -1,4 +1,5 @@
 import streamlit as st
+from html import escape
 
 from hint_system_core import build_result_export, format_math, now_shanghai
 from learning_platform_ui import render_assessment_integrity_warning
@@ -53,7 +54,121 @@ def apply_results_dashboard_style():
         line-height: 1.7;
         margin: 0.55rem 0 0.85rem 0;
     }
+
+    .safety-summary {
+        border: 1px solid #dbe7f5;
+        border-radius: 16px;
+        padding: 14px 16px;
+        margin: 1rem 0 0.4rem 0;
+        background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+    }
+
+    .safety-summary-title {
+        color: #1f2937;
+        font-size: 16px;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+
+    .safety-summary-desc {
+        color: #64748b;
+        font-size: 13px;
+        line-height: 1.55;
+        margin-bottom: 10px;
+    }
+
+    .safety-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 10px;
+    }
+
+    .safety-summary-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: #ffffff;
+    }
+
+    .safety-summary-head {
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        color: #334155;
+        font-size: 13px;
+        font-weight: 750;
+        margin-bottom: 6px;
+    }
+
+    .safety-summary-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .safety-summary-safe {
+        color: #166534;
+        background: #dcfce7;
+        border: 1px solid #bbf7d0;
+    }
+
+    .safety-summary-rewrite {
+        color: #9a3412;
+        background: #ffedd5;
+        border: 1px solid #fed7aa;
+    }
+
+    .safety-summary-detail {
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.55;
+    }
 </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_safety_summary(results: list):
+    cards = []
+    for index, result in enumerate(results, start=1):
+        qid = result["question_data"]["id"]
+        status = st.session_state.get(f"hint_safety_status_{qid}")
+        if not status:
+            continue
+
+        label = escape(status.get("label", "已检测"))
+        detail = escape(status.get("detail", "暂无检测细节"))
+        badge_class = "safety-summary-rewrite" if "重写" in label else "safety-summary-safe"
+        cards.append(
+            f"""
+<div class="safety-summary-item">
+    <div class="safety-summary-head">
+        <span>题 {index}</span>
+        <span class="safety-summary-badge {badge_class}">{label}</span>
+    </div>
+    <div class="safety-summary-detail">{detail}</div>
+</div>
+            """
+        )
+
+    if not cards:
+        return
+
+    st.markdown(
+        f"""
+<div class="safety-summary">
+    <div class="safety-summary-title">本轮智能辅导答案泄露检测状态</div>
+    <div class="safety-summary-desc">已生成智能辅导的题目会在这里汇总检测结论，便于复盘提示是否经过安全过滤。</div>
+    <div class="safety-summary-grid">{''.join(cards)}</div>
+</div>
         """,
         unsafe_allow_html=True,
     )
@@ -223,6 +338,7 @@ def render_assessment_results_dashboard(record_learning_interaction):
             mime="text/markdown",
             use_container_width=True,
         )
+        _render_safety_summary(results)
 
     st.divider()
     left_col, right_col = st.columns([0.95, 1.1], gap="large")
