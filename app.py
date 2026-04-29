@@ -115,6 +115,41 @@ def apply_global_style():
     )
 
 
+def apply_auth_layout_style():
+    st.markdown(
+        """
+<style>
+    .block-container {
+        min-height: calc(100vh - 5.5rem);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-top: 0 !important;
+        padding-bottom: 5rem !important;
+    }
+
+    .auth-page-title {
+        text-align: center;
+        margin: 0 0 1.35rem 0;
+        color: #1f2937;
+        font-size: clamp(2rem, 3vw, 2.85rem);
+        font-weight: 800;
+        letter-spacing: -0.04em;
+    }
+
+    @media (max-height: 760px) {
+        .block-container {
+            justify-content: flex-start;
+            padding-top: 3rem !important;
+            padding-bottom: 2rem !important;
+        }
+    }
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_course_card(course_name: str, course_desc: str):
     with st.container(border=True):
         st.markdown(f"### {course_name}")
@@ -297,7 +332,8 @@ st.set_page_config(page_title="基于LLM的可控解题提示生成系统", layo
 apply_global_style()
 
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align: center;'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
+    apply_auth_layout_style()
+    st.markdown("<h1 class='auth-page-title'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
         tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
