@@ -1233,7 +1233,7 @@ elif st.session_state.page_mode == "results":
                 with st.chat_message(m["role"]):
                     if m.get("role") == "assistant" and m.get("content") == "请求智能辅导":
                         st.markdown(
-                            "<div style='font-size: 20px; font-weight: 800; line-height: 1.55;'>请求智能辅导</div>",
+                            "<div style='font-size: 20px; font-weight: 700; line-height: 1.55;'>请求智能辅导</div>",
                             unsafe_allow_html=True,
                         )
                     else:
