@@ -39,7 +39,7 @@ def render_quiz_warning():
 <div style="padding-top: 34px; margin-top: 10px; overflow: visible;">
 <div role="alert" style="
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 14px;
     box-sizing: border-box;
     margin: 0.25rem 0 1.4rem 0;
@@ -51,8 +51,8 @@ def render_quiz_warning():
     line-height: 1.75;
     overflow: visible;
 ">
-    <span style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; margin-top: 1px; font-size: 24px; line-height: 1; font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;">⚠️</span>
-    <span style="display: block; padding-top: 0; font-size: 16px; line-height: 1.75; font-weight: 600;">考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
+    <span style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; margin-top: 0; font-size: 24px; line-height: 1; font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;">⚠️</span>
+    <span style="display: flex; align-items: center; min-height: 28px; padding-top: 0; font-size: 16px; line-height: 1.45; font-weight: 600;">考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
 </div>
 </div>
         """,
