@@ -1231,7 +1231,13 @@ elif st.session_state.page_mode == "results":
                     m["content"] = "请求智能辅导"
             for m in st.session_state.chat_histories[qid]:
                 with st.chat_message(m["role"]):
-                    st.markdown(format_math(m["content"]))
+                    if m.get("role") == "assistant" and m.get("content") == "请求智能辅导":
+                        st.markdown(
+                            "<div style='font-size: 20px; font-weight: 800; line-height: 1.55;'>请求智能辅导</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(format_math(m["content"]))
 
             composer_input_key = f"composer_input_{qid}"
             composer_reset_key = f"composer_reset_{qid}"
