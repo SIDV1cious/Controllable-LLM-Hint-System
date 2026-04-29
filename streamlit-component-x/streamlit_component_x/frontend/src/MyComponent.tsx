@@ -1210,7 +1210,7 @@ const toolbarHeaderStyle: React.CSSProperties = {
 const groupToolbarStyle: React.CSSProperties = {
   display: "flex",
   gap: "4px",
-  flexWrap: "nowrap",
+  flexWrap: "wrap",
   alignItems: "flex-start",
   marginBottom: "8px",
 };
