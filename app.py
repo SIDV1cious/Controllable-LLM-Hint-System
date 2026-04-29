@@ -120,12 +120,12 @@ def apply_auth_layout_style():
         """
 <style>
     .block-container {
-        min-height: calc(100vh - 5.5rem);
+        min-height: 100vh;
         display: flex;
         flex-direction: column;
         justify-content: center;
-        padding-top: 0 !important;
-        padding-bottom: 5rem !important;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
     }
 
     .auth-page-title {
