@@ -24,7 +24,8 @@
 
 ```text
 .
-├── app.py                         # Streamlit 主应用
+├── app.py                         # Streamlit 部署入口
+├── controlled_hint_system_app.py   # 系统主流程与页面路由入口
 ├── hint_system_core.py            # 配置、数据库工具、判题与受控提示生成服务
 ├── learning_platform_ui.py        # 登录注册、课程入口与平台通用视觉主题
 ├── assessment_ui.py               # 课程评测流程、阅卷页与结果仪表盘

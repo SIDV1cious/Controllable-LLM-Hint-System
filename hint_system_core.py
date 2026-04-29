@@ -23,18 +23,26 @@ from prompts import (
 load_dotenv()
 
 
+def get_secret_or_env(name: str, default: str | None = None):
+    try:
+        secret_value = st.secrets.get(name)
+    except Exception:
+        secret_value = None
+    return secret_value or os.getenv(name, default)
+
+
 class AppConfig:
-    LLM_API_KEY = st.secrets.get("LLM_API_KEY") or os.getenv("LLM_API_KEY")
-    DB_USER = st.secrets.get("DB_USER") or os.getenv("DB_USER")
-    DB_PASSWORD = st.secrets.get("DB_PASSWORD") or os.getenv("DB_PASSWORD")
-    DB_HOST = st.secrets.get("DB_HOST") or os.getenv("DB_HOST")
-    DB_NAME = st.secrets.get("DB_NAME") or os.getenv("DB_NAME")
+    LLM_API_KEY = get_secret_or_env("LLM_API_KEY")
+    DB_USER = get_secret_or_env("DB_USER")
+    DB_PASSWORD = get_secret_or_env("DB_PASSWORD")
+    DB_HOST = get_secret_or_env("DB_HOST")
+    DB_NAME = get_secret_or_env("DB_NAME")
     BASE_URL = "https://api.deepseek.com"
-    LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
-    LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "45"))
-    LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "2"))
-    ASSESS_CONCURRENCY = int(os.getenv("ASSESS_CONCURRENCY", "5"))
-    QUIZ_SIZE = int(os.getenv("QUIZ_SIZE", "10"))
+    LLM_MODEL = get_secret_or_env("LLM_MODEL", "deepseek-chat")
+    LLM_TIMEOUT_SECONDS = float(get_secret_or_env("LLM_TIMEOUT_SECONDS", "45"))
+    LLM_MAX_RETRIES = int(get_secret_or_env("LLM_MAX_RETRIES", "2"))
+    ASSESS_CONCURRENCY = int(get_secret_or_env("ASSESS_CONCURRENCY", "5"))
+    QUIZ_SIZE = int(get_secret_or_env("QUIZ_SIZE", "10"))
 
 
 SHANGHAI_TZ = pytz.timezone("Asia/Shanghai")
