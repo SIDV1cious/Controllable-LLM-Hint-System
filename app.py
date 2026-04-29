@@ -979,7 +979,7 @@ elif st.session_state.page_mode == "results":
                 with st.chat_message("assistant"):
                     last_query = st.session_state.chat_histories[qid][-1]["content"]
                     try:
-                        with st.spinner("正在生成智能辅导......"):
+                        with st.spinner("正在生成智能辅导并进行答案泄露检测....."):
                             controlled = generate_controlled_hint(
                                 data['question_data'],
                                 data['user_answer'],
