@@ -775,7 +775,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   return (
     <div style={containerStyle}>
-      <div style={toolbarHeaderStyle}>
+      <div style={groupToolbarStyle}>
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
@@ -784,9 +784,7 @@ const MyComponent = ({ args }: ComponentProps) => {
         >
           插入公式框
         </button>
-      </div>
 
-      <div style={groupToolbarStyle}>
         {FORMULA_GROUPS.map((group) => (
           <button
             key={group.title}
@@ -831,6 +829,46 @@ const MyComponent = ({ args }: ComponentProps) => {
         >
           {COMMON_SYMBOLS_TITLE}
         </button>
+
+        <div style={matrixPanelStyle}>
+          <span style={{ fontSize: "12px", color: "#536075" }}>矩阵</span>
+          <select
+            value={matrixRows}
+            onChange={(event) => setMatrixRows(Number(event.target.value))}
+            onMouseDown={(event) => event.stopPropagation()}
+            style={selectStyle}
+          >
+            {Array.from({ length: MAX_MATRIX_SIZE }, (_, index) => index + 1).map(
+              (n) => (
+                <option key={n} value={n}>
+                  {n}行
+                </option>
+              )
+            )}
+          </select>
+          <select
+            value={matrixCols}
+            onChange={(event) => setMatrixCols(Number(event.target.value))}
+            onMouseDown={(event) => event.stopPropagation()}
+            style={selectStyle}
+          >
+            {Array.from({ length: MAX_MATRIX_SIZE }, (_, index) => index + 1).map(
+              (n) => (
+                <option key={n} value={n}>
+                  {n}列
+                </option>
+              )
+            )}
+          </select>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={insertMatrix}
+            style={toolButtonStyle}
+          >
+            插入矩阵
+          </button>
+        </div>
       </div>
 
       {openToolbarGroup && activeToolbarItems.length > 0 && (
@@ -880,48 +918,6 @@ const MyComponent = ({ args }: ComponentProps) => {
           )}
         </div>
       )}
-
-      <div style={matrixRowStyle}>
-        <div style={matrixPanelStyle}>
-          <span style={{ fontSize: "12px", color: "#536075" }}>矩阵</span>
-          <select
-            value={matrixRows}
-            onChange={(event) => setMatrixRows(Number(event.target.value))}
-            onMouseDown={(event) => event.stopPropagation()}
-            style={selectStyle}
-          >
-            {Array.from({ length: MAX_MATRIX_SIZE }, (_, index) => index + 1).map(
-              (n) => (
-                <option key={n} value={n}>
-                  {n}行
-                </option>
-              )
-            )}
-          </select>
-          <select
-            value={matrixCols}
-            onChange={(event) => setMatrixCols(Number(event.target.value))}
-            onMouseDown={(event) => event.stopPropagation()}
-            style={selectStyle}
-          >
-            {Array.from({ length: MAX_MATRIX_SIZE }, (_, index) => index + 1).map(
-              (n) => (
-                <option key={n} value={n}>
-                  {n}列
-                </option>
-              )
-            )}
-          </select>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={insertMatrix}
-            style={toolButtonStyle}
-          >
-            插入矩阵
-          </button>
-        </div>
-      </div>
 
       <div
         ref={editorRef}
@@ -1198,35 +1194,21 @@ const containerStyle: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const toolbarHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "flex-start",
-  gap: "8px",
-  marginBottom: "8px",
-  flexWrap: "wrap",
-};
-
 const groupToolbarStyle: React.CSSProperties = {
   display: "flex",
-  gap: "4px",
+  gap: "5px",
   flexWrap: "wrap",
-  alignItems: "flex-start",
+  alignItems: "center",
   marginBottom: "8px",
 };
 
 const matrixPanelStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: "6px",
-  flexWrap: "wrap",
-};
-
-const matrixRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: "8px",
-  marginBottom: "8px",
+  gap: "5px",
+  flex: "0 0 auto",
+  flexWrap: "nowrap",
+  marginLeft: "auto",
 };
 
 const summaryStyle: React.CSSProperties = {
