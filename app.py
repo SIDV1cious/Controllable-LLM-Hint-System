@@ -36,7 +36,7 @@ QUICK_HELP_REQUESTS = [
 def render_quiz_warning():
     st.markdown(
         """
-<div style="padding-top: 10px; overflow: visible;">
+<div style="padding-top: 34px; margin-top: 10px; overflow: visible;">
 <div role="alert" style="
     display: flex;
     align-items: flex-start;
