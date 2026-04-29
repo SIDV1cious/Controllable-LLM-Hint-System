@@ -25,6 +25,7 @@
 ```text
 .
 ├── app.py                         # Streamlit 主应用
+├── app_core.py                    # 配置、数据库工具、判题与受控辅导服务
 ├── prompts.py                     # 判题、提示计划、泄露检测、重写等 Prompt
 ├── math_comp.py                   # MathLive 公式输入组件封装
 ├── questions.py                   # 离线备用题库，4类课程共240题
