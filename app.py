@@ -40,17 +40,19 @@ def render_quiz_warning():
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 46px;
+    box-sizing: border-box;
+    min-height: 54px;
     margin: 0.75rem 0 1.4rem 0;
-    padding: 12px 18px;
+    padding: 15px 20px 14px 20px;
     border-radius: 8px;
     background: #fff8db;
     color: #6b4e00;
     font-size: 16px;
-    line-height: 1.6;
+    line-height: 1.75;
+    overflow: visible;
 ">
-    <span style="font-size: 22px; line-height: 1;">⚠️</span>
-    <span>考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
+    <span style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 28px; height: 28px; font-size: 24px; line-height: 1.2; font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;">⚠️</span>
+    <span style="display: block; line-height: 1.75;">考试进行中，请勿刷新网页或退出登录，否则未提交的作答记录将会丢失！</span>
 </div>
         """,
         unsafe_allow_html=True,
