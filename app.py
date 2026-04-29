@@ -1224,9 +1224,10 @@ elif st.session_state.page_mode == "results":
             st.write(f"您的作答: {data['user_answer']}")
             st.divider()
             if qid not in st.session_state.chat_histories:
-                st.session_state.chat_histories[qid] = []
-                if not data['is_correct']:
-                    st.session_state.chat_histories[qid].append({"role": "assistant", "content": "智能辅导"})
+                st.session_state.chat_histories[qid] = [{"role": "assistant", "content": "请求智能辅导"}]
+            for m in st.session_state.chat_histories[qid]:
+                if m.get("role") == "assistant" and m.get("content") == "智能辅导":
+                    m["content"] = "请求智能辅导"
             for m in st.session_state.chat_histories[qid]:
                 with st.chat_message(m["role"]):
                     st.markdown(format_math(m["content"]))
