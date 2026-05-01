@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import random
 import re
 
@@ -9,6 +8,7 @@ import streamlit as st
 from werkzeug.security import generate_password_hash
 
 from app_constants import ChatRole, InteractionMarker, format_answer_submission
+from app_errors import log_exception
 from hint_system_core import AppConfig, batch_assess, now_shanghai, verify_password
 from interaction_repository import (
     build_interaction_payload,
@@ -66,7 +66,7 @@ def record_login_event(username: str) -> None:
     try:
         record_login_log(username)
     except Exception as exc:
-        logging.error(f"record_login_event error: {exc}")
+        log_exception("record_login_event error", exc)
 
 
 def clear_current_quiz_for_user(username: str) -> None:
@@ -101,7 +101,7 @@ def record_learning_interaction(
         )
         insert_interaction_log(payload)
     except Exception as exc:
-        logging.error(f"record_learning_interaction error: {exc}")
+        log_exception("record_learning_interaction error", exc)
 
 
 def restore_user_learning_state(username: str) -> None:

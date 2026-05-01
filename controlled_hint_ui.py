@@ -1,9 +1,9 @@
-import logging
 from html import escape
 
 import streamlit as st
 
 from app_constants import ChatRole, format_tutoring_query
+from app_errors import log_exception
 from hint_system_core import format_math, generate_controlled_hint
 from math_comp import math_input
 from session_keys import (
@@ -307,7 +307,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                     hint_safety_status=status["label"],
                 )
             except Exception as exc:
-                logging.error(f"Controlled hint generation error: {exc}")
+                log_exception("Controlled hint generation error", exc)
                 fallback = TUTORING_FALLBACK_HINT
                 st.markdown(fallback)
                 history.append({"role": ChatRole.ASSISTANT, "content": fallback})

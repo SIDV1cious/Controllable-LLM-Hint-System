@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import logging
-
 from sqlalchemy import text
 
+from app_errors import log_exception
 from database_service import get_database_engine
 
 BASE_COURSES: list[tuple[str, str]] = [
@@ -34,7 +33,7 @@ def fetch_custom_course_catalog() -> list[tuple[str, str]]:
             rows = conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall()
         return [(row[0], row[1]) for row in rows]
     except Exception as exc:
-        logging.error(f"Load custom course catalog error: {exc}")
+        log_exception("Load custom course catalog error", exc)
         return []
 
 

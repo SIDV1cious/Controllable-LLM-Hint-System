@@ -7,6 +7,7 @@ from app_constants import (
     format_answer_submission,
     format_tutoring_query,
 )
+from app_errors import friendly_error
 from course_repository import BASE_COURSES, merge_course_catalog
 from experiment_analytics_service import (
     build_experiment_export_dataframe,
@@ -25,6 +26,7 @@ from session_state_manager import (
     set_authenticated_user,
     start_quiz_session,
 )
+from student_report_service import calculate_learning_summary, extract_wrong_question_ids
 
 
 def test_format_math_normalizes_latex_delimiters():
@@ -198,3 +200,25 @@ def test_course_catalog_merge_deduplicates_base_courses():
 
     assert [name for name, _ in merged].count("高等数学") == 1
     assert ("离散数学", "集合、图论与逻辑推理。") in merged
+
+
+def test_student_report_summary_and_wrong_question_extraction():
+    logs = [
+        (1001, "正确"),
+        (1002, "错误"),
+        (1003, "PASS"),
+        ("bad-id", "FAIL"),
+    ]
+
+    summary = calculate_learning_summary(125, logs)
+    wrong_qids = extract_wrong_question_ids(logs)
+
+    assert summary["total_minutes"] == 2
+    assert summary["total_answered"] == 4
+    assert summary["total_correct"] == 2
+    assert summary["accuracy"] == 50.0
+    assert wrong_qids == {1002}
+
+
+def test_friendly_error_message_is_stable():
+    assert friendly_error("读取学生报告") == "读取学生报告失败，请稍后重试或联系管理员。"
