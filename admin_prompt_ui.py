@@ -1,22 +1,19 @@
-import logging
 import time
 
 import streamlit as st
-from sqlalchemy import text
 
+from app_errors import log_exception
+from prompt_config_repository import get_system_instruction, update_system_instruction
 from prompts import SYSTEM_INSTRUCTION
 
 
-def render_prompt_configuration_tab(conn):
+def render_prompt_configuration_tab():
     st.subheader("🧠 大模型 Prompt 注入控制台")
     st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
     try:
-        curr_prompt_res = conn.execute(
-            text("SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")
-        ).fetchone()
-        current_prompt = curr_prompt_res[0] if curr_prompt_res else SYSTEM_INSTRUCTION
+        current_prompt = get_system_instruction(SYSTEM_INSTRUCTION)
     except Exception as e:
-        logging.error(f"Load prompt config error: {e}")
+        log_exception("Load prompt config error", e)
         current_prompt = SYSTEM_INSTRUCTION
 
     with st.form("prompt_update_form"):
@@ -24,15 +21,7 @@ def render_prompt_configuration_tab(conn):
         if st.form_submit_button("💾 保存并全局应用新指令", type="primary", use_container_width=True):
             if new_prompt.strip():
                 try:
-                    conn.execute(
-                        text(
-                            "INSERT INTO system_configs (config_key, config_value) "
-                            "VALUES ('system_instruction', :val) "
-                            "ON DUPLICATE KEY UPDATE config_value = :val"
-                        ),
-                        {"val": new_prompt.strip()},
-                    )
-                    conn.commit()
+                    update_system_instruction(new_prompt.strip())
                     st.toast("大模型底层指令已热更新！全系统生效！", icon="✅")
                     time.sleep(0.5)
                     st.rerun()

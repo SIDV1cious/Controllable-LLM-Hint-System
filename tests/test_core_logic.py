@@ -1,5 +1,10 @@
 import pandas as pd
 
+from admin_content_repository import (
+    build_course_name_list,
+    make_question_delete_label,
+    make_question_edit_label,
+)
 from app_constants import (
     InteractionMarker,
     PageMode,
@@ -17,6 +22,7 @@ from experiment_analytics_service import (
 from hint_text_utils import format_math, parse_json_object
 from interaction_repository import build_interaction_payload
 from leakage_detection_service import heuristic_leakage_check
+from prompt_config_repository import SYSTEM_INSTRUCTION_KEY
 from question_repository import public_ids_to_database_ids
 from session_keys import SessionKey, composer_input, hint_safety_status, quick_help_button
 from session_state_manager import (
@@ -200,6 +206,23 @@ def test_course_catalog_merge_deduplicates_base_courses():
 
     assert [name for name, _ in merged].count("高等数学") == 1
     assert ("离散数学", "集合、图论与逻辑推理。") in merged
+
+
+def test_admin_course_name_list_deduplicates_base_names():
+    result = build_course_name_list(["高等数学", "线性代数"], ["高等数学", "离散数学"])
+    assert result == ["高等数学", "线性代数", "离散数学"]
+
+
+def test_admin_question_option_labels_are_stable():
+    assert make_question_delete_label(7, "高等数学", "极限题") == "[高等数学] 极限题... (内部ID:7)"
+    assert (
+        make_question_edit_label(8, "线性代数", "矩阵的特征值与特征向量")
+        == "[线性代数] (内部ID:8) 矩阵的特征值与特征向量..."
+    )
+
+
+def test_prompt_config_key_is_stable():
+    assert SYSTEM_INSTRUCTION_KEY == "system_instruction"
 
 
 def test_student_report_summary_and_wrong_question_extraction():

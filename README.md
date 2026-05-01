@@ -36,7 +36,9 @@
 ├── user_repository.py             # 用户账号、登录日志与未完成测验状态的数据访问层
 ├── question_repository.py         # 题目读取与公开题号/数据库题号转换的数据访问层
 ├── course_repository.py           # 课程目录合并与课程读取的数据访问层
+├── admin_content_repository.py    # 管理端课程与题库增删改查数据访问层
 ├── interaction_repository.py      # 智能辅导交互日志与泄露观测字段写入
+├── prompt_config_repository.py    # 系统 Prompt 配置读取与热更新数据访问层
 ├── study_session_repository.py    # 学习会话开始、结束与学习时长记录
 ├── student_report_repository.py   # 学生报告所需学习时长、答题日志与错题详情读取
 ├── llm_gateway.py                 # 大模型客户端与通用调用网关

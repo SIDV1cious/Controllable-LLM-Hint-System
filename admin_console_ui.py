@@ -39,6 +39,6 @@ def render_admin_console():
         with tab4:
             render_interaction_monitoring_tab(conn)
         with tab5:
-            render_course_and_question_management_tab(conn)
+            render_course_and_question_management_tab()
         with tab6:
-            render_prompt_configuration_tab(conn)
+            render_prompt_configuration_tab()
