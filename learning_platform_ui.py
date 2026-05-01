@@ -1,9 +1,7 @@
-import logging
-
 import streamlit as st
-from sqlalchemy import text
 
-from hint_system_core import get_database_engine
+from course_repository import list_course_catalog
+from session_state_manager import set_authenticated_user
 
 
 def render_assessment_integrity_warning():
@@ -158,13 +156,9 @@ def render_identity_access_page(
                 if submitted:
                     is_auth, role = authenticate_learning_user(u_in.strip(), p_in.strip())
                     if is_auth:
-                        st.session_state.logged_in = True
-                        st.session_state.current_user = u_in.strip()
-                        st.session_state.user_role = role
+                        set_authenticated_user(u_in.strip(), role)
                         record_login_event(u_in.strip())
-                        if role == "admin":
-                            st.session_state.page_mode = "admin"
-                        else:
+                        if role != "admin":
                             restore_user_learning_state(u_in.strip())
                         st.rerun()
                     else:
@@ -186,23 +180,7 @@ def render_course_selection_portal(start_course_assessment_session):
     st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
     st.write("请选择你要进行随堂测验的课程模块：")
     st.divider()
-    base_courses = [
-        ("高等数学", "包含极限、导数、微积分等核心考点，重点测试逻辑推导能力。"),
-        ("线性代数", "包含矩阵运算、特征值、二次型等，培养空间与代数转换思维。"),
-        ("概率统计", "包含随机变量、分布规律、信息熵等，结合实际应用场景。"),
-        ("C语言", "包含指针、数组、结构体等核心语法，锻炼底层逻辑与编程思维。"),
-    ]
-    existing_course_names = {name for name, _ in base_courses}
-    engine = get_database_engine()
-    with engine.connect() as conn:
-        try:
-            for row in conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall():
-                if row[0] not in existing_course_names:
-                    base_courses.append((row[0], row[1]))
-                    existing_course_names.add(row[0])
-        except Exception as exc:
-            logging.error(f"Load courses error: {exc}")
-
+    base_courses = list_course_catalog()
     cols = st.columns(4)
     for idx, (course_name, course_desc) in enumerate(base_courses):
         with cols[idx % 4]:

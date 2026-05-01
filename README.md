@@ -29,12 +29,18 @@
 ├── hint_system_core.py            # 兼容旧调用的核心服务门面
 ├── system_config.py               # 环境变量、系统配置与时区工具
 ├── database_service.py            # 数据库连接、题目转换与日志字段兼容迁移
+├── user_repository.py             # 用户账号、登录日志与未完成测验状态的数据访问层
+├── question_repository.py         # 题目读取与公开题号/数据库题号转换的数据访问层
+├── course_repository.py           # 课程目录合并与课程读取的数据访问层
+├── interaction_repository.py      # 智能辅导交互日志与泄露观测字段写入
+├── study_session_repository.py    # 学习会话开始、结束与学习时长记录
 ├── llm_gateway.py                 # 大模型客户端与通用调用网关
 ├── automated_assessment_service.py # 自动判题服务
 ├── leakage_detection_service.py    # 答案泄露检测服务
 ├── controlled_generation_service.py # 受控提示计划、生成与自动重写服务
 ├── hint_text_utils.py             # LaTeX 文本规范化与 JSON 解析工具
 ├── result_export_service.py       # 测验结果导出服务
+├── session_state_manager.py       # Streamlit 会话状态初始化、跳转与测验状态管理
 ├── learning_session_service.py     # 学习会话、登录注册、抽题与交互记录服务
 ├── experiment_analytics_service.py # 提示强度、教学意图与泄露指标统计服务
 ├── admin_console_ui.py            # 管理端控制台路由

@@ -15,7 +15,6 @@ from learning_platform_ui import (
 )
 from learning_session_service import (
     authenticate_learning_user,
-    init_session_state,
     record_learning_interaction,
     record_login_event,
     register_learning_user,
@@ -23,6 +22,7 @@ from learning_session_service import (
     start_course_assessment_session,
     submit_answers_and_run_assessment,
 )
+from session_state_manager import init_session_state
 from sidebar_navigation import render_sidebar_navigation
 from student_report_ui import render_student_learning_report
 
