@@ -18,9 +18,7 @@ def fetch_user_auth_record(username: str):
 def user_exists(username: str) -> bool:
     engine = get_database_engine()
     with engine.connect() as conn:
-        return bool(
-            conn.execute(text("SELECT id FROM users WHERE username = :u"), {"u": username}).fetchone()
-        )
+        return bool(conn.execute(text("SELECT id FROM users WHERE username = :u"), {"u": username}).fetchone())
 
 
 def create_student_user(username: str, password_hash: str) -> None:

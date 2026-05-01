@@ -57,7 +57,9 @@ def _render_course_delete_tab(conn):
 
 def _render_course_edit_tab(conn):
     try:
-        edit_c_options = {r[0]: r for r in conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall()}
+        edit_c_options = {
+            r[0]: r for r in conn.execute(text("SELECT course_name, description FROM custom_courses")).fetchall()
+        }
     except Exception as e:
         logging.error(f"Edit course load error: {e}")
         edit_c_options = {}
@@ -76,7 +78,9 @@ def _render_course_edit_tab(conn):
             if updated_c_name.strip() and updated_c_desc.strip():
                 try:
                     conn.execute(
-                        text("UPDATE custom_courses SET course_name = :new_n, description = :new_d WHERE course_name = :old_n"),
+                        text(
+                            "UPDATE custom_courses SET course_name = :new_n, description = :new_d WHERE course_name = :old_n"
+                        ),
                         {"new_n": updated_c_name.strip(), "new_d": updated_c_desc.strip(), "old_n": selected_c_name},
                     )
                     if updated_c_name.strip() != selected_c_name:
@@ -170,7 +174,9 @@ def _render_question_edit_tab(conn, all_courses: list):
     edit_q_choice = st.selectbox("👇 第一步：选择需要修改的题目", list(edit_q_options.keys()), key="edit_q_select")
     selected_id, selected_cat, selected_content = edit_q_options[edit_q_choice]
     with st.form("edit_question_form"):
-        new_category = st.selectbox("修改所属课程", all_courses, index=all_courses.index(selected_cat) if selected_cat in all_courses else 0)
+        new_category = st.selectbox(
+            "修改所属课程", all_courses, index=all_courses.index(selected_cat) if selected_cat in all_courses else 0
+        )
         new_content = st.text_area("修改题目内容 (支持 LaTeX 格式)", value=selected_content, height=150)
         if st.form_submit_button("💾 保存修改", type="primary", use_container_width=True):
             if new_content.strip():
@@ -205,7 +211,9 @@ def _render_question_preview_tab(conn):
 
 def render_course_and_question_management_tab(conn):
     st.subheader("📚 课程管理")
-    t_c_add, t_c_del, t_c_edit, t_c_view = st.tabs(["➕ 录入新课程", "🗑️ 删除自定义课程", "✏️ 修改自定义课程", "👀 预览自定义课程"])
+    t_c_add, t_c_del, t_c_edit, t_c_view = st.tabs(
+        ["➕ 录入新课程", "🗑️ 删除自定义课程", "✏️ 修改自定义课程", "👀 预览自定义课程"]
+    )
     with t_c_add:
         _render_course_create_tab(conn)
     with t_c_del:
@@ -218,7 +226,9 @@ def render_course_and_question_management_tab(conn):
     st.divider()
     st.subheader("📝 题库管理")
     all_courses = _load_course_names(conn)
-    t_add, t_del, t_edit, t_view = st.tabs(["➕ 录入新题目", "🗑️ 删除自定义题目", "✏️ 修改自定义题目", "👀 预览自定义题库"])
+    t_add, t_del, t_edit, t_view = st.tabs(
+        ["➕ 录入新题目", "🗑️ 删除自定义题目", "✏️ 修改自定义题目", "👀 预览自定义题库"]
+    )
     with t_add:
         _render_question_create_tab(conn, all_courses)
     with t_del:

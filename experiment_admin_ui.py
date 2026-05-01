@@ -137,11 +137,15 @@ def _render_distribution_charts(df: pd.DataFrame):
 
 def _render_trend_chart(df: pd.DataFrame):
     st.markdown("<div class='experiment-section-title'>生成与安全控制趋势</div>", unsafe_allow_html=True)
-    trend_df = df.groupby("experiment_date").agg(
-        提示数量=("id", "count"),
-        平均泄露评分=("leakage_score", "mean"),
-        自动重写次数=("rewrite_count", "sum"),
-    ).reset_index()
+    trend_df = (
+        df.groupby("experiment_date")
+        .agg(
+            提示数量=("id", "count"),
+            平均泄露评分=("leakage_score", "mean"),
+            自动重写次数=("rewrite_count", "sum"),
+        )
+        .reset_index()
+    )
     fig_trend = px.line(
         trend_df,
         x="experiment_date",

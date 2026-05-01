@@ -17,13 +17,15 @@ def build_result_export(assessment_results: list) -> str:
 
     for index, item in enumerate(assessment_results, start=1):
         question = item.get("question_data", {})
-        lines.extend([
-            f"## 第 {index} 题",
-            "",
-            f"结果：{'正确' if item.get('is_correct') else '错误'}",
-            f"题目：{question.get('content', '')}",
-            f"我的作答：{item.get('user_answer', '')}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"## 第 {index} 题",
+                "",
+                f"结果：{'正确' if item.get('is_correct') else '错误'}",
+                f"题目：{question.get('content', '')}",
+                f"我的作答：{item.get('user_answer', '')}",
+                "",
+            ]
+        )
 
     return "\n".join(lines)

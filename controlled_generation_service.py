@@ -1,14 +1,14 @@
 import json
 import logging
 
+from sqlalchemy import text
+
 from database_service import get_database_engine
 from domain_models import ControlledHintResult, LeakageEvaluation, QuestionData
 from hint_text_utils import format_math, parse_json_object
 from leakage_detection_service import evaluate_hint_leakage
 from llm_gateway import chat_completion_text
 from prompts import HINT_PLAN_PROMPT_SYSTEM, REWRITE_PROMPT_SYSTEM, SYSTEM_INSTRUCTION
-from sqlalchemy import text
-
 
 HINT_STRENGTH_POLICIES = {
     "轻提示": "只给方向性启发、概念提醒或检查角度，避免任何关键中间式、关键数值和最终结论。",
@@ -21,9 +21,9 @@ def get_dynamic_system_prompt() -> str:
     try:
         engine_tmp = get_database_engine()
         with engine_tmp.connect() as conn_tmp:
-            dyn_prompt_res = conn_tmp.execute(text(
-                "SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'"
-            )).fetchone()
+            dyn_prompt_res = conn_tmp.execute(
+                text("SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")
+            ).fetchone()
             if dyn_prompt_res:
                 return dyn_prompt_res[0]
     except Exception as e:
@@ -46,14 +46,17 @@ def build_hint_plan(
     std_sol = question_data.get("solution", "")
     strength_policy = get_hint_strength_policy(hint_strength)
     if not (std_ans or std_sol):
-        return json.dumps({
-            "knowledge_point": "待由题目判断",
-            "diagnosis": "根据学生请求进行局部启发",
-            "hint_goal": "引导学生检查当前思路中的下一步",
-            "allowed_hint_level": hint_strength,
-            "strength_policy": strength_policy,
-            "forbidden_content": "最终答案、完整步骤、关键数值",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "knowledge_point": "待由题目判断",
+                "diagnosis": "根据学生请求进行局部启发",
+                "hint_goal": "引导学生检查当前思路中的下一步",
+                "allowed_hint_level": hint_strength,
+                "strength_policy": strength_policy,
+                "forbidden_content": "最终答案、完整步骤、关键数值",
+            },
+            ensure_ascii=False,
+        )
 
     prompt = f"""题目：
 {question_data['content']}

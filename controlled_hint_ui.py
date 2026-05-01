@@ -3,38 +3,33 @@ from html import escape
 
 import streamlit as st
 
+from app_constants import ChatRole, format_tutoring_query
 from hint_system_core import format_math, generate_controlled_hint
 from math_comp import math_input
-
-
-PEDAGOGICAL_QUICK_REQUESTS = [
-    {
-        "label": "提示下一步",
-        "intent": "下一步引导",
-        "prompt": "请只提示我下一步应该怎么思考，不要给出答案。",
-    },
-    {
-        "label": "检查错误",
-        "intent": "错因诊断",
-        "prompt": "请帮我指出当前作答最可能错在哪里，但不要直接给最终答案。",
-    },
-    {
-        "label": "只给思路",
-        "intent": "概念提示",
-        "prompt": "请只给解题思路和关键概念提醒，避免泄露答案。",
-    },
-    {
-        "label": "复习知识点",
-        "intent": "知识点复习",
-        "prompt": "请总结这道题涉及的知识点，并给我一个复习方向。",
-    },
-]
-
-HINT_STRENGTH_OPTIONS = {
-    "轻提示": "只给方向和概念提醒",
-    "中提示": "提示下一步思考路径",
-    "强提示": "给出更具体的分步引导",
-}
+from session_keys import (
+    SessionKey,
+    composer_input,
+    composer_reset,
+    hint_safety_status,
+    hint_strength,
+    math_widget,
+    math_widget_version,
+    pending_pedagogical_intent,
+    quick_help_button,
+    send_help_button,
+)
+from ui_texts import (
+    DEFAULT_PEDAGOGICAL_INTENT,
+    HINT_STRENGTH_OPTIONS,
+    LEGACY_TUTORING_TITLE,
+    PEDAGOGICAL_QUICK_REQUESTS,
+    TUTORING_COMPOSER_GUIDE,
+    TUTORING_EMPTY_WARNING,
+    TUTORING_FALLBACK_HINT,
+    TUTORING_SPINNER,
+    TUTORING_SUBTITLE,
+    TUTORING_TITLE,
+)
 
 
 def apply_controlled_hint_panel_style():
@@ -134,20 +129,20 @@ def apply_controlled_hint_panel_style():
 
 def _normalize_hint_dialogue_history(history: list):
     if not history:
-        history.append({"role": "assistant", "content": "请求智能辅导"})
+        history.append({"role": ChatRole.ASSISTANT, "content": TUTORING_TITLE})
         return
 
     for message in history:
-        if message.get("role") == "assistant" and message.get("content") == "智能辅导":
-            message["content"] = "请求智能辅导"
+        if message.get("role") == ChatRole.ASSISTANT and message.get("content") == LEGACY_TUTORING_TITLE:
+            message["content"] = TUTORING_TITLE
 
 
 def _render_hint_dialogue_history(history: list):
     for message in history:
         with st.chat_message(message["role"]):
-            if message.get("role") == "assistant" and message.get("content") == "请求智能辅导":
+            if message.get("role") == ChatRole.ASSISTANT and message.get("content") == TUTORING_TITLE:
                 st.markdown(
-                    "<div style='font-size: 20px; font-weight: 700; line-height: 1.55;'>请求智能辅导</div>",
+                    f"<div style='font-size: 20px; font-weight: 700; line-height: 1.55;'>{TUTORING_TITLE}</div>",
                     unsafe_allow_html=True,
                 )
             else:
@@ -196,15 +191,15 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
     apply_controlled_hint_panel_style()
 
     qid = data["question_data"]["id"]
-    history = st.session_state.chat_histories.setdefault(qid, [])
+    history = st.session_state[SessionKey.CHAT_HISTORIES].setdefault(qid, [])
     _normalize_hint_dialogue_history(history)
-    hint_strength_key = f"hint_strength_{qid}"
-    safety_status_key = f"hint_safety_status_{qid}"
-    pending_intent_key = f"pending_pedagogical_intent_{qid}"
+    hint_strength_key = hint_strength(qid)
+    safety_status_key = hint_safety_status(qid)
+    pending_intent_key = pending_pedagogical_intent(qid)
 
-    st.markdown("<div class='tutoring-title'>请求智能辅导</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='tutoring-title'>{TUTORING_TITLE}</div>", unsafe_allow_html=True)
     st.markdown(
-        "<div class='tutoring-subtitle'>系统会先生成启发式提示，再进行答案泄露检测与必要重写。</div>",
+        f"<div class='tutoring-subtitle'>{TUTORING_SUBTITLE}</div>",
         unsafe_allow_html=True,
     )
     _render_hint_dialogue_history(history)
@@ -212,9 +207,9 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
     if safety_status_key in st.session_state:
         _render_safety_status(st.session_state[safety_status_key])
 
-    composer_input_key = f"composer_input_{qid}"
-    composer_reset_key = f"composer_reset_{qid}"
-    math_widget_version_key = f"math_widget_version_{qid}"
+    composer_input_key = composer_input(qid)
+    composer_reset_key = composer_reset(qid)
+    math_widget_version_key = math_widget_version(qid)
 
     if composer_input_key not in st.session_state:
         st.session_state[composer_input_key] = ""
@@ -246,21 +241,21 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
     quick_cols = st.columns(len(PEDAGOGICAL_QUICK_REQUESTS))
     for quick_index, request_config in enumerate(PEDAGOGICAL_QUICK_REQUESTS):
         with quick_cols[quick_index]:
-            if st.button(request_config["label"], key=f"quick_help_{qid}_{quick_index}", use_container_width=True):
-                history.append({"role": "user", "content": request_config["prompt"]})
+            if st.button(request_config["label"], key=quick_help_button(qid, quick_index), use_container_width=True):
+                history.append({"role": ChatRole.USER, "content": request_config["prompt"]})
                 st.session_state[pending_intent_key] = request_config["intent"]
                 st.session_state[composer_input_key] = ""
                 st.session_state[composer_reset_key] = True
                 st.rerun()
 
     st.markdown(
-        "<div class='composer-guide'>👇🏻请在下方输入智能辅导提示词</div>",
+        f"<div class='composer-guide'>{TUTORING_COMPOSER_GUIDE}</div>",
         unsafe_allow_html=True,
     )
     with st.container(border=True):
         composer_value = math_input(
             default_value=st.session_state.get(composer_input_key, ""),
-            key=f"react_math_{qid}_{st.session_state[math_widget_version_key]}",
+            key=math_widget(qid, st.session_state[math_widget_version_key]),
         )
 
         if composer_value is not None:
@@ -268,22 +263,22 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
 
     send_col1, send_col2 = st.columns([5, 1])
     with send_col2:
-        if st.button("发送", key=f"send_help_{qid}", type="primary", use_container_width=True):
+        if st.button("发送", key=send_help_button(qid), type="primary", use_container_width=True):
             query = st.session_state.get(composer_input_key, "").strip()
             if query:
-                history.append({"role": "user", "content": query})
-                st.session_state[pending_intent_key] = "自主提问"
+                history.append({"role": ChatRole.USER, "content": query})
+                st.session_state[pending_intent_key] = DEFAULT_PEDAGOGICAL_INTENT
                 st.session_state[composer_reset_key] = True
                 st.rerun()
             else:
-                st.warning("请输入辅导问题后再发送。")
+                st.warning(TUTORING_EMPTY_WARNING)
 
-    if history and history[-1]["role"] == "user":
+    if history and history[-1]["role"] == ChatRole.USER:
         with st.chat_message("assistant"):
             last_query = history[-1]["content"]
-            pedagogical_intent = st.session_state.get(pending_intent_key, "自主提问")
+            pedagogical_intent = st.session_state.get(pending_intent_key, DEFAULT_PEDAGOGICAL_INTENT)
             try:
-                with st.spinner("正在生成智能辅导并进行答案泄露检测....."):
+                with st.spinner(TUTORING_SPINNER):
                     controlled = generate_controlled_hint(
                         data["question_data"],
                         data["user_answer"],
@@ -298,10 +293,10 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                 _render_safety_status(status)
                 if controlled["rewrite_count"] > 0:
                     st.caption(f"已自动重写 {controlled['rewrite_count']} 次，以降低答案泄露风险。")
-                history.append({"role": "assistant", "content": final})
+                history.append({"role": ChatRole.ASSISTANT, "content": final})
                 record_learning_interaction(
                     qid,
-                    f"【辅导】【提示强度：{selected_strength}】{last_query}",
+                    format_tutoring_query(selected_strength, last_query),
                     final,
                     leak=controlled["is_leaking"],
                     leakage_score=controlled["leakage_score"],
@@ -313,9 +308,9 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                 )
             except Exception as exc:
                 logging.error(f"Controlled hint generation error: {exc}")
-                fallback = "这道题我们先不急着看答案。你可以先指出题目中最关键的条件是什么，再想一想它对应哪个定义或公式？"
+                fallback = TUTORING_FALLBACK_HINT
                 st.markdown(fallback)
-                history.append({"role": "assistant", "content": fallback})
+                history.append({"role": ChatRole.ASSISTANT, "content": fallback})
                 fallback_status = {
                     "label": "保底安全提示",
                     "badge_class": "safety-badge-safe",
@@ -325,7 +320,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                 _render_safety_status(fallback_status)
                 record_learning_interaction(
                     qid,
-                    f"【辅导】【提示强度：{selected_strength}】{last_query}",
+                    format_tutoring_query(selected_strength, last_query),
                     fallback,
                     leak=0,
                     hint_strength=selected_strength,

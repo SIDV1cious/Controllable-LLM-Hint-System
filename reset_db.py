@@ -16,10 +16,12 @@ engine = create_engine(connection_url)
 
 
 def fix_math(text_str):
-    if not text_str: return text_str
-    if '$' in text_str: return text_str
-    if any(c in text_str for c in ['\\', '^', '_']):
-        m = re.match(r'^([A-D]\.)\s*(.*)$', text_str.strip())
+    if not text_str:
+        return text_str
+    if "$" in text_str:
+        return text_str
+    if any(c in text_str for c in ["\\", "^", "_"]):
+        m = re.match(r"^([A-D]\.)\s*(.*)$", text_str.strip())
         if m:
             return f"{m.group(1)} ${m.group(2)}$"
         else:
@@ -45,7 +47,7 @@ with engine.connect() as conn:
         pass
 
     print("⏳ 正在自动修复 LaTeX 格式并导入 47 道题...")
-    with open('选择题_with_solutions.json', 'r', encoding='utf-8') as f:
+    with open("选择题_with_solutions.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
     for item in data:
@@ -63,7 +65,7 @@ with engine.connect() as conn:
 
         conn.execute(
             text("INSERT INTO custom_questions (category, content, answer, solution) VALUES (:c, :t, :a, :s)"),
-            {"c": "高等数学", "t": full_content, "a": ans_text, "s": sol_text}
+            {"c": "高等数学", "t": full_content, "a": ans_text, "s": sol_text},
         )
     conn.commit()
     print("✅ 成功！所有题目的公式格式已修复！")

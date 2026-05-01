@@ -1,5 +1,6 @@
 import streamlit as st
 
+from app_constants import APP_TITLE, UserRole
 from course_repository import list_course_catalog
 from session_state_manager import set_authenticated_user
 
@@ -144,7 +145,7 @@ def render_identity_access_page(
     restore_user_learning_state,
 ):
     apply_identity_page_layout()
-    st.markdown("<h1 class='auth-page-title'>基于LLM的可控解题提示生成系统</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 class='auth-page-title'>{APP_TITLE}</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
         tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
@@ -158,7 +159,7 @@ def render_identity_access_page(
                     if is_auth:
                         set_authenticated_user(u_in.strip(), role)
                         record_login_event(u_in.strip())
-                        if role != "admin":
+                        if role != UserRole.ADMIN:
                             restore_user_learning_state(u_in.strip())
                         st.rerun()
                     else:

@@ -5,23 +5,25 @@ from typing import Any
 
 import streamlit as st
 
+from app_constants import DEFAULT_RESTORED_COURSE_NAME, PageMode, UserRole
+from session_keys import SessionKey
 
 SESSION_DEFAULTS: dict[str, Any] = {
-    "logged_in": False,
-    "current_user": None,
-    "user_role": "student",
-    "page_mode": "home",
-    "quiz_queue": [],
-    "current_question_index": 0,
-    "user_answers": {},
-    "assessment_results": [],
-    "review_question_index": None,
-    "chat_histories": {},
-    "session_count": 0,
-    "study_session_id": None,
-    "current_course": None,
-    "is_grading": False,
-    "grading_started": False,
+    SessionKey.LOGGED_IN: False,
+    SessionKey.CURRENT_USER: None,
+    SessionKey.USER_ROLE: UserRole.STUDENT,
+    SessionKey.PAGE_MODE: PageMode.HOME,
+    SessionKey.QUIZ_QUEUE: [],
+    SessionKey.CURRENT_QUESTION_INDEX: 0,
+    SessionKey.USER_ANSWERS: {},
+    SessionKey.ASSESSMENT_RESULTS: [],
+    SessionKey.REVIEW_QUESTION_INDEX: None,
+    SessionKey.CHAT_HISTORIES: {},
+    SessionKey.SESSION_COUNT: 0,
+    SessionKey.STUDY_SESSION_ID: None,
+    SessionKey.CURRENT_COURSE: None,
+    SessionKey.IS_GRADING: False,
+    SessionKey.GRADING_STARTED: False,
 }
 
 
@@ -42,14 +44,14 @@ def set_authenticated_user(
     target: MutableMapping[str, Any] | None = None,
 ) -> None:
     state = _state(target)
-    state["logged_in"] = True
-    state["current_user"] = username
-    state["user_role"] = role
-    state["page_mode"] = "admin" if role == "admin" else "home"
+    state[SessionKey.LOGGED_IN] = True
+    state[SessionKey.CURRENT_USER] = username
+    state[SessionKey.USER_ROLE] = role
+    state[SessionKey.PAGE_MODE] = PageMode.ADMIN if role == UserRole.ADMIN else PageMode.HOME
 
 
 def navigate_to(page_mode: str, target: MutableMapping[str, Any] | None = None) -> None:
-    _state(target)["page_mode"] = page_mode
+    _state(target)[SessionKey.PAGE_MODE] = page_mode
 
 
 def reset_login_session(target: MutableMapping[str, Any] | None = None) -> None:
@@ -66,17 +68,17 @@ def start_quiz_session(
     target: MutableMapping[str, Any] | None = None,
 ) -> None:
     state = _state(target)
-    state["current_course"] = course_name
-    state["quiz_queue"] = questions
-    state["user_answers"] = {i: "" for i in range(len(questions))}
-    state["current_question_index"] = 0
-    state["assessment_results"] = []
-    state["review_question_index"] = None
-    state["chat_histories"] = {}
-    state["study_session_id"] = study_session_id
-    state["is_grading"] = False
-    state["grading_started"] = False
-    state["page_mode"] = "quiz"
+    state[SessionKey.CURRENT_COURSE] = course_name
+    state[SessionKey.QUIZ_QUEUE] = questions
+    state[SessionKey.USER_ANSWERS] = {i: "" for i in range(len(questions))}
+    state[SessionKey.CURRENT_QUESTION_INDEX] = 0
+    state[SessionKey.ASSESSMENT_RESULTS] = []
+    state[SessionKey.REVIEW_QUESTION_INDEX] = None
+    state[SessionKey.CHAT_HISTORIES] = {}
+    state[SessionKey.STUDY_SESSION_ID] = study_session_id
+    state[SessionKey.IS_GRADING] = False
+    state[SessionKey.GRADING_STARTED] = False
+    state[SessionKey.PAGE_MODE] = PageMode.QUIZ
 
 
 def restore_quiz_session(
@@ -84,10 +86,10 @@ def restore_quiz_session(
     target: MutableMapping[str, Any] | None = None,
 ) -> None:
     state = _state(target)
-    state["quiz_queue"] = questions
+    state[SessionKey.QUIZ_QUEUE] = questions
     if questions:
-        state["current_course"] = questions[0].get("category", "继续测验")
-    state["page_mode"] = "quiz"
+        state[SessionKey.CURRENT_COURSE] = questions[0].get("category", DEFAULT_RESTORED_COURSE_NAME)
+    state[SessionKey.PAGE_MODE] = PageMode.QUIZ
 
 
 def append_chat_message(
@@ -97,7 +99,7 @@ def append_chat_message(
     target: MutableMapping[str, Any] | None = None,
 ) -> None:
     state = _state(target)
-    state.setdefault("chat_histories", {}).setdefault(question_id, []).append(
+    state.setdefault(SessionKey.CHAT_HISTORIES, {}).setdefault(question_id, []).append(
         {"role": role, "content": content}
     )
 
@@ -106,12 +108,12 @@ def set_assessment_results(
     results: list[dict[str, Any]],
     target: MutableMapping[str, Any] | None = None,
 ) -> None:
-    _state(target)["assessment_results"] = results
+    _state(target)[SessionKey.ASSESSMENT_RESULTS] = results
 
 
 def complete_assessment_session(target: MutableMapping[str, Any] | None = None) -> None:
     state = _state(target)
-    state["session_count"] = int(state.get("session_count", 0)) + 1
-    state["is_grading"] = False
-    state["grading_started"] = False
-    state["page_mode"] = "results"
+    state[SessionKey.SESSION_COUNT] = int(state.get(SessionKey.SESSION_COUNT, 0)) + 1
+    state[SessionKey.IS_GRADING] = False
+    state[SessionKey.GRADING_STARTED] = False
+    state[SessionKey.PAGE_MODE] = PageMode.RESULTS

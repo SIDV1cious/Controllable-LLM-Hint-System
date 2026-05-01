@@ -7,7 +7,9 @@ from system_config import AppConfig
 
 @st.cache_resource
 def get_database_engine() -> Engine:
-    connection_url = f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
+    connection_url = (
+        f"mysql+pymysql://{AppConfig.DB_USER}:{AppConfig.DB_PASSWORD}@{AppConfig.DB_HOST}/{AppConfig.DB_NAME}"
+    )
     return create_engine(connection_url, pool_recycle=1800, pool_pre_ping=True)
 
 
@@ -25,9 +27,9 @@ def fetch_custom_question_rows(conn, db_ids: list):
     if not db_ids:
         return []
 
-    stmt = text(
-        "SELECT id, category, content, answer, solution FROM custom_questions WHERE id IN :ids"
-    ).bindparams(bindparam("ids", expanding=True))
+    stmt = text("SELECT id, category, content, answer, solution FROM custom_questions WHERE id IN :ids").bindparams(
+        bindparam("ids", expanding=True)
+    )
     return conn.execute(stmt, {"ids": list(db_ids)}).fetchall()
 
 

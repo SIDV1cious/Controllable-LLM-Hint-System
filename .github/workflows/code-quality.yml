@@ -1,0 +1,47 @@
+name: Code Quality
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  python-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ruff static analysis
+        run: ruff check .
+
+      - name: Black format check
+        run: black --check .
+
+      - name: Python compile check
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import py_compile
+
+          ignored_parts = {"node_modules", "component-template", "__pycache__"}
+          for path in Path(".").rglob("*.py"):
+              if ignored_parts.intersection(path.parts):
+                  continue
+              py_compile.compile(str(path), doraise=True)
+          PY
+
+      - name: Run tests
+        run: pytest -q

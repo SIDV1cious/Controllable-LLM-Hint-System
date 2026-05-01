@@ -67,9 +67,6 @@ def fetch_student_interaction_logs(username: str):
     engine = get_database_engine()
     with engine.connect() as conn:
         return conn.execute(
-            text(
-                "SELECT question_id, user_query, ai_response "
-                "FROM interaction_logs WHERE student_id = :u"
-            ),
+            text("SELECT question_id, user_query, ai_response " "FROM interaction_logs WHERE student_id = :u"),
             {"u": username},
         ).fetchall()

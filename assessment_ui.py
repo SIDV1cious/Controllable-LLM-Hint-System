@@ -1,9 +1,13 @@
-import streamlit as st
 from html import escape
 
+import streamlit as st
+
+from app_constants import PageMode
+from controlled_hint_ui import render_controlled_hint_panel
 from hint_system_core import build_result_export, format_math, now_shanghai
 from learning_platform_ui import render_assessment_integrity_warning
-from controlled_hint_ui import render_controlled_hint_panel
+from session_keys import SessionKey, answer_input, hint_safety_status, navigation_button, review_button
+from session_state_manager import navigate_to
 
 
 def apply_results_dashboard_style():
@@ -140,7 +144,7 @@ def _render_safety_summary(results: list):
     cards = []
     for index, result in enumerate(results, start=1):
         qid = result["question_data"]["id"]
-        status = st.session_state.get(f"hint_safety_status_{qid}")
+        status = st.session_state.get(hint_safety_status(qid))
         if not status:
             continue
 
@@ -180,13 +184,13 @@ def render_assessment_workspace():
     with page.container():
         render_assessment_integrity_warning()
 
-        idx = st.session_state.current_question_index
-        total = len(st.session_state.quiz_queue)
-        question = st.session_state.quiz_queue[idx]
+        idx = st.session_state[SessionKey.CURRENT_QUESTION_INDEX]
+        total = len(st.session_state[SessionKey.QUIZ_QUEUE])
+        question = st.session_state[SessionKey.QUIZ_QUEUE][idx]
 
-        current_ans_key = f"ans_{idx}"
+        current_ans_key = answer_input(idx)
         if current_ans_key in st.session_state:
-            st.session_state.user_answers[idx] = st.session_state[current_ans_key]
+            st.session_state[SessionKey.USER_ANSWERS][idx] = st.session_state[current_ans_key]
 
         st.markdown("### 🗂️ 题目列表")
         with st.container():
@@ -197,57 +201,61 @@ def render_assessment_workspace():
                     q_idx = row_start + col_index
                     if q_idx < total:
                         with cols[col_index]:
-                            is_answered = bool(st.session_state.user_answers.get(q_idx, "").strip())
+                            is_answered = bool(st.session_state[SessionKey.USER_ANSWERS].get(q_idx, "").strip())
                             btn_type = "primary" if q_idx == idx else "secondary"
                             btn_label = f"{q_idx + 1} ✅" if is_answered else str(q_idx + 1)
 
-                            if st.button(btn_label, key=f"nav_btn_{q_idx}", type=btn_type, use_container_width=True):
-                                st.session_state.current_question_index = q_idx
+                            if st.button(
+                                btn_label, key=navigation_button(q_idx), type=btn_type, use_container_width=True
+                            ):
+                                st.session_state[SessionKey.CURRENT_QUESTION_INDEX] = q_idx
                                 st.rerun()
 
         st.divider()
-        st.progress((idx + 1) / total, text=f"【{st.session_state.current_course}】 进度：{idx + 1} / {total}")
+        st.progress(
+            (idx + 1) / total, text=f"【{st.session_state[SessionKey.CURRENT_COURSE]}】 进度：{idx + 1} / {total}"
+        )
         st.markdown(f"### 第 {idx + 1} 题")
         st.info(format_math(question["content"]))
 
         st.markdown("#### ✍️ 你的解答")
         answer = st.text_area(
             "请输入你的答案（选择题请直接输入选项字母）：",
-            value=st.session_state.user_answers.get(idx, ""),
+            value=st.session_state[SessionKey.USER_ANSWERS].get(idx, ""),
             height=150,
-            key=f"ans_{idx}",
+            key=current_ans_key,
         )
-        st.session_state.user_answers[idx] = answer
+        st.session_state[SessionKey.USER_ANSWERS][idx] = answer
 
         nav_cols = st.columns(2)
         with nav_cols[0]:
             if idx > 0 and st.button("⬅️ 上一题", use_container_width=True):
-                st.session_state.current_question_index -= 1
+                st.session_state[SessionKey.CURRENT_QUESTION_INDEX] -= 1
                 st.rerun()
 
         with nav_cols[1]:
             if idx < total - 1:
                 if st.button("下一题 ➡️", use_container_width=True):
-                    st.session_state.current_question_index += 1
+                    st.session_state[SessionKey.CURRENT_QUESTION_INDEX] += 1
                     st.rerun()
             else:
                 if st.button("✅ 提交试卷", type="primary", use_container_width=True):
                     missing = [
                         str(answer_idx + 1)
                         for answer_idx in range(total)
-                        if not st.session_state.user_answers.get(answer_idx, "").strip()
+                        if not st.session_state[SessionKey.USER_ANSWERS].get(answer_idx, "").strip()
                     ]
                     if missing:
                         st.warning(f"⚠️ 第 {'、'.join(missing)} 题尚未作答，请完成后再提交。")
                     else:
-                        st.session_state.is_grading = True
-                        st.session_state.grading_started = False
-                        st.session_state.page_mode = "grading"
+                        st.session_state[SessionKey.IS_GRADING] = True
+                        st.session_state[SessionKey.GRADING_STARTED] = False
+                        navigate_to(PageMode.GRADING)
                         st.rerun()
 
 
 def render_automated_grading_screen(sidebar_slot, submit_answers_and_run_assessment):
-    st.session_state.is_grading = True
+    st.session_state[SessionKey.IS_GRADING] = True
     sidebar_slot.empty()
 
     st.markdown(
@@ -297,8 +305,8 @@ body {
         unsafe_allow_html=True,
     )
 
-    if not st.session_state.grading_started:
-        st.session_state.grading_started = True
+    if not st.session_state[SessionKey.GRADING_STARTED]:
+        st.session_state[SessionKey.GRADING_STARTED] = True
         submit_answers_and_run_assessment()
 
 
@@ -315,10 +323,10 @@ def render_assessment_results_dashboard(record_learning_interaction):
     )
 
     if st.button("🔄 返回大厅开启新课程"):
-        st.session_state.page_mode = "home"
+        navigate_to(PageMode.HOME)
         st.rerun()
 
-    results = st.session_state.assessment_results
+    results = st.session_state[SessionKey.ASSESSMENT_RESULTS]
     if results:
         total_count = len(results)
         correct_count = sum(1 for item in results if item.get("is_correct"))
@@ -345,26 +353,26 @@ def render_assessment_results_dashboard(record_learning_interaction):
     with left_col:
         with st.container(border=True):
             st.markdown("<div class='review-panel-title'>题目复盘</div>", unsafe_allow_html=True)
-            for index, result in enumerate(st.session_state.assessment_results):
+            for index, result in enumerate(st.session_state[SessionKey.ASSESSMENT_RESULTS]):
                 label = "✅ 正确" if result["is_correct"] else "❌ 错误"
-                button_type = "primary" if st.session_state.review_question_index == index else "secondary"
+                button_type = "primary" if st.session_state[SessionKey.REVIEW_QUESTION_INDEX] == index else "secondary"
                 if st.button(
                     f"题 {index + 1} | {label}",
-                    key=f"n_{index}",
+                    key=review_button(index),
                     type=button_type,
                     use_container_width=True,
                 ):
-                    st.session_state.review_question_index = index
+                    st.session_state[SessionKey.REVIEW_QUESTION_INDEX] = index
                     st.rerun()
 
     with right_col:
-        if st.session_state.review_question_index is None:
+        if st.session_state[SessionKey.REVIEW_QUESTION_INDEX] is None:
             with st.container(border=True):
                 st.info("👈🏻请先在左侧选择一道题，查看题目详情并请求智能辅导。")
             return
 
-        review_index = st.session_state.review_question_index
-        data = st.session_state.assessment_results[review_index]
+        review_index = st.session_state[SessionKey.REVIEW_QUESTION_INDEX]
+        data = st.session_state[SessionKey.ASSESSMENT_RESULTS][review_index]
         with st.container(border=True):
             st.markdown(
                 f"<div class='question-review-title'>第 {review_index + 1} 题 · {'正确' if data['is_correct'] else '错误'}</div>",

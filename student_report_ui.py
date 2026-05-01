@@ -3,8 +3,10 @@ import logging
 import streamlit as st
 from sqlalchemy import bindparam, text
 
+from app_constants import ChatRole, InteractionMarker
 from database_service import get_database_engine
 from hint_text_utils import format_math
+from session_keys import SessionKey
 
 
 def render_student_learning_report():
@@ -14,7 +16,7 @@ def render_student_learning_report():
     with engine.connect() as conn:
         study_res = conn.execute(
             text("SELECT SUM(duration_seconds) FROM study_sessions WHERE username = :u"),
-            {"u": st.session_state.current_user},
+            {"u": st.session_state[SessionKey.CURRENT_USER]},
         ).fetchone()
         total_seconds = study_res[0] if study_res and study_res[0] else 0
         total_minutes = round(total_seconds / 60)
@@ -22,9 +24,12 @@ def render_student_learning_report():
         ans_logs = conn.execute(
             text(
                 "SELECT question_id, ai_response FROM interaction_logs "
-                "WHERE student_id = :u AND user_query LIKE '【答案提交】%%'"
+                "WHERE student_id = :u AND user_query LIKE :answer_marker"
             ),
-            {"u": st.session_state.current_user},
+            {
+                "u": st.session_state[SessionKey.CURRENT_USER],
+                "answer_marker": f"{InteractionMarker.ANSWER_SUBMISSION}%",
+            },
         ).fetchall()
         total_answered = len(ans_logs)
         total_correct = sum(1 for log in ans_logs if "正确" in str(log[1]) or "PASS" in str(log[1]))
@@ -54,9 +59,9 @@ def render_student_learning_report():
     if db_ids:
         with engine.connect() as conn:
             try:
-                stmt = text(
-                    "SELECT id, category, content FROM custom_questions WHERE id IN :ids"
-                ).bindparams(bindparam("ids", expanding=True))
+                stmt = text("SELECT id, category, content FROM custom_questions WHERE id IN :ids").bindparams(
+                    bindparam("ids", expanding=True)
+                )
                 res = conn.execute(stmt, {"ids": db_ids}).fetchall()
                 q_dict = {1000 + r[0]: {"category": r[1], "content": r[2]} for r in res}
             except Exception as e:
@@ -69,10 +74,11 @@ def render_student_learning_report():
         q_data = q_dict[qid]
         with st.expander(f"[{q_data['category']}] 错题回顾 (题号: {qid})"):
             st.info(format_math(q_data["content"]))
-            if qid in st.session_state.chat_histories and st.session_state.chat_histories[qid]:
+            chat_histories = st.session_state[SessionKey.CHAT_HISTORIES]
+            if qid in chat_histories and chat_histories[qid]:
                 st.markdown("##### 💬 智能辅导记录")
-                for message in st.session_state.chat_histories[qid]:
-                    if message["role"] == "user":
+                for message in chat_histories[qid]:
+                    if message["role"] == ChatRole.USER:
                         st.markdown(f"**🧑‍🎓 你**: {message['content']}")
                     else:
                         st.markdown(f"**🤖 智能辅导员**: {message['content']}")

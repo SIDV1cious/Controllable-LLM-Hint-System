@@ -1,28 +1,30 @@
 import streamlit as st
 
+from app_constants import PageMode, UserRole
 from learning_session_service import clear_current_quiz_for_user
+from session_keys import SessionKey
 from session_state_manager import navigate_to, reset_login_session
 
 
 def render_sidebar_navigation(sidebar_slot):
-    if st.session_state.page_mode == "grading":
+    if st.session_state[SessionKey.PAGE_MODE] == PageMode.GRADING:
         sidebar_slot.empty()
         return
 
     with sidebar_slot.container():
-        role_label = "管理员" if st.session_state.user_role == "admin" else "学生"
-        st.write(f"当前账号: `{st.session_state.current_user}` ({role_label})")
+        role_label = "管理员" if st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN else "学生"
+        st.write(f"当前账号: `{st.session_state[SessionKey.CURRENT_USER]}` ({role_label})")
 
-        if st.session_state.user_role == "student":
-            if st.session_state.page_mode != "home":
+        if st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT:
+            if st.session_state[SessionKey.PAGE_MODE] != PageMode.HOME:
                 if st.button("🏠 返回大厅"):
-                    clear_current_quiz_for_user(st.session_state.current_user)
-                    navigate_to("home")
+                    clear_current_quiz_for_user(st.session_state[SessionKey.CURRENT_USER])
+                    navigate_to(PageMode.HOME)
                     st.rerun()
 
-            if st.session_state.page_mode != "report":
+            if st.session_state[SessionKey.PAGE_MODE] != PageMode.REPORT:
                 if st.button("📊 我的学情报告"):
-                    navigate_to("report")
+                    navigate_to(PageMode.REPORT)
                     st.rerun()
 
         if st.button("🚪 退出登录"):

@@ -19,7 +19,7 @@ from hint_text_utils import format_math, parse_json_object
 from leakage_detection_service import evaluate_hint_leakage, heuristic_leakage_check
 from llm_gateway import aclient, chat_completion_text, client
 from result_export_service import build_result_export
-from system_config import AppConfig, SHANGHAI_TZ, get_secret_or_env, now_shanghai
+from system_config import SHANGHAI_TZ, AppConfig, get_secret_or_env, now_shanghai
 
 __all__ = [
     "AppConfig",

@@ -5,7 +5,6 @@ from sqlalchemy import text
 
 from hint_system_core import ensure_leakage_observability_columns, now_shanghai
 
-
 HINT_STRENGTH_PATTERN = re.compile(r"【提示强度：([^】]+)】")
 
 
@@ -66,9 +65,11 @@ def fetch_hint_experiment_logs(conn) -> pd.DataFrame:
         df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0).astype(int)
 
     df["hint_strength"] = df.apply(
-        lambda row: str(row["hint_strength"]).strip()
-        if str(row.get("hint_strength") or "").strip()
-        else _extract_hint_strength(row["user_query"]),
+        lambda row: (
+            str(row["hint_strength"]).strip()
+            if str(row.get("hint_strength") or "").strip()
+            else _extract_hint_strength(row["user_query"])
+        ),
         axis=1,
     )
     df["pedagogical_intent"] = df["pedagogical_intent"].fillna("").astype(str).str.strip()
@@ -154,11 +155,15 @@ def build_experiment_markdown_report(df: pd.DataFrame) -> str:
     ]
     for title, column in grouped_sections:
         lines.extend([title, ""])
-        grouped = df.groupby(column).agg(
-            提示数量=("id", "count"),
-            平均泄露评分=("leakage_score", "mean"),
-            平均重写次数=("rewrite_count", "mean"),
-        ).reset_index()
+        grouped = (
+            df.groupby(column)
+            .agg(
+                提示数量=("id", "count"),
+                平均泄露评分=("leakage_score", "mean"),
+                平均重写次数=("rewrite_count", "mean"),
+            )
+            .reset_index()
+        )
         for _, row in grouped.iterrows():
             lines.append(
                 f"- {row[column]}：{int(row['提示数量'])} 条，"

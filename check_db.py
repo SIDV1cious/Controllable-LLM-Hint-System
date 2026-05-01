@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 构建连接地址
-db_url = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}/{os.getenv('DB_NAME')}"
+db_url = (
+    f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}/{os.getenv('DB_NAME')}"
+)
 
 try:
     engine = create_engine(db_url)

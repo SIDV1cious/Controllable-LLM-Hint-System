@@ -1,0 +1,41 @@
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | __pycache__
+  | questions\.py
+  | reset_db\.py
+  | check_db\.py
+  | streamlit-component-x
+  | streamlit-component-x/streamlit_component_x/frontend/node_modules
+  | component-template
+)/
+'''
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "questions.py",
+    "reset_db.py",
+    "check_db.py",
+    "streamlit-component-x",
+    "component-template",
+    "streamlit-component-x/streamlit_component_x/frontend/node_modules",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",
+    "B008",
+    "B905",
+]

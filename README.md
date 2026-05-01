@@ -26,6 +26,9 @@
 .
 ├── app.py                         # Streamlit 部署入口
 ├── controlled_hint_system_app.py   # 系统主流程与页面路由入口
+├── app_constants.py                # 页面模式、用户角色、交互标记等全局常量
+├── session_keys.py                 # Streamlit session_state key 与动态组件 key
+├── ui_texts.py                     # 智能辅导按钮、提示强度和用户可见文案
 ├── hint_system_core.py            # 兼容旧调用的核心服务门面
 ├── system_config.py               # 环境变量、系统配置与时区工具
 ├── database_service.py            # 数据库连接、题目转换与日志字段兼容迁移
@@ -61,6 +64,8 @@
 ├── check_db.py                    # 数据库连接检查
 ├── 选择题_with_solutions.json       # 47道带标准答案和解析的选择题
 ├── requirements.txt               # Python依赖
+├── pyproject.toml                  # Ruff、Black 等代码质量工具配置
+├── .github/workflows/              # GitHub Actions 自动质量检查
 ├── docs/
 │   ├── database_schema.sql         # MySQL建表脚本
 │   ├── migrations/                 # 数据库增量迁移脚本

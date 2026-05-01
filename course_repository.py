@@ -6,7 +6,6 @@ from sqlalchemy import text
 
 from database_service import get_database_engine
 
-
 BASE_COURSES: list[tuple[str, str]] = [
     ("高等数学", "包含极限、导数、微积分等核心考点，重点测试逻辑推导能力。"),
     ("线性代数", "包含矩阵运算、特征值、二次型等，培养空间与代数转换思维。"),

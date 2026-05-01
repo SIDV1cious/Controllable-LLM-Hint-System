@@ -8,6 +8,7 @@ import re
 import streamlit as st
 from werkzeug.security import generate_password_hash
 
+from app_constants import ChatRole, InteractionMarker, format_answer_submission
 from hint_system_core import AppConfig, batch_assess, now_shanghai, verify_password
 from interaction_repository import (
     build_interaction_payload,
@@ -15,15 +16,16 @@ from interaction_repository import (
     insert_interaction_log,
 )
 from question_repository import fetch_questions_by_course, fetch_questions_by_public_ids
+from session_keys import SessionKey
 from session_state_manager import (
     append_chat_message,
     complete_assessment_session,
-    init_session_state,
     restore_quiz_session,
     set_assessment_results,
     start_quiz_session,
 )
 from study_session_repository import close_study_session, create_study_session
+from ui_texts import EMPTY_COURSE_QUESTION_WARNING
 from user_repository import (
     clear_user_current_quiz_ids,
     create_student_user,
@@ -34,12 +36,14 @@ from user_repository import (
     user_exists,
 )
 
-
-HINT_STRENGTH_MARK_PATTERN = re.compile(r"【提示强度：[^】]+】")
+HINT_STRENGTH_MARK_PATTERN = re.compile(
+    rf"{re.escape(InteractionMarker.HINT_STRENGTH_PREFIX)}[^{InteractionMarker.HINT_STRENGTH_SUFFIX}]+"
+    rf"{re.escape(InteractionMarker.HINT_STRENGTH_SUFFIX)}"
+)
 
 
 def _clean_restored_tutoring_query(query: str) -> str:
-    cleaned = str(query or "").replace("【辅导】", "")
+    cleaned = str(query or "").replace(InteractionMarker.TUTORING, "")
     cleaned = HINT_STRENGTH_MARK_PATTERN.sub("", cleaned)
     return cleaned.strip()
 
@@ -84,7 +88,7 @@ def record_learning_interaction(
     try:
         payload = build_interaction_payload(
             question_id=qid,
-            student_id=st.session_state.current_user,
+            student_id=st.session_state[SessionKey.CURRENT_USER],
             user_query=qry,
             ai_response=rsp,
             is_leaking_answer=leak,
@@ -108,10 +112,10 @@ def restore_user_learning_state(username: str) -> None:
             restore_quiz_session(questions)
 
     for qid, query, response in fetch_student_interaction_logs(username):
-        if "【辅导】" not in str(query or ""):
+        if InteractionMarker.TUTORING not in str(query or ""):
             continue
-        append_chat_message(qid, "user", _clean_restored_tutoring_query(query))
-        append_chat_message(qid, "assistant", response)
+        append_chat_message(qid, ChatRole.USER, _clean_restored_tutoring_query(query))
+        append_chat_message(qid, ChatRole.ASSISTANT, response)
 
 
 def start_course_assessment_session(course_name: str) -> None:
@@ -120,15 +124,15 @@ def start_course_assessment_session(course_name: str) -> None:
     course_questions = random.sample(all_questions, min(quiz_size, len(all_questions))) if all_questions else []
 
     if not course_questions:
-        st.toast("题库内目前无该课程对应题目。", icon="⚠️")
+        st.toast(EMPTY_COURSE_QUESTION_WARNING, icon="⚠️")
         return
 
     save_user_current_quiz_ids(
-        st.session_state.current_user,
+        st.session_state[SessionKey.CURRENT_USER],
         [question["id"] for question in course_questions],
     )
     study_session_id = create_study_session(
-        st.session_state.current_user,
+        st.session_state[SessionKey.CURRENT_USER],
         course_name,
         now_shanghai(),
     )
@@ -138,10 +142,12 @@ def start_course_assessment_session(course_name: str) -> None:
 
 def submit_answers_and_run_assessment() -> None:
     assessment_items = []
-    grading_results = asyncio.run(batch_assess(st.session_state.quiz_queue, st.session_state.user_answers))
+    quiz_queue = st.session_state[SessionKey.QUIZ_QUEUE]
+    user_answers = st.session_state[SessionKey.USER_ANSWERS]
+    grading_results = asyncio.run(batch_assess(quiz_queue, user_answers))
 
-    for index, (question, is_correct) in enumerate(zip(st.session_state.quiz_queue, grading_results)):
-        user_answer = st.session_state.user_answers.get(index, "未作答")
+    for index, (question, is_correct) in enumerate(zip(quiz_queue, grading_results)):
+        user_answer = user_answers.get(index, "未作答")
         assessment_items.append(
             {
                 "question_data": question,
@@ -151,15 +157,15 @@ def submit_answers_and_run_assessment() -> None:
         )
         record_learning_interaction(
             question["id"],
-            f"【答案提交】{user_answer}",
+            format_answer_submission(user_answer),
             "正确" if is_correct else "错误",
         )
 
     set_assessment_results(assessment_items)
 
-    if st.session_state.study_session_id:
-        close_study_session(st.session_state.study_session_id, now_shanghai())
-        clear_user_current_quiz_ids(st.session_state.current_user)
+    if st.session_state[SessionKey.STUDY_SESSION_ID]:
+        close_study_session(st.session_state[SessionKey.STUDY_SESSION_ID], now_shanghai())
+        clear_user_current_quiz_ids(st.session_state[SessionKey.CURRENT_USER])
 
     complete_assessment_session()
     st.rerun()

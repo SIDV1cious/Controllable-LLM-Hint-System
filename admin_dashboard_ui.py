@@ -60,9 +60,9 @@ def render_learning_overview_dashboard(conn):
         if not df_interact_raw.empty:
             q_df = pd.read_sql("SELECT id, category FROM custom_questions", conn)
             q_id_map = {str(1000 + int(row["id"])): str(row["category"]) for _, row in q_df.iterrows()}
-            df_interact_raw["clean_id"] = pd.to_numeric(
-                df_interact_raw["question_id"], errors="coerce"
-            ).fillna(-1).astype(int).astype(str)
+            df_interact_raw["clean_id"] = (
+                pd.to_numeric(df_interact_raw["question_id"], errors="coerce").fillna(-1).astype(int).astype(str)
+            )
             df_interact_raw["course_name"] = df_interact_raw["clean_id"].map(q_id_map)
             df_valid = df_interact_raw.dropna(subset=["course_name"]).copy()
             if not df_valid.empty:

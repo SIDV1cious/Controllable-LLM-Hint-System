@@ -1,0 +1,42 @@
+"""Project-wide constants for the controllable hint generation system."""
+
+APP_TITLE = "基于LLM的可控解题提示生成系统"
+DEFAULT_RESTORED_COURSE_NAME = "继续测验"
+
+
+class UserRole:
+    ADMIN = "admin"
+    STUDENT = "student"
+
+
+class PageMode:
+    ADMIN = "admin"
+    HOME = "home"
+    QUIZ = "quiz"
+    GRADING = "grading"
+    RESULTS = "results"
+    REPORT = "report"
+
+
+class ChatRole:
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class InteractionMarker:
+    TUTORING = "【辅导】"
+    ANSWER_SUBMISSION = "【答案提交】"
+    HINT_STRENGTH_PREFIX = "【提示强度："
+    HINT_STRENGTH_SUFFIX = "】"
+
+
+def format_tutoring_query(hint_strength: str, query: str) -> str:
+    return (
+        f"{InteractionMarker.TUTORING}"
+        f"{InteractionMarker.HINT_STRENGTH_PREFIX}{hint_strength}{InteractionMarker.HINT_STRENGTH_SUFFIX}"
+        f"{query}"
+    )
+
+
+def format_answer_submission(answer: str) -> str:
+    return f"{InteractionMarker.ANSWER_SUBMISSION}{answer}"
