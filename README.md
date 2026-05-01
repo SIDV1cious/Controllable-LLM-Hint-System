@@ -26,9 +26,24 @@
 .
 ├── app.py                         # Streamlit 部署入口
 ├── controlled_hint_system_app.py   # 系统主流程与页面路由入口
-├── hint_system_core.py            # 配置、数据库工具、判题与受控提示生成服务
+├── hint_system_core.py            # 兼容旧调用的核心服务门面
+├── system_config.py               # 环境变量、系统配置与时区工具
+├── database_service.py            # 数据库连接、题目转换与日志字段兼容迁移
+├── llm_gateway.py                 # 大模型客户端与通用调用网关
+├── automated_assessment_service.py # 自动判题服务
+├── leakage_detection_service.py    # 答案泄露检测服务
+├── controlled_generation_service.py # 受控提示计划、生成与自动重写服务
+├── hint_text_utils.py             # LaTeX 文本规范化与 JSON 解析工具
+├── result_export_service.py       # 测验结果导出服务
 ├── learning_session_service.py     # 学习会话、登录注册、抽题与交互记录服务
 ├── experiment_analytics_service.py # 提示强度、教学意图与泄露指标统计服务
+├── admin_console_ui.py            # 管理端控制台路由
+├── admin_dashboard_ui.py          # 管理端学情可视化大屏
+├── admin_monitoring_ui.py         # 登录、学习时长与交互监控页面
+├── admin_course_management_ui.py  # 课程与题库管理页面
+├── admin_prompt_ui.py             # Prompt 热更新页面
+├── sidebar_navigation.py          # 登录后侧边栏导航
+├── student_report_ui.py           # 学生个人学情与错题报告
 ├── learning_platform_ui.py        # 登录注册、课程入口与平台通用视觉主题
 ├── assessment_ui.py               # 课程评测流程、阅卷页与结果仪表盘
 ├── controlled_hint_ui.py          # 受控解题提示面板、快捷请求与公式输入
@@ -42,8 +57,10 @@
 ├── requirements.txt               # Python依赖
 ├── docs/
 │   ├── database_schema.sql         # MySQL建表脚本
+│   ├── migrations/                 # 数据库增量迁移脚本
 │   ├── system_design.md            # 系统设计与研究链路说明
 │   └── experiment_plan.md          # 实验设计与答辩指标建议
+├── tests/                          # 核心纯逻辑单元测试
 └── streamlit-component-x/          # MathLive 自定义组件
 ```
 

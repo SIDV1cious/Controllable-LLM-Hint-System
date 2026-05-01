@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 venv/
 .streamlit/
+node_modules/
+streamlit-component-x/streamlit_component_x/frontend/node_modules/
+component-template/
+.pytest_cache/

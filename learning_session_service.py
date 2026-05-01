@@ -64,6 +64,13 @@ def record_login_event(username: str):
         logging.error(f"record_login_event error: {e}")
 
 
+def clear_current_quiz_for_user(username: str):
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        conn.execute(text("UPDATE users SET current_quiz_ids = NULL WHERE username = :u"), {"u": username})
+        conn.commit()
+
+
 def record_learning_interaction(
     qid: int,
     qry: str,

@@ -7,3 +7,4 @@ pytz
 pandas
 plotly
 Werkzeug
+pytest
