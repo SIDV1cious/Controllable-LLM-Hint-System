@@ -70,6 +70,7 @@
 ├── check_db.py                    # 数据库连接检查
 ├── 选择题_with_solutions.json       # 47道带标准答案和解析的选择题
 ├── requirements.txt               # Python依赖
+├── requirements-dev.txt           # 本地测试、格式化与静态检查依赖
 ├── pyproject.toml                  # Ruff、Black 等代码质量工具配置
 ├── .github/workflows/              # GitHub Actions 自动质量检查
 ├── docs/
@@ -87,6 +88,15 @@
 
 ```powershell
 pip install -r requirements.txt
+```
+
+如果需要在本地运行代码质量检查和单元测试，可额外安装开发依赖：
+
+```powershell
+pip install -r requirements-dev.txt
+ruff check .
+black --check .
+pytest -q
 ```
 
 2. 准备 MySQL 数据库，并执行：
