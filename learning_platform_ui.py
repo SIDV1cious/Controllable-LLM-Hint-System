@@ -181,6 +181,10 @@ def apply_platform_visual_theme():
         box-shadow: var(--shadow-soft);
     }
 
+    .course-lobby-hero {
+        margin-top: clamp(1.7rem, 4.2vh, 3.1rem);
+    }
+
     .page-hero-title {
         margin: 0;
         color: var(--text-main);
@@ -241,7 +245,7 @@ def apply_identity_page_layout():
 <style>
     .auth-page-title {
         text-align: center;
-        margin: clamp(4rem, 18vh, 9rem) 0 1.35rem 0;
+        margin: clamp(5.4rem, 22vh, 10.5rem) 0 1.35rem 0;
         color: #1f2937;
         font-size: clamp(2rem, 3vw, 2.85rem);
         font-weight: 850;
@@ -259,7 +263,7 @@ def apply_identity_page_layout():
 
     @media (max-height: 760px) {
         .auth-page-title {
-            margin-top: 3rem;
+            margin-top: 4.2rem;
         }
     }
 </style>
@@ -319,7 +323,7 @@ def render_identity_access_page(
 def render_course_selection_portal(start_course_assessment_session):
     st.markdown(
         """
-<div class="page-hero">
+<div class="page-hero course-lobby-hero">
     <div class="section-kicker">LEARNING PORTAL</div>
     <h1 class="page-hero-title">🏫 课程学习大厅</h1>
     <p class="page-hero-subtitle">选择课程模块后进入随堂测验，系统会记录作答情况并提供受控智能辅导。</p>
