@@ -1,3 +1,4 @@
+from assessment_logic import assess_with_reference_answer, build_assessment_prompt, normalize_choice_answer
 from auth_security import verify_password
 from automated_assessment_service import async_assess_single, batch_assess
 from controlled_generation_service import (
@@ -26,8 +27,10 @@ __all__ = [
     "SHANGHAI_TZ",
     "HINT_STRENGTH_POLICIES",
     "aclient",
+    "assess_with_reference_answer",
     "async_assess_single",
     "batch_assess",
+    "build_assessment_prompt",
     "build_hint_plan",
     "build_result_export",
     "chat_completion_text",
@@ -44,6 +47,7 @@ __all__ = [
     "get_secret_or_env",
     "heuristic_leakage_check",
     "now_shanghai",
+    "normalize_choice_answer",
     "parse_json_object",
     "question_row_to_dict",
     "rewrite_unsafe_hint",

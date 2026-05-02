@@ -18,6 +18,11 @@ from app_constants import (
     format_tutoring_query,
 )
 from app_errors import friendly_error
+from assessment_logic import (
+    assess_with_reference_answer,
+    build_assessment_prompt,
+    normalize_choice_answer,
+)
 from course_repository import BASE_COURSES, merge_course_catalog
 from experiment_analytics_service import (
     build_experiment_export_dataframe,
@@ -43,6 +48,35 @@ from student_report_service import calculate_learning_summary, extract_wrong_que
 def test_format_math_normalizes_latex_delimiters():
     assert format_math(r"\( x^2 \)") == "$x^2$"
     assert format_math(r"\[ x^2 \]") == "$$x^2$$"
+
+
+def test_choice_answer_normalization_accepts_common_formats():
+    assert normalize_choice_answer("A") == "A"
+    assert normalize_choice_answer("a.") == "A"
+    assert normalize_choice_answer("（B）") == "B"
+    assert normalize_choice_answer("答案：C") == "C"
+    assert normalize_choice_answer("选择 D") == "D"
+    assert normalize_choice_answer("alpha") is None
+    assert normalize_choice_answer("x > 0") is None
+
+
+def test_reference_answer_assessment_short_circuits_choice_questions():
+    question = {"content": "选择正确选项", "answer": "B", "solution": "略"}
+
+    assert assess_with_reference_answer(question, "答案是B") is True
+    assert assess_with_reference_answer(question, "A") is False
+    assert assess_with_reference_answer({"content": "计算题", "answer": r"x^2", "solution": ""}, r"x^2") is None
+
+
+def test_assessment_prompt_includes_reference_when_available():
+    prompt = build_assessment_prompt(
+        {"content": "题目内容", "answer": "A", "solution": "解析内容"},
+        "B",
+    )
+
+    assert "标准答案：A" in prompt
+    assert "标准解析：解析内容" in prompt
+    assert "学生答案：B" in prompt
 
 
 def test_parse_json_object_accepts_fenced_json():

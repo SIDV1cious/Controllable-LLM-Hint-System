@@ -1,28 +1,29 @@
 import asyncio
 import logging
 
+from assessment_logic import assess_with_reference_answer, build_assessment_prompt
 from llm_gateway import aclient
 from prompts import JUDGE_PROMPT_SYSTEM
 from system_config import AppConfig
 
 
 async def async_assess_single(q: dict, ans: str, semaphore: asyncio.Semaphore) -> bool:
+    local_result = assess_with_reference_answer(q, ans)
+    if local_result is not None:
+        return local_result
+
     if not AppConfig.LLM_API_KEY:
         logging.error("LLM_API_KEY is missing; assessment request skipped.")
         return False
-
-    std_ans = q.get("answer", "")
-    std_sol = q.get("solution", "")
-    if std_ans or std_sol:
-        prompt = f"题目：{q['content']}\n标准答案：{std_ans}\n标准解析：{std_sol}\n学生答案：{ans}\n任务：请严格对照标准答案判断学生是否正确。正确输出PASS，错误输出FAIL。"
-    else:
-        prompt = f"题目：{q['content']}\n学生答案：{ans}\n任务：判断是否正确。正确输出PASS，错误输出FAIL。"
 
     try:
         async with semaphore:
             resp = await aclient.chat.completions.create(
                 model=AppConfig.LLM_MODEL,
-                messages=[{"role": "system", "content": JUDGE_PROMPT_SYSTEM}, {"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": JUDGE_PROMPT_SYSTEM},
+                    {"role": "user", "content": build_assessment_prompt(q, ans)},
+                ],
             )
         res_text = resp.choices[0].message.content.strip()
         return "PASS" in res_text and "FAIL" not in res_text

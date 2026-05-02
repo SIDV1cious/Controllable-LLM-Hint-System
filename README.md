@@ -43,6 +43,7 @@
 ├── study_session_repository.py    # 学习会话开始、结束与学习时长记录
 ├── student_report_repository.py   # 学生报告所需学习时长、答题日志与错题详情读取
 ├── llm_gateway.py                 # 大模型客户端与通用调用网关
+├── assessment_logic.py            # 选择题确定性判题与 LLM 判题 Prompt 构造
 ├── automated_assessment_service.py # 自动判题服务
 ├── leakage_detection_service.py    # 答案泄露检测服务
 ├── controlled_generation_service.py # 受控提示计划、生成与自动重写服务
