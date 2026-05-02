@@ -14,6 +14,7 @@ from admin_content_repository import (
     update_course_and_question_category,
     update_custom_question,
 )
+from ui_feedback import show_error, show_success, show_warning
 
 
 def _load_course_names() -> list:
@@ -31,12 +32,12 @@ def _render_course_create_tab():
             if new_c_name.strip() and new_c_desc.strip():
                 try:
                     create_custom_course(new_c_name.strip(), new_c_desc.strip())
-                    st.toast(f"课程《{new_c_name}》添加成功！", icon="✅")
+                    show_success(f"课程《{new_c_name}》添加成功！")
                     st.rerun()
                 except Exception as e:
-                    st.toast(f"添加失败: {e}", icon="❌")
+                    show_error(f"添加失败: {e}")
             else:
-                st.toast("请填写完整的课程信息！", icon="⚠️")
+                show_warning("请填写完整的课程信息！")
 
 
 def _render_course_delete_tab():
@@ -46,7 +47,7 @@ def _render_course_delete_tab():
             del_c_name = st.selectbox("选择要下架的课程", del_c_list)
             if st.form_submit_button("确认删除 (将同步删除下属题目)", type="primary", use_container_width=True):
                 delete_course_and_questions(del_c_name)
-                st.toast(f"已彻底删除课程《{del_c_name}》！", icon="✅")
+                show_success(f"已彻底删除课程《{del_c_name}》！")
                 st.rerun()
         else:
             st.info("暂无自定义课程可以删除。")
@@ -77,12 +78,12 @@ def _render_course_edit_tab():
                         updated_c_name.strip(),
                         updated_c_desc.strip(),
                     )
-                    st.toast("课程修改成功！", icon="✅")
+                    show_success("课程修改成功！")
                     st.rerun()
                 except Exception as e:
-                    st.toast(f"修改失败: {e}", icon="❌")
+                    show_error(f"修改失败: {e}")
             else:
-                st.toast("课程名称和描述不能为空！", icon="⚠️")
+                show_warning("课程名称和描述不能为空！")
 
 
 def _render_course_preview_tab():
@@ -107,12 +108,12 @@ def _render_question_create_tab(all_courses: list):
             if q_category and q_content.strip():
                 try:
                     create_custom_question(q_category, q_content.strip())
-                    st.toast("题目添加成功！", icon="✅")
+                    show_success("题目添加成功！")
                     st.rerun()
                 except Exception as e:
-                    st.toast(f"题目添加失败: {e}", icon="❌")
+                    show_error(f"题目添加失败: {e}")
             else:
-                st.toast("请填写完整的题目内容！", icon="⚠️")
+                show_warning("请填写完整的题目内容！")
 
 
 def _render_question_delete_tab():
@@ -126,7 +127,7 @@ def _render_question_delete_tab():
             del_q_choice = st.selectbox("选择要删除的错误题目", list(del_q_options.keys()))
             if st.form_submit_button("确认删除该题", type="primary", use_container_width=True):
                 delete_custom_question(del_q_options[del_q_choice])
-                st.toast("指定题目已永久删除！", icon="✅")
+                show_success("指定题目已永久删除！")
                 st.rerun()
         else:
             st.info("暂无自定义题目可以删除。")
@@ -154,12 +155,12 @@ def _render_question_edit_tab(all_courses: list):
             if new_content.strip():
                 try:
                     update_custom_question(selected_id, new_category, new_content.strip())
-                    st.toast("题目修改成功！", icon="✅")
+                    show_success("题目修改成功！")
                     st.rerun()
                 except Exception as e:
-                    st.toast(f"修改失败: {e}", icon="❌")
+                    show_error(f"修改失败: {e}")
             else:
-                st.toast("题目内容不能为空！", icon="⚠️")
+                show_warning("题目内容不能为空！")
 
 
 def _render_question_preview_tab():

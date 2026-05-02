@@ -104,6 +104,21 @@ def summarize_hint_experiment(df: pd.DataFrame) -> dict:
     }
 
 
+def build_grouped_experiment_summary(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    if df.empty or column not in df.columns:
+        return pd.DataFrame(columns=[column, "提示数量", "平均泄露评分", "平均重写次数"])
+
+    return (
+        df.groupby(column)
+        .agg(
+            提示数量=("id", "count"),
+            平均泄露评分=("leakage_score", "mean"),
+            平均重写次数=("rewrite_count", "mean"),
+        )
+        .reset_index()
+    )
+
+
 def build_experiment_export_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
@@ -149,21 +164,14 @@ def build_experiment_markdown_report(df: pd.DataFrame) -> str:
         return "\n".join(lines)
 
     grouped_sections = [
+        ("## 按课程统计", "course_name"),
         ("## 按提示强度统计", "hint_strength"),
         ("## 按教学意图统计", "pedagogical_intent"),
         ("## 按安全状态统计", "hint_safety_status"),
     ]
     for title, column in grouped_sections:
         lines.extend([title, ""])
-        grouped = (
-            df.groupby(column)
-            .agg(
-                提示数量=("id", "count"),
-                平均泄露评分=("leakage_score", "mean"),
-                平均重写次数=("rewrite_count", "mean"),
-            )
-            .reset_index()
-        )
+        grouped = build_grouped_experiment_summary(df, column)
         for _, row in grouped.iterrows():
             lines.append(
                 f"- {row[column]}：{int(row['提示数量'])} 条，"

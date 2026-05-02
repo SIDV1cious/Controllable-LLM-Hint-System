@@ -28,8 +28,10 @@
 ├── controlled_hint_system_app.py   # 系统主流程与页面路由入口
 ├── app_constants.py                # 页面模式、用户角色、交互标记等全局常量
 ├── app_errors.py                   # 异常日志与用户友好错误提示
+├── ui_feedback.py                  # Streamlit 成功、失败、警告反馈封装
 ├── session_keys.py                 # Streamlit session_state key 与动态组件 key
 ├── ui_texts.py                     # 智能辅导按钮、提示强度和用户可见文案
+├── hint_policy.py                  # 提示强度策略、重写次数和安全兜底策略
 ├── hint_system_core.py            # 兼容旧调用的核心服务门面
 ├── system_config.py               # 环境变量、系统配置与时区工具
 ├── database_service.py            # 数据库连接、题目转换与日志字段兼容迁移
@@ -76,7 +78,7 @@
 ├── .github/workflows/              # GitHub Actions 自动质量检查
 ├── docs/
 │   ├── database_schema.sql         # MySQL建表脚本
-│   ├── migrations/                 # 数据库增量迁移脚本
+│   ├── migrations/                 # 数据库增量迁移脚本与执行说明
 │   ├── system_design.md            # 系统设计与研究链路说明
 │   └── experiment_plan.md          # 实验设计与答辩指标建议
 ├── tests/                          # 核心纯逻辑单元测试

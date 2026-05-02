@@ -2,17 +2,12 @@ import json
 import logging
 
 from domain_models import ControlledHintResult, LeakageEvaluation, QuestionData
+from hint_policy import FALLBACK_SAFE_HINT, MAX_HINT_REWRITE_ATTEMPTS, get_hint_strength_policy, normalize_hint_strength
 from hint_text_utils import format_math, parse_json_object
 from leakage_detection_service import evaluate_hint_leakage
 from llm_gateway import chat_completion_text
 from prompt_config_repository import get_system_instruction
 from prompts import HINT_PLAN_PROMPT_SYSTEM, REWRITE_PROMPT_SYSTEM, SYSTEM_INSTRUCTION
-
-HINT_STRENGTH_POLICIES = {
-    "轻提示": "只给方向性启发、概念提醒或检查角度，避免任何关键中间式、关键数值和最终结论。",
-    "中提示": "给出可执行的下一步思考路径，可以提示应使用的定义、公式或判别方法，但不展开完整推导。",
-    "强提示": "给出更具体的分步引导和易错点提醒，但仍不得给出最终答案、直接选项或完整标准解法。",
-}
 
 
 def get_dynamic_system_prompt() -> str:
@@ -23,10 +18,6 @@ def get_dynamic_system_prompt() -> str:
     return SYSTEM_INSTRUCTION
 
 
-def get_hint_strength_policy(hint_strength: str) -> str:
-    return HINT_STRENGTH_POLICIES.get(hint_strength, HINT_STRENGTH_POLICIES["中提示"])
-
-
 def build_hint_plan(
     question_data: QuestionData,
     student_answer: str,
@@ -34,6 +25,7 @@ def build_hint_plan(
     student_request: str,
     hint_strength: str = "中提示",
 ) -> str:
+    hint_strength = normalize_hint_strength(hint_strength)
     std_ans = question_data.get("answer", "")
     std_sol = question_data.get("solution", "")
     strength_policy = get_hint_strength_policy(hint_strength)
@@ -98,6 +90,7 @@ def generate_student_hint(
     system_prompt: str,
     hint_strength: str = "中提示",
 ) -> str:
+    hint_strength = normalize_hint_strength(hint_strength)
     strength_policy = get_hint_strength_policy(hint_strength)
     ctx = f"""【Problem】
 {question_data['content']}
@@ -135,6 +128,7 @@ def rewrite_unsafe_hint(
     leakage_result: LeakageEvaluation,
     hint_strength: str = "中提示",
 ) -> str:
+    hint_strength = normalize_hint_strength(hint_strength)
     strength_policy = get_hint_strength_policy(hint_strength)
     prompt = f"""题目：
 {question_data['content']}
@@ -171,6 +165,7 @@ def generate_controlled_hint(
     student_request: str,
     hint_strength: str = "中提示",
 ) -> ControlledHintResult:
+    hint_strength = normalize_hint_strength(hint_strength)
     dynamic_prompt = get_dynamic_system_prompt()
     hint_plan = build_hint_plan(question_data, student_answer, is_correct, student_request, hint_strength)
     final_hint = generate_student_hint(
@@ -185,7 +180,7 @@ def generate_controlled_hint(
     leakage_result = evaluate_hint_leakage(question_data, final_hint)
     rewrite_count = 0
 
-    while leakage_result.get("is_leaking") and rewrite_count < 2:
+    while leakage_result.get("is_leaking") and rewrite_count < MAX_HINT_REWRITE_ATTEMPTS:
         rewrite_count += 1
         final_hint = rewrite_unsafe_hint(
             question_data,
@@ -198,7 +193,7 @@ def generate_controlled_hint(
         leakage_result = evaluate_hint_leakage(question_data, final_hint)
 
     if leakage_result.get("is_leaking"):
-        final_hint = "这道题我们先抓住关键条件，不直接推进到答案。你可以先判断题目考查的是哪个定义、公式或判别方法，再检查你的下一步是否满足它的适用条件。"
+        final_hint = FALLBACK_SAFE_HINT
         leakage_result = {
             "is_leaking": False,
             "score": 0,

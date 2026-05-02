@@ -2,12 +2,10 @@ from assessment_logic import assess_with_reference_answer, build_assessment_prom
 from auth_security import verify_password
 from automated_assessment_service import async_assess_single, batch_assess
 from controlled_generation_service import (
-    HINT_STRENGTH_POLICIES,
     build_hint_plan,
     generate_controlled_hint,
     generate_student_hint,
     get_dynamic_system_prompt,
-    get_hint_strength_policy,
     rewrite_unsafe_hint,
 )
 from database_service import (
@@ -15,6 +13,13 @@ from database_service import (
     fetch_custom_question_rows,
     get_database_engine,
     question_row_to_dict,
+)
+from hint_policy import (
+    FALLBACK_SAFE_HINT,
+    HINT_STRENGTH_POLICIES,
+    MAX_HINT_REWRITE_ATTEMPTS,
+    get_hint_strength_policy,
+    normalize_hint_strength,
 )
 from hint_text_utils import format_math, parse_json_object
 from leakage_detection_service import evaluate_hint_leakage, heuristic_leakage_check
@@ -26,6 +31,8 @@ __all__ = [
     "AppConfig",
     "SHANGHAI_TZ",
     "HINT_STRENGTH_POLICIES",
+    "FALLBACK_SAFE_HINT",
+    "MAX_HINT_REWRITE_ATTEMPTS",
     "aclient",
     "assess_with_reference_answer",
     "async_assess_single",
@@ -46,6 +53,7 @@ __all__ = [
     "get_hint_strength_policy",
     "get_secret_or_env",
     "heuristic_leakage_check",
+    "normalize_hint_strength",
     "now_shanghai",
     "normalize_choice_answer",
     "parse_json_object",

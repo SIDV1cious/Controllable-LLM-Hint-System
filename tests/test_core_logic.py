@@ -24,14 +24,24 @@ from assessment_logic import (
     normalize_choice_answer,
 )
 from course_repository import BASE_COURSES, merge_course_catalog
+from database_service import iter_leakage_observability_ddl
 from experiment_analytics_service import (
     build_experiment_export_dataframe,
     build_experiment_markdown_report,
+    build_grouped_experiment_summary,
     summarize_hint_experiment,
+)
+from hint_policy import (
+    FALLBACK_SAFE_HINT,
+    MAX_HINT_REWRITE_ATTEMPTS,
+    get_hint_strength_policy,
+    is_high_risk_leakage_score,
+    normalize_hint_strength,
 )
 from hint_text_utils import format_math, parse_json_object
 from interaction_repository import build_interaction_payload
 from leakage_detection_service import heuristic_leakage_check
+from llm_gateway import build_llm_call_metadata
 from prompt_config_repository import SYSTEM_INSTRUCTION_KEY
 from question_repository import public_ids_to_database_ids
 from session_keys import SessionKey, composer_input, hint_safety_status, quick_help_button
@@ -148,7 +158,58 @@ def test_experiment_summary_and_export_are_stable():
 
     report = build_experiment_markdown_report(df)
     assert "受控解题提示生成实验数据报告" in report
+    assert "按课程统计" in report
     assert "按提示强度统计" in report
+
+
+def test_experiment_grouped_summary_supports_course_dimension():
+    df = pd.DataFrame(
+        [
+            {"id": 1, "course_name": "高等数学", "leakage_score": 0, "rewrite_count": 0},
+            {"id": 2, "course_name": "高等数学", "leakage_score": 2, "rewrite_count": 1},
+            {"id": 3, "course_name": "线性代数", "leakage_score": 1, "rewrite_count": 0},
+        ]
+    )
+
+    grouped = build_grouped_experiment_summary(df, "course_name")
+    course_counts = dict(zip(grouped["course_name"], grouped["提示数量"], strict=False))
+
+    assert course_counts == {"线性代数": 1, "高等数学": 2}
+
+
+def test_hint_policy_defaults_and_risk_threshold_are_stable():
+    assert normalize_hint_strength("未知强度") == "中提示"
+    assert "完整推导" in get_hint_strength_policy("中提示")
+    assert MAX_HINT_REWRITE_ATTEMPTS == 2
+    assert FALLBACK_SAFE_HINT.startswith("这道题我们先抓住关键条件")
+    assert is_high_risk_leakage_score(2) is True
+    assert is_high_risk_leakage_score("bad-score") is False
+
+
+def test_llm_call_metadata_counts_messages_and_prompt_chars():
+    metadata = build_llm_call_metadata(
+        [
+            {"role": "system", "content": "系统提示"},
+            {"role": "user", "content": "用户问题"},
+        ],
+        temperature=0.3,
+        model="deepseek-chat",
+    )
+
+    assert metadata == {
+        "model": "deepseek-chat",
+        "temperature": 0.3,
+        "message_count": 2,
+        "prompt_chars": 8,
+    }
+
+
+def test_leakage_observability_ddl_is_centralized():
+    ddl = iter_leakage_observability_ddl()
+
+    assert len(ddl) == 8
+    assert any("leakage_score" in statement for statement in ddl)
+    assert any("idx_interaction_hint_strength" in statement for statement in ddl)
 
 
 def test_session_state_manager_initializes_and_resets_state():

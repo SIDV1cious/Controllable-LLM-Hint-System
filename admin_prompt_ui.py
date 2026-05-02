@@ -3,6 +3,7 @@ import streamlit as st
 from app_errors import log_exception
 from prompt_config_repository import get_system_instruction, update_system_instruction
 from prompts import SYSTEM_INSTRUCTION
+from ui_feedback import show_error, show_success, show_warning
 
 
 def render_prompt_configuration_tab():
@@ -20,9 +21,9 @@ def render_prompt_configuration_tab():
             if new_prompt.strip():
                 try:
                     update_system_instruction(new_prompt.strip())
-                    st.toast("大模型底层指令已热更新！全系统生效！", icon="✅")
+                    show_success("大模型底层指令已热更新！全系统生效！")
                     st.rerun()
                 except Exception as e:
-                    st.toast(f"更新失败: {e}", icon="❌")
+                    show_error(f"更新失败: {e}")
             else:
-                st.toast("提示词不能为空！", icon="⚠️")
+                show_warning("提示词不能为空！")

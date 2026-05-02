@@ -19,6 +19,15 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "build",
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ["react", "react-dom", "streamlit-component-lib"],
+            mathlive: ["mathlive"],
+          },
+        },
+      },
     },
   } satisfies UserConfig
 })
