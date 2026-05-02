@@ -13,8 +13,6 @@ from app_errors import log_exception
 
 
 def render_learning_overview_dashboard(conn):
-    st.subheader("🎓 全系统学情实时监控看板")
-    st.markdown("---")
     st.markdown("#### 🕒 最近7天系统活跃人数趋势")
     try:
         df_active = fetch_active_user_trend(conn)
