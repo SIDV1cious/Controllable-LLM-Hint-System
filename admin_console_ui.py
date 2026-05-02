@@ -13,7 +13,16 @@ from experiment_admin_ui import render_experiment_analytics_dashboard
 
 
 def render_admin_console():
-    st.markdown("<h1>👨‍💻 教务管理看板与控制台</h1>", unsafe_allow_html=True)
+    st.markdown(
+        """
+<div class="page-hero">
+    <div class="section-kicker">ADMIN OBSERVABILITY</div>
+    <h1 class="page-hero-title">👨‍💻 教务管理看板与控制台</h1>
+    <p class="page-hero-subtitle">集中查看学习行为、实验指标、智能辅导安全状态与题库配置，支撑毕业设计系统展示与实验分析。</p>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
     tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
         [
             "📊 可视化数据大屏",

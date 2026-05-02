@@ -42,6 +42,9 @@ def apply_controlled_hint_panel_style():
         line-height: 1.55;
         color: #1f2937;
         margin: 0 0 0.35rem 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
     }
 
     .tutoring-subtitle {
@@ -55,7 +58,7 @@ def apply_controlled_hint_panel_style():
         font-size: 15px;
         font-weight: 700;
         color: #334155;
-        margin: 0.55rem 0 0.45rem 0;
+        margin: 0.75rem 0 0.45rem 0;
     }
 
     .composer-guide {
@@ -82,9 +85,10 @@ def apply_controlled_hint_panel_style():
     .safety-status-card {
         border-radius: 12px;
         border: 1px solid #dbe7f5;
-        background: #f8fbff;
+        background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
         padding: 12px 14px;
         margin: 0.7rem 0 0.25rem 0;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
     }
 
     .safety-status-title {
@@ -120,6 +124,17 @@ def apply_controlled_hint_panel_style():
         color: #9a3412;
         background: #ffedd5;
         border: 1px solid #fed7aa;
+    }
+
+    div[data-testid="stChatMessage"] {
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.78);
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
+    }
+
+    div[data-testid="stRadio"] label {
+        font-weight: 650;
     }
 </style>
         """,

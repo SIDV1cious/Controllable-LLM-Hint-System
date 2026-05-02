@@ -36,15 +36,43 @@ def apply_platform_visual_theme():
     st.markdown(
         """
 <style>
+    :root {
+        --app-bg: #f6f8fc;
+        --card-bg: rgba(255, 255, 255, 0.92);
+        --card-border: #dbe4f0;
+        --text-main: #1f2937;
+        --text-muted: #64748b;
+        --brand-red: #ff4b4b;
+        --brand-blue: #2563eb;
+        --soft-blue: #eef6ff;
+        --shadow-soft: 0 18px 42px rgba(15, 23, 42, 0.07);
+        --shadow-card: 0 12px 30px rgba(30, 64, 175, 0.06);
+    }
+
+    .stApp {
+        background:
+            radial-gradient(circle at 12% 8%, rgba(37, 99, 235, 0.08), transparent 28rem),
+            radial-gradient(circle at 88% 18%, rgba(255, 75, 75, 0.07), transparent 24rem),
+            linear-gradient(180deg, #fbfdff 0%, var(--app-bg) 100%);
+    }
+
     .block-container {
         max-width: 1220px;
-        padding-top: 1.25rem;
+        padding-top: 1.55rem;
         padding-bottom: 2rem;
     }
 
     h1, h2, h3 {
-        color: #1f2937;
+        color: var(--text-main);
         letter-spacing: -0.02em;
+    }
+
+    h1 {
+        font-weight: 850;
+    }
+
+    p, label, span {
+        text-rendering: geometricPrecision;
     }
 
     div.stButton > button,
@@ -52,26 +80,84 @@ def apply_platform_visual_theme():
         border-radius: 11px;
         font-weight: 650;
         border-color: #d7deea;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    div.stButton > button:hover,
+    div[data-testid="stDownloadButton"] > button:hover {
+        border-color: #bfd0e8;
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+        transform: translateY(-1px);
+    }
+
+    div.stButton > button[kind="primary"],
+    div[data-testid="stFormSubmitButton"] button[kind="primary"] {
+        box-shadow: 0 12px 24px rgba(255, 75, 75, 0.18);
     }
 
     div[data-testid="stForm"],
     div[data-testid="stVerticalBlockBorderWrapper"] {
-        border-radius: 14px;
-        border-color: #dce3ee;
-        box-shadow: 0 12px 30px rgba(31, 41, 55, 0.04);
+        border-radius: 18px;
+        border-color: var(--card-border);
+        background: var(--card-bg);
+        box-shadow: var(--shadow-card);
+    }
+
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stTextArea"] textarea,
+    div[data-baseweb="select"] {
+        border-radius: 12px !important;
+    }
+
+    div[data-testid="stTextInput"] input:focus,
+    div[data-testid="stTextArea"] textarea:focus {
+        border-color: rgba(37, 99, 235, 0.55) !important;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10) !important;
     }
 
     [data-testid="stMetric"] {
-        background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+        background: linear-gradient(135deg, #ffffff 0%, #eef5ff 100%);
         border: 1px solid #dbe7f5;
-        border-radius: 14px;
+        border-radius: 18px;
         padding: 14px 16px;
-        box-shadow: 0 10px 28px rgba(37, 99, 235, 0.06);
+        box-shadow: var(--shadow-card);
+    }
+
+    [data-testid="stMetric"] label {
+        color: var(--text-muted);
+        font-weight: 700;
     }
 
     section[data-testid="stSidebar"] {
-        background: #f8fafc;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
         border-right: 1px solid #e5e7eb;
+    }
+
+    .page-hero {
+        border: 1px solid var(--card-border);
+        border-radius: 22px;
+        padding: 20px 24px;
+        margin: 0 0 1.1rem 0;
+        background:
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(238, 246, 255, 0.92)),
+            radial-gradient(circle at right top, rgba(255, 75, 75, 0.10), transparent 14rem);
+        box-shadow: var(--shadow-soft);
+    }
+
+    .page-hero-title {
+        margin: 0;
+        color: var(--text-main);
+        font-size: clamp(1.9rem, 3vw, 2.8rem);
+        font-weight: 850;
+        line-height: 1.2;
+        letter-spacing: -0.045em;
+    }
+
+    .page-hero-subtitle {
+        margin: 0.55rem 0 0 0;
+        color: var(--text-muted);
+        font-size: 0.98rem;
+        line-height: 1.65;
     }
 
     .course-card-note {
@@ -80,6 +166,23 @@ def apply_platform_visual_theme():
         font-size: 0.92rem;
         line-height: 1.55;
         margin: 0.35rem 0 0.85rem 0;
+    }
+
+    .course-card-eyebrow {
+        color: var(--brand-blue);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.15rem;
+    }
+
+    .section-kicker {
+        color: var(--brand-blue);
+        font-size: 0.82rem;
+        font-weight: 850;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
     }
 </style>
         """,
@@ -109,8 +212,17 @@ def apply_identity_page_layout():
         margin: 0 0 1.35rem 0;
         color: #1f2937;
         font-size: clamp(2rem, 3vw, 2.85rem);
-        font-weight: 800;
+        font-weight: 850;
         letter-spacing: -0.04em;
+    }
+
+    div[data-testid="stTabs"] {
+        margin-bottom: 0.7rem;
+    }
+
+    div[data-testid="stForm"] {
+        backdrop-filter: blur(12px);
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
     }
 
     @media (max-height: 760px) {
@@ -132,6 +244,7 @@ def apply_identity_page_layout():
 
 def render_course_assessment_card(course_name: str, course_desc: str, start_course_assessment_session):
     with st.container(border=True):
+        st.markdown("<div class='course-card-eyebrow'>COURSE MODULE</div>", unsafe_allow_html=True)
         st.markdown(f"### {course_name}")
         st.markdown(f"<div class='course-card-note'>{course_desc}</div>", unsafe_allow_html=True)
         if st.button(f"进入《{course_name}》测验", key=f"btn_{course_name}", use_container_width=True):
@@ -178,9 +291,16 @@ def render_identity_access_page(
 
 
 def render_course_selection_portal(start_course_assessment_session):
-    st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
-    st.write("请选择你要进行随堂测验的课程模块：")
-    st.divider()
+    st.markdown(
+        """
+<div class="page-hero">
+    <div class="section-kicker">LEARNING PORTAL</div>
+    <h1 class="page-hero-title">🏫 课程学习大厅</h1>
+    <p class="page-hero-subtitle">选择课程模块后进入随堂测验，系统会记录作答情况并提供受控智能辅导。</p>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
     base_courses = list_course_catalog()
     cols = st.columns(4)
     for idx, (course_name, course_desc) in enumerate(base_courses):

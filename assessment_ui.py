@@ -16,11 +16,13 @@ def apply_results_dashboard_style():
 <style>
     .results-hero {
         border: 1px solid #dbe4f0;
-        border-radius: 18px;
-        padding: 18px 20px;
+        border-radius: 22px;
+        padding: 20px 24px;
         margin-bottom: 1rem;
-        background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
-        box-shadow: 0 18px 38px rgba(30, 64, 175, 0.06);
+        background:
+            linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%),
+            radial-gradient(circle at right top, rgba(255, 75, 75, 0.09), transparent 14rem);
+        box-shadow: 0 18px 42px rgba(30, 64, 175, 0.07);
     }
 
     .results-title {
@@ -46,6 +48,9 @@ def apply_results_dashboard_style():
     }
 
     .question-review-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         font-size: 17px;
         font-weight: 750;
         color: #1f2937;
@@ -92,7 +97,8 @@ def apply_results_dashboard_style():
         border: 1px solid #e2e8f0;
         border-radius: 12px;
         padding: 10px 12px;
-        background: #ffffff;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.035);
     }
 
     .safety-summary-head {
