@@ -29,7 +29,7 @@ type FormulaGroup = {
 const FRAME_HEIGHT = 520;
 const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
-const COMMON_SYMBOLS_TITLE = "常用符号";
+const COMMON_SYMBOLS_TITLE = "符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
 const CASES_SEGMENT_COUNTS = [2, 3, 4, 5];
 
@@ -1208,7 +1208,6 @@ const matrixPanelStyle: React.CSSProperties = {
   gap: "5px",
   flex: "0 0 auto",
   flexWrap: "nowrap",
-  marginLeft: "auto",
 };
 
 const summaryStyle: React.CSSProperties = {
