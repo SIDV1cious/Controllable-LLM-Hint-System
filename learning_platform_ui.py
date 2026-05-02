@@ -168,6 +168,14 @@ def apply_platform_visual_theme():
         margin: 0.35rem 0 0.85rem 0;
     }
 
+    .course-selection-guide {
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.6;
+        margin: 0.75rem 0 0.9rem 0;
+        color: var(--text-main);
+    }
+
     .course-card-eyebrow {
         color: var(--brand-blue);
         font-size: 0.78rem;
@@ -299,6 +307,10 @@ def render_course_selection_portal(start_course_assessment_session):
     <p class="page-hero-subtitle">选择课程模块后进入随堂测验，系统会记录作答情况并提供受控智能辅导。</p>
 </div>
         """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='course-selection-guide'>👇🏻请选择你要进行随堂测验的课程模块</div>",
         unsafe_allow_html=True,
     )
     base_courses = list_course_catalog()
