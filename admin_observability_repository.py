@@ -9,6 +9,12 @@ from app_constants import InteractionMarker
 
 ANSWER_SUBMISSION_PATTERN = f"{InteractionMarker.ANSWER_SUBMISSION}%"
 TUTORING_PATTERN = f"{InteractionMarker.TUTORING}%"
+LEAKAGE_SCORE_LEVELS = {
+    0: "0 安全",
+    1: "1 轻微风险",
+    2: "2 中等风险",
+    3: "3 高风险",
+}
 
 
 def fetch_active_user_trend(conn) -> pd.DataFrame:
@@ -115,9 +121,23 @@ def summarize_hint_leakage_records(df: pd.DataFrame) -> dict:
 
 
 def build_leakage_score_distribution(df: pd.DataFrame) -> pd.DataFrame:
+    columns = ["leakage_score", "risk_level", "count"]
     if df.empty:
-        return pd.DataFrame(columns=["leakage_score", "count"])
-    return df.groupby("leakage_score").size().reset_index(name="count")
+        return pd.DataFrame(
+            [{"leakage_score": score, "risk_level": label, "count": 0} for score, label in LEAKAGE_SCORE_LEVELS.items()]
+        )
+
+    normalized = pd.to_numeric(df["leakage_score"], errors="coerce").fillna(0).astype(int).clip(lower=0, upper=3)
+    counts = normalized.value_counts().to_dict()
+    rows = [
+        {
+            "leakage_score": score,
+            "risk_level": label,
+            "count": int(counts.get(score, 0)),
+        }
+        for score, label in LEAKAGE_SCORE_LEVELS.items()
+    ]
+    return pd.DataFrame(rows, columns=columns)
 
 
 def fetch_recent_login_logs(conn, limit: int = 50) -> pd.DataFrame:

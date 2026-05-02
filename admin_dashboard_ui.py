@@ -78,11 +78,20 @@ def render_learning_overview_dashboard(conn):
             score_df = build_leakage_score_distribution(df_leak)
             fig_leak = px.bar(
                 score_df,
-                x="leakage_score",
+                x="risk_level",
                 y="count",
-                labels={"leakage_score": "泄露评分", "count": "提示数量"},
-                color_discrete_sequence=["#2ca02c"],
+                text="count",
+                labels={"risk_level": "泄露风险等级", "count": "提示数量"},
+                color="risk_level",
+                color_discrete_map={
+                    "0 安全": "#22c55e",
+                    "1 轻微风险": "#84cc16",
+                    "2 中等风险": "#f59e0b",
+                    "3 高风险": "#ef4444",
+                },
             )
+            fig_leak.update_traces(width=0.45, textposition="outside", cliponaxis=False)
+            fig_leak.update_layout(showlegend=False, bargap=0.45, yaxis_title="提示数量", xaxis_title="泄露风险等级")
             st.plotly_chart(fig_leak, use_container_width=True)
         else:
             st.info("暂无智能辅导提示数据，无法计算泄露控制指标。")

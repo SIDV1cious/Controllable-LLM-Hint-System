@@ -358,6 +358,7 @@ def test_admin_hint_leakage_summary_and_score_distribution():
     summary = summarize_hint_leakage_records(df)
     distribution = build_leakage_score_distribution(df)
     score_counts = dict(zip(distribution["leakage_score"], distribution["count"], strict=False))
+    risk_labels = dict(zip(distribution["leakage_score"], distribution["risk_level"], strict=False))
 
     assert summary == {
         "total_hints": 3,
@@ -365,7 +366,9 @@ def test_admin_hint_leakage_summary_and_score_distribution():
         "rewrite_total": 3,
         "leak_rate": 33.3,
     }
-    assert score_counts == {0: 1, 2: 2}
+    assert score_counts == {0: 1, 1: 0, 2: 2, 3: 0}
+    assert risk_labels[0] == "0 安全"
+    assert risk_labels[3] == "3 高风险"
 
 
 def test_student_report_summary_and_wrong_question_extraction():
