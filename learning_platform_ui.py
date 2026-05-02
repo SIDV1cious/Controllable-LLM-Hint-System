@@ -252,7 +252,6 @@ def apply_identity_page_layout():
 
 def render_course_assessment_card(course_name: str, course_desc: str, start_course_assessment_session):
     with st.container(border=True):
-        st.markdown("<div class='course-card-eyebrow'>COURSE MODULE</div>", unsafe_allow_html=True)
         st.markdown(f"### {course_name}")
         st.markdown(f"<div class='course-card-note'>{course_desc}</div>", unsafe_allow_html=True)
         if st.button(f"进入《{course_name}》测验", key=f"btn_{course_name}", use_container_width=True):
@@ -299,20 +298,12 @@ def render_identity_access_page(
 
 
 def render_course_selection_portal(start_course_assessment_session):
-    st.markdown(
-        """
-<div class="page-hero">
-    <div class="section-kicker">LEARNING PORTAL</div>
-    <h1 class="page-hero-title">🏫 课程学习大厅</h1>
-    <p class="page-hero-subtitle">选择课程模块后进入随堂测验，系统会记录作答情况并提供受控智能辅导。</p>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h1 style='text-align: center;'>🏫 课程学习大厅</h1>", unsafe_allow_html=True)
     st.markdown(
         "<div class='course-selection-guide'>👇🏻请选择你要进行随堂测验的课程模块</div>",
         unsafe_allow_html=True,
     )
+    st.divider()
     base_courses = list_course_catalog()
     cols = st.columns(4)
     for idx, (course_name, course_desc) in enumerate(base_courses):
