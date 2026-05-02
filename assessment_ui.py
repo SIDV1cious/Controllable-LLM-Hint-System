@@ -300,9 +300,6 @@ div[data-testid="stToolbar"],
     margin: 0 !important;
 }
 
-body {
-    overflow: hidden !important;
-}
 </style>
 <div style="height: 100vh; display: flex; align-items: center; justify-content: center;">
     <h2>🧠 系统正在阅卷中，请勿刷新或退出...</h2>

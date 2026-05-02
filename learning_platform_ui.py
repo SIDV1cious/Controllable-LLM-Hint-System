@@ -56,17 +56,30 @@ def apply_platform_visual_theme():
             linear-gradient(180deg, #fbfdff 0%, var(--app-bg) 100%);
     }
 
-    html, body,
+    html,
+    body,
     .stApp,
-    [data-testid="stAppViewContainer"] {
+    .main,
+    section.main,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    [data-testid="stMainBlockContainer"] {
         overflow-y: auto !important;
         overflow-x: hidden !important;
+        max-height: none !important;
+    }
+
+    body {
+        height: auto !important;
     }
 
     .block-container {
         max-width: 1220px;
-        padding-top: 1.55rem;
-        padding-bottom: 2rem;
+        min-height: auto !important;
+        height: auto !important;
+        max-height: none !important;
+        padding-top: 1.55rem !important;
+        padding-bottom: 2rem !important;
     }
 
     h1, h2, h3 {
@@ -209,22 +222,9 @@ def apply_identity_page_layout():
     st.markdown(
         """
 <style>
-    .block-container {
-        min-height: 100vh;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-    }
-
-    .block-container > div:first-child {
-        min-height: 100vh;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-    }
-
     .auth-page-title {
         text-align: center;
-        margin: 0 0 1.35rem 0;
+        margin: clamp(4rem, 18vh, 9rem) 0 1.35rem 0;
         color: #1f2937;
         font-size: clamp(2rem, 3vw, 2.85rem);
         font-weight: 850;
@@ -241,14 +241,8 @@ def apply_identity_page_layout():
     }
 
     @media (max-height: 760px) {
-        .block-container {
-            padding-top: 3rem !important;
-            padding-bottom: 2rem !important;
-        }
-
-        .block-container > div:first-child {
-            min-height: auto;
-            justify-content: flex-start !important;
+        .auth-page-title {
+            margin-top: 3rem;
         }
     }
 </style>
