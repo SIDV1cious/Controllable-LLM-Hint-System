@@ -19,10 +19,10 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "build",
-      // Streamlit components are served inside an iframe. Keeping the editor as
-      // one bundle avoids remote deployments getting stuck while fetching
-      // secondary MathLive chunks.
-      chunkSizeWarningLimit: 1400,
+      // MathLive is loaded after the plain editor has rendered. This keeps the
+      // first interaction responsive while avoiding a hard dependency on the
+      // formula chunk for basic text input.
+      chunkSizeWarningLimit: 900,
     },
   } satisfies UserConfig
 })

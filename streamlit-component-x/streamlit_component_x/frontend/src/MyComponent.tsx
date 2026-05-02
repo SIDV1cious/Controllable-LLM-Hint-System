@@ -4,7 +4,6 @@ import {
   ComponentProps,
 } from "streamlit-component-lib";
 import React, { useEffect, useRef, useState } from "react";
-import "mathlive";
 import "mathlive/static.css";
 
 declare global {
@@ -26,12 +25,21 @@ type FormulaGroup = {
   items: FormulaItem[];
 };
 
+type MathRuntimeStatus = "loading" | "ready" | "failed";
+
 const FRAME_HEIGHT = 520;
 const MAX_MATRIX_SIZE = 10;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
 const CASES_SEGMENT_COUNTS = [2, 3, 4, 5];
+
+let mathRuntimePromise: Promise<void> | null = null;
+
+const loadMathRuntime = () => {
+  mathRuntimePromise ??= import("mathlive").then(() => undefined);
+  return mathRuntimePromise;
+};
 
 const FORMULA_GROUPS: FormulaGroup[] = [
   {
@@ -282,6 +290,10 @@ const MyComponent = ({ args }: ComponentProps) => {
   const [matrixRows, setMatrixRows] = useState(1);
   const [matrixCols, setMatrixCols] = useState(1);
   const [openToolbarGroup, setOpenToolbarGroup] = useState<string | null>(null);
+  const [mathRuntimeStatus, setMathRuntimeStatus] =
+    useState<MathRuntimeStatus>("loading");
+
+  const mathRuntimeReady = mathRuntimeStatus === "ready";
 
   const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
   const refreshFrameHeight = () => {
@@ -477,6 +489,8 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   const insertFormulaBox = (initialLatex = "") => {
+    if (!mathRuntimeReady) return;
+
     const editor = editorRef.current;
     const range = getEditorRange();
     if (!editor || !range) return;
@@ -541,6 +555,8 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   const insertLatexIntoFormula = (latex: string) => {
+    if (!mathRuntimeReady) return;
+
     const mathField = getActiveMathField();
 
     if (!mathField) {
@@ -556,6 +572,8 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   const insertMatrix = () => {
+    if (!mathRuntimeReady) return;
+
     const rows = Math.min(Math.max(matrixRows, 1), MAX_MATRIX_SIZE);
     const cols = Math.min(Math.max(matrixCols, 1), MAX_MATRIX_SIZE);
     const body = Array.from({ length: rows }, () =>
@@ -606,12 +624,19 @@ const MyComponent = ({ args }: ComponentProps) => {
     insertPlainText(text);
   };
 
-  const renderValue = (value: string) => {
+  const renderValue = (value: string, allowFormulaRendering = true) => {
     const editor = editorRef.current;
     if (!editor) return;
 
     formulaRefs.current = {};
     editor.innerHTML = "";
+
+    if (!allowFormulaRendering) {
+      editor.append(document.createTextNode(value));
+      setActiveFormula(null);
+      refreshFrameHeight();
+      return;
+    }
 
     const pattern = /\$([^$]*)\$/g;
     let lastIndex = 0;
@@ -636,9 +661,32 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   useEffect(() => {
-    renderValue(args.default_value || "");
+    renderValue(args.default_value || "", mathRuntimeReady);
     lastValueRef.current = args.default_value || "";
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadMathRuntime()
+      .then(() => {
+        if (!cancelled) setMathRuntimeStatus("ready");
+      })
+      .catch((error) => {
+        console.error("MathLive failed to load", error);
+        if (!cancelled) setMathRuntimeStatus("failed");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mathRuntimeReady) {
+      renderValue(lastValueRef.current, true);
+    }
+  }, [mathRuntimeReady]);
 
   useEffect(() => {
     const style = document.createElement("style");
@@ -778,9 +826,13 @@ const MyComponent = ({ args }: ComponentProps) => {
       <div style={groupToolbarStyle}>
         <button
           type="button"
+          disabled={!mathRuntimeReady}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => insertFormulaBox()}
-          style={primaryButtonStyle}
+          style={{
+            ...primaryButtonStyle,
+            ...(!mathRuntimeReady ? disabledButtonStyle : {}),
+          }}
         >
           插入公式框
         </button>
@@ -792,6 +844,7 @@ const MyComponent = ({ args }: ComponentProps) => {
               openToolbarGroup === group.title ? " is-active" : ""
             }`}
             type="button"
+            disabled={!mathRuntimeReady}
             onMouseDown={(event) => event.preventDefault()}
             onClick={(event) => {
               event.currentTarget.blur();
@@ -802,6 +855,7 @@ const MyComponent = ({ args }: ComponentProps) => {
             style={{
               ...summaryStyle,
               ...(openToolbarGroup === group.title ? summaryActiveStyle : {}),
+              ...(!mathRuntimeReady ? disabledButtonStyle : {}),
             }}
           >
             {group.title}
@@ -813,6 +867,7 @@ const MyComponent = ({ args }: ComponentProps) => {
             openToolbarGroup === COMMON_SYMBOLS_TITLE ? " is-active" : ""
           }`}
           type="button"
+          disabled={!mathRuntimeReady}
           onMouseDown={(event) => event.preventDefault()}
           onClick={(event) => {
             event.currentTarget.blur();
@@ -825,6 +880,7 @@ const MyComponent = ({ args }: ComponentProps) => {
             ...(openToolbarGroup === COMMON_SYMBOLS_TITLE
               ? summaryActiveStyle
               : {}),
+            ...(!mathRuntimeReady ? disabledButtonStyle : {}),
           }}
         >
           {COMMON_SYMBOLS_TITLE}
@@ -834,9 +890,13 @@ const MyComponent = ({ args }: ComponentProps) => {
           <span style={{ fontSize: "12px", color: "#536075" }}>矩阵</span>
           <select
             value={matrixRows}
+            disabled={!mathRuntimeReady}
             onChange={(event) => setMatrixRows(Number(event.target.value))}
             onMouseDown={(event) => event.stopPropagation()}
-            style={selectStyle}
+            style={{
+              ...selectStyle,
+              ...(!mathRuntimeReady ? disabledButtonStyle : {}),
+            }}
           >
             {Array.from({ length: MAX_MATRIX_SIZE }, (_, index) => index + 1).map(
               (n) => (
@@ -848,9 +908,13 @@ const MyComponent = ({ args }: ComponentProps) => {
           </select>
           <select
             value={matrixCols}
+            disabled={!mathRuntimeReady}
             onChange={(event) => setMatrixCols(Number(event.target.value))}
             onMouseDown={(event) => event.stopPropagation()}
-            style={selectStyle}
+            style={{
+              ...selectStyle,
+              ...(!mathRuntimeReady ? disabledButtonStyle : {}),
+            }}
           >
             {Array.from({ length: MAX_MATRIX_SIZE }, (_, index) => index + 1).map(
               (n) => (
@@ -862,16 +926,28 @@ const MyComponent = ({ args }: ComponentProps) => {
           </select>
           <button
             type="button"
+            disabled={!mathRuntimeReady}
             onMouseDown={(event) => event.preventDefault()}
             onClick={insertMatrix}
-            style={toolButtonStyle}
+            style={{
+              ...toolButtonStyle,
+              ...(!mathRuntimeReady ? disabledButtonStyle : {}),
+            }}
           >
             插入矩阵
           </button>
         </div>
       </div>
 
-      {openToolbarGroup && activeToolbarItems.length > 0 && (
+      {mathRuntimeStatus !== "ready" && (
+        <div style={runtimeStatusStyle}>
+          {mathRuntimeStatus === "loading"
+            ? "公式工具正在后台加载，文字输入可先使用。"
+            : "公式工具暂未加载成功，可直接输入文字或 LaTeX 代码。"}
+        </div>
+      )}
+
+      {mathRuntimeReady && openToolbarGroup && activeToolbarItems.length > 0 && (
         <div
           style={
             openToolbarGroup === COMMON_SYMBOLS_TITLE
@@ -1235,6 +1311,18 @@ const summaryActiveStyle: React.CSSProperties = {
   borderColor: "#2563eb",
   color: "#1d4ed8",
   backgroundColor: "#eff6ff",
+};
+
+const disabledButtonStyle: React.CSSProperties = {
+  opacity: 0.55,
+  cursor: "not-allowed",
+};
+
+const runtimeStatusStyle: React.CSSProperties = {
+  margin: "-2px 0 7px",
+  color: "#64748b",
+  fontSize: "12px",
+  lineHeight: 1.5,
 };
 
 const formulaPanelStyle: React.CSSProperties = {
