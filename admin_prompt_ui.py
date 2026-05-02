@@ -1,5 +1,3 @@
-import time
-
 import streamlit as st
 
 from app_errors import log_exception
@@ -23,7 +21,6 @@ def render_prompt_configuration_tab():
                 try:
                     update_system_instruction(new_prompt.strip())
                     st.toast("大模型底层指令已热更新！全系统生效！", icon="✅")
-                    time.sleep(0.5)
                     st.rerun()
                 except Exception as e:
                     st.toast(f"更新失败: {e}", icon="❌")

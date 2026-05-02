@@ -1,5 +1,3 @@
-import time
-
 import pandas as pd
 import streamlit as st
 
@@ -34,7 +32,6 @@ def _render_course_create_tab():
                 try:
                     create_custom_course(new_c_name.strip(), new_c_desc.strip())
                     st.toast(f"课程《{new_c_name}》添加成功！", icon="✅")
-                    time.sleep(0.5)
                     st.rerun()
                 except Exception as e:
                     st.toast(f"添加失败: {e}", icon="❌")
@@ -50,7 +47,6 @@ def _render_course_delete_tab():
             if st.form_submit_button("确认删除 (将同步删除下属题目)", type="primary", use_container_width=True):
                 delete_course_and_questions(del_c_name)
                 st.toast(f"已彻底删除课程《{del_c_name}》！", icon="✅")
-                time.sleep(0.5)
                 st.rerun()
         else:
             st.info("暂无自定义课程可以删除。")
@@ -82,7 +78,6 @@ def _render_course_edit_tab():
                         updated_c_desc.strip(),
                     )
                     st.toast("课程修改成功！", icon="✅")
-                    time.sleep(0.5)
                     st.rerun()
                 except Exception as e:
                     st.toast(f"修改失败: {e}", icon="❌")
@@ -113,7 +108,6 @@ def _render_question_create_tab(all_courses: list):
                 try:
                     create_custom_question(q_category, q_content.strip())
                     st.toast("题目添加成功！", icon="✅")
-                    time.sleep(0.5)
                     st.rerun()
                 except Exception as e:
                     st.toast(f"题目添加失败: {e}", icon="❌")
@@ -133,7 +127,6 @@ def _render_question_delete_tab():
             if st.form_submit_button("确认删除该题", type="primary", use_container_width=True):
                 delete_custom_question(del_q_options[del_q_choice])
                 st.toast("指定题目已永久删除！", icon="✅")
-                time.sleep(0.5)
                 st.rerun()
         else:
             st.info("暂无自定义题目可以删除。")
@@ -162,7 +155,6 @@ def _render_question_edit_tab(all_courses: list):
                 try:
                     update_custom_question(selected_id, new_category, new_content.strip())
                     st.toast("题目修改成功！", icon="✅")
-                    time.sleep(0.5)
                     st.rerun()
                 except Exception as e:
                     st.toast(f"修改失败: {e}", icon="❌")

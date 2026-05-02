@@ -5,6 +5,11 @@ from admin_content_repository import (
     make_question_delete_label,
     make_question_edit_label,
 )
+from admin_observability_repository import (
+    build_course_accuracy_dataframe,
+    build_leakage_score_distribution,
+    summarize_hint_leakage_records,
+)
 from app_constants import (
     InteractionMarker,
     PageMode,
@@ -223,6 +228,49 @@ def test_admin_question_option_labels_are_stable():
 
 def test_prompt_config_key_is_stable():
     assert SYSTEM_INSTRUCTION_KEY == "system_instruction"
+
+
+def test_admin_course_accuracy_summary_maps_public_question_ids():
+    answer_records = pd.DataFrame(
+        [
+            {"question_id": 1001, "ai_response": "正确"},
+            {"question_id": "1002", "ai_response": "FAIL"},
+            {"question_id": "bad-id", "ai_response": "PASS"},
+        ]
+    )
+    question_records = pd.DataFrame(
+        [
+            {"id": 1, "category": "高等数学"},
+            {"id": 2, "category": "线性代数"},
+        ]
+    )
+
+    result = build_course_accuracy_dataframe(answer_records, question_records)
+    accuracy_map = dict(zip(result["course_name"], result["accuracy_percent"], strict=False))
+
+    assert accuracy_map == {"线性代数": 0.0, "高等数学": 100.0}
+
+
+def test_admin_hint_leakage_summary_and_score_distribution():
+    df = pd.DataFrame(
+        [
+            {"is_leaking_answer": 0, "leakage_score": 0, "rewrite_count": 0},
+            {"is_leaking_answer": 1, "leakage_score": 2, "rewrite_count": 1},
+            {"is_leaking_answer": 0, "leakage_score": 2, "rewrite_count": 2},
+        ]
+    )
+
+    summary = summarize_hint_leakage_records(df)
+    distribution = build_leakage_score_distribution(df)
+    score_counts = dict(zip(distribution["leakage_score"], distribution["count"], strict=False))
+
+    assert summary == {
+        "total_hints": 3,
+        "leaked_hints": 1,
+        "rewrite_total": 3,
+        "leak_rate": 33.3,
+    }
+    assert score_counts == {0: 1, 2: 2}
 
 
 def test_student_report_summary_and_wrong_question_extraction():

@@ -1,0 +1,168 @@
+"""Data access and pure aggregation helpers for the admin observability pages."""
+
+from __future__ import annotations
+
+import pandas as pd
+from sqlalchemy import text
+
+from app_constants import InteractionMarker
+
+ANSWER_SUBMISSION_PATTERN = f"{InteractionMarker.ANSWER_SUBMISSION}%"
+TUTORING_PATTERN = f"{InteractionMarker.TUTORING}%"
+
+
+def fetch_active_user_trend(conn) -> pd.DataFrame:
+    df = pd.read_sql(
+        text(
+            "SELECT DATE(login_time) as login_date, COUNT(DISTINCT username) as user_count "
+            "FROM login_logs WHERE login_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) "
+            "GROUP BY login_date ORDER BY login_date"
+        ),
+        conn,
+    )
+    if not df.empty:
+        df["login_date"] = pd.to_datetime(df["login_date"])
+    return df
+
+
+def fetch_course_study_duration_summary(conn) -> pd.DataFrame:
+    df = pd.read_sql(
+        text(
+            "SELECT course_name, SUM(duration_seconds) as total_seconds "
+            "FROM study_sessions WHERE duration_seconds IS NOT NULL GROUP BY course_name"
+        ),
+        conn,
+    )
+    if not df.empty:
+        df["total_minutes"] = (df["total_seconds"] / 60).round(1)
+    return df
+
+
+def fetch_answer_submission_records(conn) -> pd.DataFrame:
+    return pd.read_sql(
+        text("SELECT question_id, ai_response FROM interaction_logs WHERE user_query LIKE :pattern"),
+        conn,
+        params={"pattern": ANSWER_SUBMISSION_PATTERN},
+    )
+
+
+def fetch_custom_question_course_records(conn) -> pd.DataFrame:
+    return pd.read_sql(text("SELECT id, category FROM custom_questions"), conn)
+
+
+def build_course_accuracy_dataframe(answer_records: pd.DataFrame, question_records: pd.DataFrame) -> pd.DataFrame:
+    columns = ["course_name", "is_correct", "accuracy_percent"]
+    if answer_records.empty or question_records.empty:
+        return pd.DataFrame(columns=columns)
+
+    question_course_map = {
+        str(1000 + int(row["id"])): str(row["category"])
+        for _, row in question_records.iterrows()
+        if pd.notna(row["id"])
+    }
+    enriched = answer_records.copy()
+    enriched["clean_id"] = pd.to_numeric(enriched["question_id"], errors="coerce").fillna(-1).astype(int).astype(str)
+    enriched["course_name"] = enriched["clean_id"].map(question_course_map)
+    valid_records = enriched.dropna(subset=["course_name"]).copy()
+    if valid_records.empty:
+        return pd.DataFrame(columns=columns)
+
+    valid_records["is_correct"] = valid_records["ai_response"].apply(
+        lambda value: 1 if ("正确" in str(value) or "PASS" in str(value)) else 0
+    )
+    accuracy_df = valid_records.groupby("course_name")["is_correct"].mean().reset_index()
+    accuracy_df["accuracy_percent"] = (accuracy_df["is_correct"] * 100).round(1)
+    return accuracy_df
+
+
+def fetch_course_accuracy_summary(conn) -> tuple[pd.DataFrame, bool]:
+    answer_records = fetch_answer_submission_records(conn)
+    if answer_records.empty:
+        return pd.DataFrame(columns=["course_name", "is_correct", "accuracy_percent"]), False
+    question_records = fetch_custom_question_course_records(conn)
+    return build_course_accuracy_dataframe(answer_records, question_records), True
+
+
+def fetch_hint_leakage_records(conn) -> pd.DataFrame:
+    return pd.read_sql(
+        text(
+            "SELECT is_leaking_answer, leakage_score, rewrite_count "
+            "FROM interaction_logs WHERE user_query LIKE :pattern"
+        ),
+        conn,
+        params={"pattern": TUTORING_PATTERN},
+    )
+
+
+def summarize_hint_leakage_records(df: pd.DataFrame) -> dict:
+    if df.empty:
+        return {
+            "total_hints": 0,
+            "leaked_hints": 0,
+            "rewrite_total": 0,
+            "leak_rate": 0.0,
+        }
+
+    total_hints = len(df)
+    leaked_hints = int(df["is_leaking_answer"].fillna(0).astype(int).sum())
+    rewrite_total = int(df.get("rewrite_count", pd.Series([0] * total_hints)).fillna(0).astype(int).sum())
+    return {
+        "total_hints": total_hints,
+        "leaked_hints": leaked_hints,
+        "rewrite_total": rewrite_total,
+        "leak_rate": round(leaked_hints / total_hints * 100, 1),
+    }
+
+
+def build_leakage_score_distribution(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=["leakage_score", "count"])
+    return df.groupby("leakage_score").size().reset_index(name="count")
+
+
+def fetch_recent_login_logs(conn, limit: int = 50) -> pd.DataFrame:
+    return pd.read_sql(
+        text(
+            "SELECT username AS '学号', login_time AS '登录时间' "
+            "FROM login_logs ORDER BY login_time DESC LIMIT :limit"
+        ),
+        conn,
+        params={"limit": limit},
+    )
+
+
+def fetch_recent_study_duration_logs(conn, limit: int = 50) -> pd.DataFrame:
+    return pd.read_sql(
+        text(
+            "SELECT username AS '学号', course_name AS '课程', start_time AS '开始时间', "
+            "end_time AS '结束时间', duration_seconds AS '学习时长(秒)' "
+            "FROM study_sessions ORDER BY start_time DESC LIMIT :limit"
+        ),
+        conn,
+        params={"limit": limit},
+    )
+
+
+def fetch_recent_interaction_logs(conn, limit: int = 50) -> pd.DataFrame:
+    try:
+        return pd.read_sql(
+            text(
+                "SELECT student_id AS '学号', question_id AS '题号', hint_strength AS '提示强度', "
+                "pedagogical_intent AS '教学意图', hint_safety_status AS '安全状态', "
+                "user_query AS '学生提问', ai_response AS '系统反馈', is_leaking_answer AS '是否泄露', "
+                "leakage_score AS '泄露评分', rewrite_count AS '重写次数', leakage_reason AS '检测原因', "
+                "created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT :limit"
+            ),
+            conn,
+            params={"limit": limit},
+        )
+    except Exception:
+        return pd.read_sql(
+            text(
+                "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', "
+                "ai_response AS '系统反馈', created_at AS '交互时间' "
+                "FROM interaction_logs ORDER BY created_at DESC LIMIT :limit"
+            ),
+            conn,
+            params={"limit": limit},
+        )

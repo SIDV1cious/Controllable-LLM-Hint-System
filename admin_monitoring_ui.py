@@ -1,13 +1,15 @@
-import pandas as pd
 import streamlit as st
+
+from admin_observability_repository import (
+    fetch_recent_interaction_logs,
+    fetch_recent_login_logs,
+    fetch_recent_study_duration_logs,
+)
 
 
 def render_login_logs_tab(conn):
     st.subheader("学生活跃度监控")
-    df_login = pd.read_sql(
-        "SELECT username AS '学号', login_time AS '登录时间' FROM login_logs ORDER BY login_time DESC LIMIT 50",
-        conn,
-    )
+    df_login = fetch_recent_login_logs(conn)
     st.dataframe(df_login, use_container_width=True)
     if not df_login.empty:
         st.download_button(
@@ -21,12 +23,7 @@ def render_login_logs_tab(conn):
 
 def render_study_duration_tab(conn):
     st.subheader("各科课程学习时长分析")
-    df_study = pd.read_sql(
-        "SELECT username AS '学号', course_name AS '课程', start_time AS '开始时间', "
-        "end_time AS '结束时间', duration_seconds AS '学习时长(秒)' "
-        "FROM study_sessions ORDER BY start_time DESC LIMIT 50",
-        conn,
-    )
+    df_study = fetch_recent_study_duration_logs(conn)
     st.dataframe(df_study, use_container_width=True)
     if not df_study.empty:
         st.download_button(
@@ -40,22 +37,7 @@ def render_study_duration_tab(conn):
 
 def render_interaction_monitoring_tab(conn):
     st.subheader("大模型交互质量抽查")
-    try:
-        df_chat = pd.read_sql(
-            "SELECT student_id AS '学号', question_id AS '题号', hint_strength AS '提示强度', "
-            "pedagogical_intent AS '教学意图', hint_safety_status AS '安全状态', "
-            "user_query AS '学生提问', ai_response AS '系统反馈', is_leaking_answer AS '是否泄露', "
-            "leakage_score AS '泄露评分', rewrite_count AS '重写次数', leakage_reason AS '检测原因', "
-            "created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
-            conn,
-        )
-    except Exception:
-        df_chat = pd.read_sql(
-            "SELECT student_id AS '学号', question_id AS '题号', user_query AS '学生提问', "
-            "ai_response AS '系统反馈', created_at AS '交互时间' "
-            "FROM interaction_logs ORDER BY created_at DESC LIMIT 50",
-            conn,
-        )
+    df_chat = fetch_recent_interaction_logs(conn)
     st.dataframe(df_chat, use_container_width=True)
     if not df_chat.empty:
         st.download_button(

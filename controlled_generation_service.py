@@ -1,13 +1,11 @@
 import json
 import logging
 
-from sqlalchemy import text
-
-from database_service import get_database_engine
 from domain_models import ControlledHintResult, LeakageEvaluation, QuestionData
 from hint_text_utils import format_math, parse_json_object
 from leakage_detection_service import evaluate_hint_leakage
 from llm_gateway import chat_completion_text
+from prompt_config_repository import get_system_instruction
 from prompts import HINT_PLAN_PROMPT_SYSTEM, REWRITE_PROMPT_SYSTEM, SYSTEM_INSTRUCTION
 
 HINT_STRENGTH_POLICIES = {
@@ -19,13 +17,7 @@ HINT_STRENGTH_POLICIES = {
 
 def get_dynamic_system_prompt() -> str:
     try:
-        engine_tmp = get_database_engine()
-        with engine_tmp.connect() as conn_tmp:
-            dyn_prompt_res = conn_tmp.execute(
-                text("SELECT config_value FROM system_configs WHERE config_key = 'system_instruction'")
-            ).fetchone()
-            if dyn_prompt_res:
-                return dyn_prompt_res[0]
+        return get_system_instruction(SYSTEM_INSTRUCTION)
     except Exception as e:
         logging.error(f"Fetch prompt error: {e}")
     return SYSTEM_INSTRUCTION
