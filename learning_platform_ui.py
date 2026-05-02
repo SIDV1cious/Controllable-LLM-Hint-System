@@ -62,8 +62,6 @@ def apply_platform_visual_theme():
     [data-testid="stToolbar"],
     [data-testid="stDecoration"],
     [data-testid="stStatusWidget"],
-    [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"],
     #MainMenu,
     footer {
         display: none !important;
