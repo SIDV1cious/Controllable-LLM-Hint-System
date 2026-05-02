@@ -19,15 +19,10 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "build",
-      chunkSizeWarningLimit: 900,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            react: ["react", "react-dom", "streamlit-component-lib"],
-            mathlive: ["mathlive"],
-          },
-        },
-      },
+      // Streamlit components are served inside an iframe. Keeping the editor as
+      // one bundle avoids remote deployments getting stuck while fetching
+      // secondary MathLive chunks.
+      chunkSizeWarningLimit: 1400,
     },
   } satisfies UserConfig
 })
