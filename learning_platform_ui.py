@@ -69,8 +69,21 @@ def apply_platform_visual_theme():
         border: none !important;
     }
 
+    [data-testid="stToolbar"],
+    [data-testid="stAppToolbar"] {
+        display: flex !important;
+        visibility: visible !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        overflow: visible !important;
+        background: transparent !important;
+        pointer-events: none !important;
+    }
+
     [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"] {
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stSidebarCollapseButton"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
@@ -78,7 +91,10 @@ def apply_platform_visual_theme():
         z-index: 999999 !important;
     }
 
-    [data-testid="stToolbar"],
+    [data-testid="stToolbarActions"],
+    [data-testid="stHeaderActionElements"],
+    [data-testid="stMainMenu"],
+    [data-testid="stAppDeployButton"],
     [data-testid="stDecoration"],
     [data-testid="stStatusWidget"],
     #MainMenu,
