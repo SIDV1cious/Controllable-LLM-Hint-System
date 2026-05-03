@@ -10,7 +10,6 @@ from ui_feedback import render_route_loading_overlay
 
 LOGIN_ERROR_KEY = "identity_login_error"
 LOGIN_PENDING_KEY = "identity_login_pending"
-LOGIN_STATUS_KEY = "identity_login_status"
 LOGIN_PASSWORD_KEY = "identity_login_password"
 LOGIN_USERNAME_KEY = "identity_login_username"
 
@@ -391,18 +390,6 @@ def apply_identity_page_layout():
         box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
     }
 
-    .identity-login-status {
-        margin: 0.55rem 0 0.25rem 0;
-        padding: 0.65rem 0.8rem;
-        border: 1px solid #dbeafe;
-        border-radius: 12px;
-        background: #eff6ff;
-        color: #1d4ed8;
-        font-size: 0.92rem;
-        font-weight: 650;
-        line-height: 1.5;
-    }
-
     .identity-loading-icon {
         display: inline-block;
         margin-right: 10px;
@@ -418,7 +405,12 @@ def apply_identity_page_layout():
     }
 
     .identity-loading-message {
-        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: auto;
+        margin: 0 auto;
+        text-align: center;
     }
 
     @keyframes identity-spin {
@@ -474,20 +466,17 @@ def render_identity_access_page(
         if not username or not password:
             st.session_state[LOGIN_ERROR_KEY] = "请输入账号和密码"
             st.session_state.pop(LOGIN_PENDING_KEY, None)
-            st.session_state.pop(LOGIN_STATUS_KEY, None)
             st.rerun()
 
         is_auth, role = authenticate_learning_user(username, password)
         if not is_auth:
             st.session_state[LOGIN_ERROR_KEY] = "账号或密码错误"
-            st.session_state.pop(LOGIN_PENDING_KEY, None)
-            st.session_state.pop(LOGIN_STATUS_KEY, None)
             st.session_state[LOGIN_PASSWORD_KEY] = ""
+            st.session_state.pop(LOGIN_PENDING_KEY, None)
             st.rerun()
 
         st.session_state.pop(LOGIN_ERROR_KEY, None)
         st.session_state.pop(LOGIN_PENDING_KEY, None)
-        st.session_state.pop(LOGIN_STATUS_KEY, None)
         st.session_state.pop(LOGIN_PASSWORD_KEY, None)
         set_authenticated_user(username, role)
         record_login_event(username)
@@ -498,9 +487,8 @@ def render_identity_access_page(
     apply_identity_page_layout()
 
     if st.session_state.get(LOGIN_PENDING_KEY):
-        render_identity_loading_page(st.session_state.get(LOGIN_STATUS_KEY, "正在验证账号并加载学习数据..."))
-        # Give the browser one short paint opportunity before the backend finishes auth work.
-        time.sleep(0.18)
+        render_identity_loading_page()
+        time.sleep(0.65)
         process_pending_login()
         st.stop()
 
@@ -525,7 +513,6 @@ def render_identity_access_page(
                         st.session_state[LOGIN_ERROR_KEY] = "请输入账号和密码"
                     else:
                         st.session_state.pop(LOGIN_ERROR_KEY, None)
-                        st.session_state[LOGIN_STATUS_KEY] = "正在验证账号并加载学习数据..."
                         st.session_state[LOGIN_PENDING_KEY] = True
                     st.rerun()
                 if st.session_state.get(LOGIN_ERROR_KEY):
