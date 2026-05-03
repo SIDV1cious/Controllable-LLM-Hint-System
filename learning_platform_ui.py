@@ -56,6 +56,11 @@ def apply_platform_visual_theme():
             linear-gradient(180deg, #fbfdff 0%, var(--app-bg) 100%);
     }
 
+    [data-testid="stHeader"] {
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
     [data-testid="stToolbarActions"],
     [data-testid="stHeaderActionElements"],
     [data-testid="stMainMenu"],

@@ -6,6 +6,12 @@ from session_keys import SessionKey
 from session_state_manager import navigate_to, reset_login_session
 
 
+def render_public_sidebar_placeholder(sidebar_slot):
+    with sidebar_slot.container():
+        st.markdown("### 学习导航")
+        st.caption("请先登录账号，进入系统后可查看学情报告、课程大厅和测验导航。")
+
+
 def render_sidebar_navigation(sidebar_slot):
     if st.session_state[SessionKey.PAGE_MODE] == PageMode.GRADING:
         sidebar_slot.empty()

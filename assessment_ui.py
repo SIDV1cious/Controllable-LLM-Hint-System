@@ -267,41 +267,14 @@ def render_automated_grading_screen(sidebar_slot, submit_answers_and_run_assessm
     st.markdown(
         """
 <style>
-section[data-testid="stSidebar"],
-[data-testid="stSidebar"],
-div[data-testid="stSidebarUserContent"] {
-    display: none !important;
-    width: 0 !important;
-    min-width: 0 !important;
+.grading-state-shell {
+    min-height: 68vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-
-header[data-testid="stHeader"],
-[data-testid="stHeader"] {
-    display: none !important;
-}
-
-div[data-testid="stToolbar"],
-[data-testid="stToolbar"] {
-    display: none !important;
-}
-
-.block-container {
-    max-width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-[data-testid="stAppViewContainer"] {
-    margin-left: 0 !important;
-}
-
-.main, .main .block-container, section.main {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
 </style>
-<div style="height: 100vh; display: flex; align-items: center; justify-content: center;">
+<div class="grading-state-shell">
     <h2>🧠 系统正在阅卷中，请勿刷新或退出...</h2>
 </div>
 """,
