@@ -135,6 +135,13 @@ def apply_platform_visual_theme():
         border-radius: 12px !important;
     }
 
+    /* Streamlit reruns temporarily mark previous widgets as stale and fade them.
+       On the login page this looked like the whole screen became transparent. */
+    div[data-testid="stElementContainer"] {
+        opacity: 1 !important;
+        transition: none !important;
+    }
+
     div[data-testid="stTextInput"] input:focus,
     div[data-testid="stTextArea"] textarea:focus {
         border-color: rgba(37, 99, 235, 0.55) !important;
