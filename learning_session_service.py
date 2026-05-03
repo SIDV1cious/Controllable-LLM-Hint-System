@@ -105,17 +105,20 @@ def record_learning_interaction(
 
 
 def restore_user_learning_state(username: str) -> None:
-    question_ids = get_user_current_quiz_ids(username)
-    if question_ids:
-        questions = fetch_questions_by_public_ids(question_ids)
-        if questions:
-            restore_quiz_session(questions)
+    try:
+        question_ids = get_user_current_quiz_ids(username)
+        if question_ids:
+            questions = fetch_questions_by_public_ids(question_ids)
+            if questions:
+                restore_quiz_session(questions)
 
-    for qid, query, response in fetch_student_interaction_logs(username):
-        if InteractionMarker.TUTORING not in str(query or ""):
-            continue
-        append_chat_message(qid, ChatRole.USER, _clean_restored_tutoring_query(query))
-        append_chat_message(qid, ChatRole.ASSISTANT, response)
+        for qid, query, response in fetch_student_interaction_logs(username):
+            if InteractionMarker.TUTORING not in str(query or ""):
+                continue
+            append_chat_message(qid, ChatRole.USER, _clean_restored_tutoring_query(query))
+            append_chat_message(qid, ChatRole.ASSISTANT, response)
+    except Exception as exc:
+        log_exception("restore_user_learning_state error", exc)
 
 
 def start_course_assessment_session(course_name: str) -> None:

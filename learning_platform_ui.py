@@ -4,6 +4,10 @@ from app_constants import APP_TITLE, UserRole
 from course_repository import list_course_catalog
 from session_state_manager import set_authenticated_user
 
+LOGIN_ERROR_KEY = "identity_login_error"
+LOGIN_PASSWORD_KEY = "identity_login_password"
+LOGIN_USERNAME_KEY = "identity_login_username"
+
 
 def render_assessment_integrity_warning():
     st.markdown(
@@ -272,6 +276,20 @@ def render_identity_access_page(
     record_login_event,
     restore_user_learning_state,
 ):
+    def handle_login_submit():
+        username = st.session_state.get(LOGIN_USERNAME_KEY, "").strip()
+        password = st.session_state.get(LOGIN_PASSWORD_KEY, "").strip()
+        is_auth, role = authenticate_learning_user(username, password)
+        if not is_auth:
+            st.session_state[LOGIN_ERROR_KEY] = "账号或密码错误"
+            return
+
+        st.session_state.pop(LOGIN_ERROR_KEY, None)
+        set_authenticated_user(username, role)
+        record_login_event(username)
+        if role != UserRole.ADMIN:
+            restore_user_learning_state(username)
+
     apply_identity_page_layout()
     st.markdown(f"<h1 class='auth-page-title'>{APP_TITLE}</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
@@ -279,19 +297,16 @@ def render_identity_access_page(
         tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
         with tab_l:
             with st.form("login_form"):
-                u_in = st.text_input("账号/学号")
-                p_in = st.text_input("密码", type="password")
-                submitted = st.form_submit_button("进入系统", type="primary", use_container_width=True)
-                if submitted:
-                    is_auth, role = authenticate_learning_user(u_in.strip(), p_in.strip())
-                    if is_auth:
-                        set_authenticated_user(u_in.strip(), role)
-                        record_login_event(u_in.strip())
-                        if role != UserRole.ADMIN:
-                            restore_user_learning_state(u_in.strip())
-                        st.rerun()
-                    else:
-                        st.error("账号或密码错误")
+                st.text_input("账号/学号", key=LOGIN_USERNAME_KEY)
+                st.text_input("密码", type="password", key=LOGIN_PASSWORD_KEY)
+                st.form_submit_button(
+                    "进入系统",
+                    type="primary",
+                    use_container_width=True,
+                    on_click=handle_login_submit,
+                )
+                if st.session_state.get(LOGIN_ERROR_KEY):
+                    st.error(st.session_state[LOGIN_ERROR_KEY])
         with tab_r:
             with st.form("register_form"):
                 ru = st.text_input("新学号")
