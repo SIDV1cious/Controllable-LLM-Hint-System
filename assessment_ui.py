@@ -7,7 +7,7 @@ from controlled_hint_ui import render_controlled_hint_panel
 from hint_system_core import build_result_export, format_math, now_shanghai
 from learning_platform_ui import render_assessment_integrity_warning
 from session_keys import SessionKey, answer_input, hint_safety_status, navigation_button, review_button
-from session_state_manager import navigate_to
+from session_state_manager import clear_active_assessment_state, navigate_to
 
 
 def apply_results_dashboard_style():
@@ -311,6 +311,7 @@ def render_assessment_results_dashboard(record_learning_interaction):
     )
 
     if st.button("🔄 返回大厅开启新课程"):
+        clear_active_assessment_state()
         navigate_to(PageMode.HOME)
         st.rerun()
 

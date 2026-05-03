@@ -15,12 +15,11 @@ from interaction_repository import (
     fetch_student_interaction_logs,
     insert_interaction_log,
 )
-from question_repository import fetch_questions_by_course, fetch_questions_by_public_ids
+from question_repository import fetch_questions_by_course
 from session_keys import SessionKey
 from session_state_manager import (
     append_chat_message,
     complete_assessment_session,
-    restore_quiz_session,
     set_assessment_results,
     start_quiz_session,
 )
@@ -30,7 +29,6 @@ from user_repository import (
     clear_user_current_quiz_ids,
     create_student_user,
     fetch_user_auth_record,
-    get_user_current_quiz_ids,
     record_login_log,
     save_user_current_quiz_ids,
     user_exists,
@@ -106,11 +104,7 @@ def record_learning_interaction(
 
 def restore_user_learning_state(username: str) -> None:
     try:
-        question_ids = get_user_current_quiz_ids(username)
-        if question_ids:
-            questions = fetch_questions_by_public_ids(question_ids)
-            if questions:
-                restore_quiz_session(questions)
+        clear_user_current_quiz_ids(username)
 
         for qid, query, response in fetch_student_interaction_logs(username):
             if InteractionMarker.TUTORING not in str(query or ""):

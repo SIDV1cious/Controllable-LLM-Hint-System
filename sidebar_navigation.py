@@ -3,7 +3,7 @@ import streamlit as st
 from app_constants import PageMode, UserRole
 from learning_session_service import clear_current_quiz_for_user
 from session_keys import SessionKey
-from session_state_manager import navigate_to, reset_login_session
+from session_state_manager import clear_active_assessment_state, navigate_to, reset_login_session
 
 
 def render_sidebar_navigation(sidebar_slot):
@@ -19,6 +19,7 @@ def render_sidebar_navigation(sidebar_slot):
             if st.session_state[SessionKey.PAGE_MODE] != PageMode.HOME:
                 if st.button("🏠 返回大厅"):
                     clear_current_quiz_for_user(st.session_state[SessionKey.CURRENT_USER])
+                    clear_active_assessment_state()
                     navigate_to(PageMode.HOME)
                     st.rerun()
 
@@ -28,5 +29,7 @@ def render_sidebar_navigation(sidebar_slot):
                     st.rerun()
 
         if st.button("🚪 退出登录"):
+            if st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT:
+                clear_current_quiz_for_user(st.session_state[SessionKey.CURRENT_USER])
             reset_login_session()
             st.rerun()

@@ -8,7 +8,10 @@ import streamlit as st
 from app_constants import DEFAULT_RESTORED_COURSE_NAME, PageMode, UserRole
 from session_keys import SessionKey
 
+CURRENT_APP_STATE_VERSION = 2
+
 SESSION_DEFAULTS: dict[str, Any] = {
+    SessionKey.APP_STATE_VERSION: CURRENT_APP_STATE_VERSION,
     SessionKey.LOGGED_IN: False,
     SessionKey.CURRENT_USER: None,
     SessionKey.USER_ROLE: UserRole.STUDENT,
@@ -50,8 +53,16 @@ def init_session_state(target: MutableMapping[str, Any] | None = None) -> None:
 
 def repair_session_state(target: MutableMapping[str, Any] | None = None) -> bool:
     state = _state(target)
+    previous_version = state.get(SessionKey.APP_STATE_VERSION)
     init_session_state(state)
     changed = False
+
+    if previous_version != CURRENT_APP_STATE_VERSION:
+        state[SessionKey.APP_STATE_VERSION] = CURRENT_APP_STATE_VERSION
+        if state.get(SessionKey.LOGGED_IN) and state.get(SessionKey.PAGE_MODE) in {PageMode.QUIZ, PageMode.GRADING}:
+            clear_active_assessment_state(state)
+            state[SessionKey.PAGE_MODE] = PageMode.HOME
+            changed = True
 
     if not state.get(SessionKey.LOGGED_IN):
         if state.get(SessionKey.CURRENT_USER) is not None:
@@ -119,6 +130,20 @@ def set_authenticated_user(
 
 def navigate_to(page_mode: str, target: MutableMapping[str, Any] | None = None) -> None:
     _state(target)[SessionKey.PAGE_MODE] = page_mode
+
+
+def clear_active_assessment_state(target: MutableMapping[str, Any] | None = None) -> None:
+    state = _state(target)
+    state[SessionKey.QUIZ_QUEUE] = []
+    state[SessionKey.CURRENT_QUESTION_INDEX] = 0
+    state[SessionKey.USER_ANSWERS] = {}
+    state[SessionKey.ASSESSMENT_RESULTS] = []
+    state[SessionKey.REVIEW_QUESTION_INDEX] = None
+    state[SessionKey.CHAT_HISTORIES] = {}
+    state[SessionKey.STUDY_SESSION_ID] = None
+    state[SessionKey.CURRENT_COURSE] = None
+    state[SessionKey.IS_GRADING] = False
+    state[SessionKey.GRADING_STARTED] = False
 
 
 def reset_login_session(target: MutableMapping[str, Any] | None = None) -> None:

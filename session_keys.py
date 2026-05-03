@@ -2,6 +2,7 @@
 
 
 class SessionKey:
+    APP_STATE_VERSION = "app_state_version"
     LOGGED_IN = "logged_in"
     CURRENT_USER = "current_user"
     USER_ROLE = "user_role"

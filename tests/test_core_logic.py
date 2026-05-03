@@ -47,6 +47,7 @@ from prompt_config_repository import SYSTEM_INSTRUCTION_KEY
 from question_repository import public_ids_to_database_ids
 from session_keys import SessionKey, composer_input, hint_safety_status, quick_help_button
 from session_state_manager import (
+    clear_active_assessment_state,
     complete_assessment_session,
     init_session_state,
     repair_session_state,
@@ -229,6 +230,7 @@ def test_session_state_manager_initializes_and_resets_state():
     init_session_state(state)
 
     assert state[SessionKey.LOGGED_IN] is False
+    assert state[SessionKey.APP_STATE_VERSION] == 2
     assert state[SessionKey.PAGE_MODE] == PageMode.HOME
     assert state[SessionKey.QUIZ_QUEUE] == []
 
@@ -257,6 +259,23 @@ def test_session_state_repair_recovers_blank_page_states():
     assert state[SessionKey.PAGE_MODE] == PageMode.HOME
     assert state[SessionKey.IS_GRADING] is False
     assert state[SessionKey.GRADING_STARTED] is False
+
+
+def test_session_state_repair_migrates_legacy_quiz_sessions_to_home():
+    state = {
+        SessionKey.LOGGED_IN: True,
+        SessionKey.CURRENT_USER: "student001",
+        SessionKey.USER_ROLE: UserRole.STUDENT,
+        SessionKey.PAGE_MODE: PageMode.QUIZ,
+        SessionKey.QUIZ_QUEUE: [{"id": 1001}],
+        SessionKey.USER_ANSWERS: {0: "A"},
+    }
+
+    assert repair_session_state(state) is True
+    assert state[SessionKey.APP_STATE_VERSION] == 2
+    assert state[SessionKey.PAGE_MODE] == PageMode.HOME
+    assert state[SessionKey.QUIZ_QUEUE] == []
+    assert state[SessionKey.USER_ANSWERS] == {}
 
 
 def test_session_state_repair_resets_missing_authenticated_user():
@@ -291,6 +310,34 @@ def test_start_quiz_session_clears_transient_learning_state():
     assert state[SessionKey.CHAT_HISTORIES] == {}
     assert state[SessionKey.ASSESSMENT_RESULTS] == []
     assert state[SessionKey.PAGE_MODE] == PageMode.QUIZ
+
+
+def test_clear_active_assessment_state_returns_to_clean_lobby_context():
+    state = {
+        SessionKey.QUIZ_QUEUE: [{"id": 1001}],
+        SessionKey.CURRENT_QUESTION_INDEX: 3,
+        SessionKey.USER_ANSWERS: {0: "A"},
+        SessionKey.ASSESSMENT_RESULTS: [{"is_correct": False}],
+        SessionKey.REVIEW_QUESTION_INDEX: 1,
+        SessionKey.CHAT_HISTORIES: {1001: [{"role": "user", "content": "提示"}]},
+        SessionKey.STUDY_SESSION_ID: 9,
+        SessionKey.CURRENT_COURSE: "高等数学",
+        SessionKey.IS_GRADING: True,
+        SessionKey.GRADING_STARTED: True,
+    }
+
+    clear_active_assessment_state(state)
+
+    assert state[SessionKey.QUIZ_QUEUE] == []
+    assert state[SessionKey.CURRENT_QUESTION_INDEX] == 0
+    assert state[SessionKey.USER_ANSWERS] == {}
+    assert state[SessionKey.ASSESSMENT_RESULTS] == []
+    assert state[SessionKey.REVIEW_QUESTION_INDEX] is None
+    assert state[SessionKey.CHAT_HISTORIES] == {}
+    assert state[SessionKey.STUDY_SESSION_ID] is None
+    assert state[SessionKey.CURRENT_COURSE] is None
+    assert state[SessionKey.IS_GRADING] is False
+    assert state[SessionKey.GRADING_STARTED] is False
 
 
 def test_complete_assessment_session_moves_to_results():
