@@ -23,6 +23,7 @@ ADMIN_SECTION_OPTIONS = [
 
 
 def render_admin_console():
+    st.markdown('<div id="route-page-admin"></div>', unsafe_allow_html=True)
     st.markdown(
         """
 <div class="page-hero">

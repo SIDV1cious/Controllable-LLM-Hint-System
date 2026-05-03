@@ -7,6 +7,7 @@ from session_state_manager import set_authenticated_user
 from ui_feedback import render_route_loading_overlay
 
 LOGIN_ERROR_KEY = "identity_login_error"
+LOGIN_STATUS_KEY = "identity_login_status"
 LOGIN_PASSWORD_KEY = "identity_login_password"
 LOGIN_USERNAME_KEY = "identity_login_username"
 
@@ -220,17 +221,46 @@ def apply_platform_visual_theme():
     .stApp:has(#route-page-home) div[data-testid="stMetric"],
     .stApp:has(#route-page-home) .auth-page-title,
     .stApp:has(#route-page-home) div[data-testid="stTabs"],
+    .stApp:has(#route-page-home) div[data-testid="stForm"]:has(.st-key-identity_login_username),
+    .stApp:has(#route-page-home) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
+    .stApp:has(#route-page-home) .st-key-identity_login_username,
+    .stApp:has(#route-page-home) .st-key-identity_login_password,
+    .stApp:has(#route-page-home) .st-key-FormSubmitter-login_form-----,
+    .stApp:has(#route-page-home) .st-key-FormSubmitter-register_form-----,
+    .stApp:has(#route-page-admin) .auth-page-title,
+    .stApp:has(#route-page-admin) div[data-testid="stTabs"],
+    .stApp:has(#route-page-admin) div[data-testid="stForm"]:has(.st-key-identity_login_username),
+    .stApp:has(#route-page-admin) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
+    .stApp:has(#route-page-admin) .st-key-identity_login_username,
+    .stApp:has(#route-page-admin) .st-key-identity_login_password,
+    .stApp:has(#route-page-admin) .st-key-FormSubmitter-login_form-----,
+    .stApp:has(#route-page-admin) .st-key-FormSubmitter-register_form-----,
     .stApp:has(#route-page-report) .course-lobby-hero,
     .stApp:has(#route-page-report) .course-selection-guide,
     .stApp:has(#route-page-report) div[data-testid="stVerticalBlockBorderWrapper"]:has(.course-card-eyebrow),
     .stApp:has(#route-page-report) .auth-page-title,
-    .stApp:has(#route-page-report) div[data-testid="stTabs"] {
+    .stApp:has(#route-page-report) div[data-testid="stTabs"],
+    .stApp:has(#route-page-report) div[data-testid="stForm"]:has(.st-key-identity_login_username),
+    .stApp:has(#route-page-report) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
+    .stApp:has(#route-page-report) .st-key-identity_login_username,
+    .stApp:has(#route-page-report) .st-key-identity_login_password,
+    .stApp:has(#route-page-report) .st-key-FormSubmitter-login_form-----,
+    .stApp:has(#route-page-report) .st-key-FormSubmitter-register_form----- {
         display: none !important;
     }
 
     .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
-    div[data-testid="stElementContainer"][data-stale="true"] {
+    [data-stale="true"],
+    .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
+    [data-stale="true"] * {
         opacity: 1 !important;
+        filter: none !important;
+    }
+
+    .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
+    div[data-testid="stFormSubmitButton"] button:disabled {
+        opacity: 1 !important;
+        filter: none !important;
     }
 
     .section-kicker {
@@ -318,6 +348,18 @@ def apply_identity_page_layout():
         box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
     }
 
+    .identity-login-status {
+        margin: 0.55rem 0 0.25rem 0;
+        padding: 0.65rem 0.8rem;
+        border: 1px solid #dbeafe;
+        border-radius: 12px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.92rem;
+        font-weight: 650;
+        line-height: 1.5;
+    }
+
     @media (max-height: 760px) {
         .auth-page-title {
             margin-top: 3rem;
@@ -344,19 +386,25 @@ def render_identity_access_page(
     record_login_event,
     prepare_student_login_state,
 ):
-    def handle_login_submit():
+    def handle_login_submit() -> bool:
         username = st.session_state.get(LOGIN_USERNAME_KEY, "").strip()
         password = st.session_state.get(LOGIN_PASSWORD_KEY, "").strip()
+
+        if not username or not password:
+            st.session_state[LOGIN_ERROR_KEY] = "请输入账号和密码"
+            return False
+
         is_auth, role = authenticate_learning_user(username, password)
         if not is_auth:
             st.session_state[LOGIN_ERROR_KEY] = "账号或密码错误"
-            return
+            return False
 
         st.session_state.pop(LOGIN_ERROR_KEY, None)
         set_authenticated_user(username, role)
         record_login_event(username)
         if role != UserRole.ADMIN:
             prepare_student_login_state(username)
+        return True
 
     apply_identity_page_layout()
     st.markdown('<div id="route-page-auth"></div>', unsafe_allow_html=True)
@@ -368,12 +416,20 @@ def render_identity_access_page(
             with st.form("login_form"):
                 st.text_input("账号/学号", key=LOGIN_USERNAME_KEY)
                 st.text_input("密码", type="password", key=LOGIN_PASSWORD_KEY)
-                st.form_submit_button(
+                login_submitted = st.form_submit_button(
                     "进入系统",
                     type="primary",
                     use_container_width=True,
-                    on_click=handle_login_submit,
                 )
+                if login_submitted:
+                    st.session_state[LOGIN_STATUS_KEY] = "正在验证账号并加载学习数据..."
+                    st.markdown(
+                        f"<div class='identity-login-status'>{st.session_state[LOGIN_STATUS_KEY]}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    handle_login_submit()
+                    st.session_state.pop(LOGIN_STATUS_KEY, None)
+                    st.rerun()
                 if st.session_state.get(LOGIN_ERROR_KEY):
                     st.error(st.session_state[LOGIN_ERROR_KEY])
         with tab_r:
