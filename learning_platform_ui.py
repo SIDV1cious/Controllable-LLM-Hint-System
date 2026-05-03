@@ -137,7 +137,11 @@ def apply_platform_visual_theme():
 
     /* Streamlit reruns temporarily mark previous widgets as stale and fade them.
        On the login page this looked like the whole screen became transparent. */
-    div[data-testid="stElementContainer"] {
+    div[data-testid="stElementContainer"],
+    div[data-testid="stTabs"] *,
+    div[data-testid="stForm"] *,
+    div[data-testid="stVerticalBlock"] *,
+    div[data-testid="stVerticalBlockBorderWrapper"] * {
         opacity: 1 !important;
         transition: none !important;
     }
