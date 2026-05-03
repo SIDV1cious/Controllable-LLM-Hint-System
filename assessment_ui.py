@@ -267,6 +267,17 @@ def render_automated_grading_screen(sidebar_slot, submit_answers_and_run_assessm
     st.markdown(
         """
 <style>
+section[data-testid="stSidebar"],
+[data-testid="stSidebar"] {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+}
+
+[data-testid="stAppViewContainer"] {
+    margin-left: 0 !important;
+}
+
 .grading-state-shell {
     min-height: 68vh;
     display: flex;
