@@ -37,13 +37,16 @@ def run_controlled_hint_system():
     repair_session_state()
     apply_platform_visual_theme()
 
+    main_content_slot = st.empty()
+
     if not st.session_state[SessionKey.LOGGED_IN]:
-        render_identity_access_page(
-            authenticate_learning_user,
-            register_learning_user,
-            record_login_event,
-            clear_current_quiz_for_user,
-        )
+        with main_content_slot.container():
+            render_identity_access_page(
+                authenticate_learning_user,
+                register_learning_user,
+                record_login_event,
+                clear_current_quiz_for_user,
+            )
         st.stop()
 
     sidebar_slot = None
@@ -54,7 +57,6 @@ def run_controlled_hint_system():
         sidebar_slot = st.sidebar.empty()
         render_sidebar_navigation(sidebar_slot)
 
-    main_content_slot = st.empty()
     with main_content_slot.container():
         if (
             st.session_state[SessionKey.PAGE_MODE] == PageMode.ADMIN
