@@ -216,6 +216,18 @@ def apply_platform_visual_theme():
         margin-bottom: 0.15rem;
     }
 
+    .stApp:has(#route-page-home) .student-report-hero,
+    .stApp:has(#route-page-home) div[data-testid="stMetric"],
+    .stApp:has(#route-page-home) .auth-page-title,
+    .stApp:has(#route-page-home) div[data-testid="stTabs"],
+    .stApp:has(#route-page-report) .course-lobby-hero,
+    .stApp:has(#route-page-report) .course-selection-guide,
+    .stApp:has(#route-page-report) div[data-testid="stVerticalBlockBorderWrapper"]:has(.course-card-eyebrow),
+    .stApp:has(#route-page-report) .auth-page-title,
+    .stApp:has(#route-page-report) div[data-testid="stTabs"] {
+        display: none !important;
+    }
+
     .section-kicker {
         color: var(--brand-blue);
         font-size: 0.82rem;
@@ -372,6 +384,7 @@ def render_identity_access_page(
 
 
 def render_course_selection_portal(start_course_assessment_session):
+    st.markdown('<div id="route-page-home"></div>', unsafe_allow_html=True)
     route_loading_passes = int(st.session_state.get(SessionKey.ROUTE_LOADING_PASSES, 0) or 0)
     route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE)) or route_loading_passes > 0
     route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)

@@ -16,9 +16,10 @@ REPORT_HISTORY_LOADED_PREFIX = "report_history_loaded_for_"
 
 
 def render_student_learning_report():
+    st.markdown('<div id="route-page-report"></div>', unsafe_allow_html=True)
     st.markdown(
         """
-<div class="page-hero">
+<div class="page-hero student-report-hero">
     <div class="section-kicker">LEARNING PROFILE</div>
     <h1 class="page-hero-title">📊 个人学情中心与错题记录</h1>
     <p class="page-hero-subtitle">汇总个人学习时长、历史正确率与错题复盘，帮助你追踪知识掌握情况。</p>
