@@ -187,7 +187,7 @@ def apply_platform_visual_theme():
     }
 
     .course-lobby-hero {
-        margin-top: clamp(1.7rem, 4.2vh, 3.1rem);
+        margin-top: clamp(0.45rem, 1.6vh, 1.15rem);
     }
 
     .page-hero-title {
@@ -250,7 +250,7 @@ def apply_identity_page_layout():
 <style>
     .auth-page-title {
         text-align: center;
-        margin: clamp(5.4rem, 22vh, 10.5rem) 0 1.35rem 0;
+        margin: clamp(4rem, 18vh, 9rem) 0 1.35rem 0;
         color: #1f2937;
         font-size: clamp(2rem, 3vw, 2.85rem);
         font-weight: 850;
@@ -268,7 +268,7 @@ def apply_identity_page_layout():
 
     @media (max-height: 760px) {
         .auth-page-title {
-            margin-top: 4.2rem;
+            margin-top: 3rem;
         }
     }
 </style>
