@@ -2,6 +2,7 @@ import streamlit as st
 
 from app_constants import ChatRole
 from hint_text_utils import format_math
+from learning_session_service import restore_user_learning_state
 from session_keys import SessionKey
 from student_report_repository import (
     fetch_answer_logs,
@@ -9,6 +10,8 @@ from student_report_repository import (
     fetch_total_study_seconds,
 )
 from student_report_service import calculate_learning_summary, extract_wrong_question_ids
+
+REPORT_HISTORY_LOADED_PREFIX = "report_history_loaded_for_"
 
 
 def render_student_learning_report():
@@ -23,6 +26,11 @@ def render_student_learning_report():
         unsafe_allow_html=True,
     )
     username = st.session_state[SessionKey.CURRENT_USER]
+    report_history_key = f"{REPORT_HISTORY_LOADED_PREFIX}{username}"
+    if not st.session_state.get(report_history_key):
+        restore_user_learning_state(username)
+        st.session_state[report_history_key] = True
+
     total_seconds = fetch_total_study_seconds(username)
     answer_logs = fetch_answer_logs(username)
     summary = calculate_learning_summary(total_seconds, answer_logs)

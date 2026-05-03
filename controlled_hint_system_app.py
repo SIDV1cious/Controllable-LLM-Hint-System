@@ -16,10 +16,10 @@ from learning_platform_ui import (
 )
 from learning_session_service import (
     authenticate_learning_user,
+    clear_current_quiz_for_user,
     record_learning_interaction,
     record_login_event,
     register_learning_user,
-    restore_user_learning_state,
     start_course_assessment_session,
     submit_answers_and_run_assessment,
 )
@@ -42,7 +42,7 @@ def run_controlled_hint_system():
             authenticate_learning_user,
             register_learning_user,
             record_login_event,
-            restore_user_learning_state,
+            clear_current_quiz_for_user,
         )
         st.stop()
 

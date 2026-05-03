@@ -135,17 +135,6 @@ def apply_platform_visual_theme():
         border-radius: 12px !important;
     }
 
-    /* Streamlit reruns temporarily mark previous widgets as stale and fade them.
-       On the login page this looked like the whole screen became transparent. */
-    div[data-testid="stElementContainer"],
-    div[data-testid="stTabs"] *,
-    div[data-testid="stForm"] *,
-    div[data-testid="stVerticalBlock"] *,
-    div[data-testid="stVerticalBlockBorderWrapper"] * {
-        opacity: 1 !important;
-        transition: none !important;
-    }
-
     div[data-testid="stTextInput"] input:focus,
     div[data-testid="stTextArea"] textarea:focus {
         border-color: rgba(37, 99, 235, 0.55) !important;
@@ -285,7 +274,7 @@ def render_identity_access_page(
     authenticate_learning_user,
     register_learning_user,
     record_login_event,
-    restore_user_learning_state,
+    prepare_student_login_state,
 ):
     def handle_login_submit():
         username = st.session_state.get(LOGIN_USERNAME_KEY, "").strip()
@@ -299,7 +288,7 @@ def render_identity_access_page(
         set_authenticated_user(username, role)
         record_login_event(username)
         if role != UserRole.ADMIN:
-            restore_user_learning_state(username)
+            prepare_student_login_state(username)
 
     apply_identity_page_layout()
     st.markdown(f"<h1 class='auth-page-title'>{APP_TITLE}</h1>", unsafe_allow_html=True)
