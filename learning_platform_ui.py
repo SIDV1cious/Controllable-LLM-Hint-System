@@ -343,6 +343,22 @@ def apply_identity_page_layout():
         margin-bottom: 0.7rem;
     }
 
+    .stApp:has(#route-page-auth) button[role="tab"],
+    .stApp:has(#route-page-auth) button[role="tab"] * {
+        opacity: 1 !important;
+        filter: none !important;
+    }
+
+    .stApp:has(#route-page-auth) button[role="tab"][aria-selected="true"] p {
+        color: var(--brand-red) !important;
+        font-weight: 750 !important;
+    }
+
+    .stApp:has(#route-page-auth) button[role="tab"]:not([aria-selected="true"]) p {
+        color: #475569 !important;
+        font-weight: 650 !important;
+    }
+
     div[data-testid="stForm"] {
         backdrop-filter: blur(12px);
         box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
