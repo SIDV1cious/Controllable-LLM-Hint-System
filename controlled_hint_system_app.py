@@ -54,35 +54,37 @@ def run_controlled_hint_system():
         sidebar_slot = st.sidebar.empty()
         render_sidebar_navigation(sidebar_slot)
 
-    if (
-        st.session_state[SessionKey.PAGE_MODE] == PageMode.ADMIN
-        and st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN
-    ):
-        render_admin_console()
+    main_content_slot = st.empty()
+    with main_content_slot.container():
+        if (
+            st.session_state[SessionKey.PAGE_MODE] == PageMode.ADMIN
+            and st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN
+        ):
+            render_admin_console()
 
-    elif (
-        st.session_state[SessionKey.PAGE_MODE] == PageMode.HOME
-        and st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT
-    ):
-        render_course_selection_portal(start_course_assessment_session)
+        elif (
+            st.session_state[SessionKey.PAGE_MODE] == PageMode.HOME
+            and st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT
+        ):
+            render_course_selection_portal(start_course_assessment_session)
 
-    elif st.session_state[SessionKey.PAGE_MODE] == PageMode.QUIZ:
-        render_assessment_workspace()
+        elif st.session_state[SessionKey.PAGE_MODE] == PageMode.QUIZ:
+            render_assessment_workspace()
 
-    elif st.session_state[SessionKey.PAGE_MODE] == PageMode.GRADING:
-        render_automated_grading_screen(sidebar_slot, submit_answers_and_run_assessment)
+        elif st.session_state[SessionKey.PAGE_MODE] == PageMode.GRADING:
+            render_automated_grading_screen(sidebar_slot, submit_answers_and_run_assessment)
 
-    elif st.session_state[SessionKey.PAGE_MODE] == PageMode.RESULTS:
-        render_assessment_results_dashboard(record_learning_interaction)
+        elif st.session_state[SessionKey.PAGE_MODE] == PageMode.RESULTS:
+            render_assessment_results_dashboard(record_learning_interaction)
 
-    elif (
-        st.session_state[SessionKey.PAGE_MODE] == PageMode.REPORT
-        and st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT
-    ):
-        render_student_learning_report()
+        elif (
+            st.session_state[SessionKey.PAGE_MODE] == PageMode.REPORT
+            and st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT
+        ):
+            render_student_learning_report()
 
-    else:
-        st.session_state[SessionKey.PAGE_MODE] = (
-            PageMode.ADMIN if st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN else PageMode.HOME
-        )
-        st.rerun()
+        else:
+            st.session_state[SessionKey.PAGE_MODE] = (
+                PageMode.ADMIN if st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN else PageMode.HOME
+            )
+            st.rerun()
