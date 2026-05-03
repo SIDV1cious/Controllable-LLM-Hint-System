@@ -79,13 +79,7 @@ def apply_platform_visual_theme():
     }
 
     html,
-    body,
-    .stApp,
-    .main,
-    section.main,
-    [data-testid="stAppViewContainer"],
-    [data-testid="stMain"],
-    [data-testid="stMainBlockContainer"] {
+    body {
         overflow-y: auto !important;
         overflow-x: hidden !important;
         max-height: none !important;
@@ -93,6 +87,21 @@ def apply_platform_visual_theme():
 
     body {
         height: auto !important;
+    }
+
+    .stApp {
+        min-height: 100vh !important;
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+    }
+
+    .main,
+    section.main,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    [data-testid="stMainBlockContainer"] {
+        overflow: visible !important;
+        max-height: none !important;
     }
 
     .block-container {
