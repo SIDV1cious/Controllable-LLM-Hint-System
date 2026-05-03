@@ -273,36 +273,40 @@ def render_identity_access_page(
     restore_user_learning_state,
 ):
     apply_identity_page_layout()
-    st.markdown(f"<h1 class='auth-page-title'>{APP_TITLE}</h1>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 1, 1])
-    with c2:
-        tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
-        with tab_l:
-            with st.form("login_form"):
-                u_in = st.text_input("账号/学号")
-                p_in = st.text_input("密码", type="password")
-                submitted = st.form_submit_button("进入系统", type="primary", use_container_width=True)
-                if submitted:
-                    is_auth, role = authenticate_learning_user(u_in.strip(), p_in.strip())
-                    if is_auth:
-                        set_authenticated_user(u_in.strip(), role)
-                        record_login_event(u_in.strip())
-                        if role != UserRole.ADMIN:
-                            restore_user_learning_state(u_in.strip())
-                        st.rerun()
-                    else:
-                        st.error("账号或密码错误")
-        with tab_r:
-            with st.form("register_form"):
-                ru = st.text_input("新学号")
-                rp = st.text_input("新密码", type="password")
-                rp2 = st.text_input("确认密码", type="password")
-                reg_submitted = st.form_submit_button("立即注册", type="primary", use_container_width=True)
-                if reg_submitted:
-                    if ru.strip() and rp.strip() == rp2.strip() and register_learning_user(ru.strip(), rp.strip()):
-                        st.toast("注册成功！请切换到登录页面。", icon="✅")
-                    else:
-                        st.error("注册失败（学号已被占用或密码不一致）。")
+    auth_page = st.empty()
+    with auth_page.container():
+        st.markdown(f"<h1 class='auth-page-title'>{APP_TITLE}</h1>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c2:
+            tab_l, tab_r = st.tabs(["🔑 登录", "📝 注册"])
+            with tab_l:
+                with st.form("login_form"):
+                    u_in = st.text_input("账号/学号")
+                    p_in = st.text_input("密码", type="password")
+                    submitted = st.form_submit_button("进入系统", type="primary", use_container_width=True)
+                    if submitted:
+                        is_auth, role = authenticate_learning_user(u_in.strip(), p_in.strip())
+                        if is_auth:
+                            auth_page.empty()
+                            with st.spinner("正在进入系统，请稍候..."):
+                                set_authenticated_user(u_in.strip(), role)
+                                record_login_event(u_in.strip())
+                                if role != UserRole.ADMIN:
+                                    restore_user_learning_state(u_in.strip())
+                            st.rerun()
+                        else:
+                            st.error("账号或密码错误")
+            with tab_r:
+                with st.form("register_form"):
+                    ru = st.text_input("新学号")
+                    rp = st.text_input("新密码", type="password")
+                    rp2 = st.text_input("确认密码", type="password")
+                    reg_submitted = st.form_submit_button("立即注册", type="primary", use_container_width=True)
+                    if reg_submitted:
+                        if ru.strip() and rp.strip() == rp2.strip() and register_learning_user(ru.strip(), rp.strip()):
+                            st.toast("注册成功！请切换到登录页面。", icon="✅")
+                        else:
+                            st.error("注册失败（学号已被占用或密码不一致）。")
 
 
 def render_course_selection_portal(start_course_assessment_session):
