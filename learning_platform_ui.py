@@ -343,19 +343,29 @@ def apply_identity_page_layout():
         margin-bottom: 0.7rem;
     }
 
+    .stApp:has(#route-page-auth) div[data-testid="stTabs"],
+    .stApp:has(#route-page-auth) div[data-testid="stTabs"] *,
+    .stApp:has(#route-page-auth) button[data-testid="stTab"],
+    .stApp:has(#route-page-auth) button[data-testid="stTab"] *,
     .stApp:has(#route-page-auth) button[role="tab"],
-    .stApp:has(#route-page-auth) button[role="tab"] * {
+    .stApp:has(#route-page-auth) button[role="tab"] *,
+    .stApp:has(#route-page-auth) button[role="tab"]:disabled,
+    .stApp:has(#route-page-auth) button[role="tab"]:disabled * {
         opacity: 1 !important;
         filter: none !important;
     }
 
-    .stApp:has(#route-page-auth) button[role="tab"][aria-selected="true"] p {
+    .stApp:has(#route-page-auth) button[role="tab"][aria-selected="true"],
+    .stApp:has(#route-page-auth) button[role="tab"][aria-selected="true"] * {
         color: var(--brand-red) !important;
+        -webkit-text-fill-color: var(--brand-red) !important;
         font-weight: 750 !important;
     }
 
-    .stApp:has(#route-page-auth) button[role="tab"]:not([aria-selected="true"]) p {
+    .stApp:has(#route-page-auth) button[role="tab"]:not([aria-selected="true"]),
+    .stApp:has(#route-page-auth) button[role="tab"]:not([aria-selected="true"]) * {
         color: #475569 !important;
+        -webkit-text-fill-color: #475569 !important;
         font-weight: 650 !important;
     }
 
