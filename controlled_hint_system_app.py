@@ -24,7 +24,7 @@ from learning_session_service import (
     submit_answers_and_run_assessment,
 )
 from session_keys import SessionKey
-from session_state_manager import init_session_state
+from session_state_manager import init_session_state, repair_session_state
 from sidebar_navigation import render_sidebar_navigation
 from student_report_ui import render_student_learning_report
 
@@ -34,6 +34,7 @@ logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %
 def run_controlled_hint_system():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     init_session_state()
+    repair_session_state()
     apply_platform_visual_theme()
 
     if not st.session_state[SessionKey.LOGGED_IN]:
@@ -79,3 +80,9 @@ def run_controlled_hint_system():
         and st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT
     ):
         render_student_learning_report()
+
+    else:
+        st.session_state[SessionKey.PAGE_MODE] = (
+            PageMode.ADMIN if st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN else PageMode.HOME
+        )
+        st.rerun()

@@ -49,6 +49,7 @@ from session_keys import SessionKey, composer_input, hint_safety_status, quick_h
 from session_state_manager import (
     complete_assessment_session,
     init_session_state,
+    repair_session_state,
     reset_login_session,
     set_authenticated_user,
     start_quiz_session,
@@ -236,6 +237,37 @@ def test_session_state_manager_initializes_and_resets_state():
     assert state[SessionKey.CURRENT_USER] == "student001"
 
     reset_login_session(state)
+    assert state[SessionKey.LOGGED_IN] is False
+    assert state[SessionKey.CURRENT_USER] is None
+    assert state[SessionKey.PAGE_MODE] == PageMode.HOME
+
+
+def test_session_state_repair_recovers_blank_page_states():
+    state = {
+        SessionKey.LOGGED_IN: True,
+        SessionKey.CURRENT_USER: "student001",
+        SessionKey.USER_ROLE: UserRole.STUDENT,
+        SessionKey.PAGE_MODE: PageMode.QUIZ,
+        SessionKey.QUIZ_QUEUE: [],
+        SessionKey.IS_GRADING: True,
+        SessionKey.GRADING_STARTED: True,
+    }
+
+    assert repair_session_state(state) is True
+    assert state[SessionKey.PAGE_MODE] == PageMode.HOME
+    assert state[SessionKey.IS_GRADING] is False
+    assert state[SessionKey.GRADING_STARTED] is False
+
+
+def test_session_state_repair_resets_missing_authenticated_user():
+    state = {
+        SessionKey.LOGGED_IN: True,
+        SessionKey.CURRENT_USER: None,
+        SessionKey.USER_ROLE: UserRole.STUDENT,
+        SessionKey.PAGE_MODE: "unknown",
+    }
+
+    assert repair_session_state(state) is True
     assert state[SessionKey.LOGGED_IN] is False
     assert state[SessionKey.CURRENT_USER] is None
     assert state[SessionKey.PAGE_MODE] == PageMode.HOME

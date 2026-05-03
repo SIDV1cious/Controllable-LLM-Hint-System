@@ -26,6 +26,16 @@ SESSION_DEFAULTS: dict[str, Any] = {
     SessionKey.GRADING_STARTED: False,
 }
 
+VALID_PAGE_MODES = {
+    PageMode.ADMIN,
+    PageMode.HOME,
+    PageMode.QUIZ,
+    PageMode.GRADING,
+    PageMode.RESULTS,
+    PageMode.REPORT,
+}
+STUDENT_PAGE_MODES = {PageMode.HOME, PageMode.QUIZ, PageMode.GRADING, PageMode.RESULTS, PageMode.REPORT}
+
 
 def _state(target: MutableMapping[str, Any] | None = None) -> MutableMapping[str, Any]:
     return target if target is not None else st.session_state
@@ -36,6 +46,63 @@ def init_session_state(target: MutableMapping[str, Any] | None = None) -> None:
     for key, value in SESSION_DEFAULTS.items():
         if key not in state:
             state[key] = value.copy() if isinstance(value, (dict, list)) else value
+
+
+def repair_session_state(target: MutableMapping[str, Any] | None = None) -> bool:
+    state = _state(target)
+    init_session_state(state)
+    changed = False
+
+    if not state.get(SessionKey.LOGGED_IN):
+        if state.get(SessionKey.CURRENT_USER) is not None:
+            state[SessionKey.CURRENT_USER] = None
+            changed = True
+        if state.get(SessionKey.USER_ROLE) not in {UserRole.ADMIN, UserRole.STUDENT}:
+            state[SessionKey.USER_ROLE] = UserRole.STUDENT
+            changed = True
+        if state.get(SessionKey.PAGE_MODE) != PageMode.HOME:
+            state[SessionKey.PAGE_MODE] = PageMode.HOME
+            changed = True
+        return changed
+
+    if not state.get(SessionKey.CURRENT_USER):
+        reset_login_session(state)
+        return True
+
+    role = state.get(SessionKey.USER_ROLE)
+    if role not in {UserRole.ADMIN, UserRole.STUDENT}:
+        role = UserRole.STUDENT
+        state[SessionKey.USER_ROLE] = role
+        changed = True
+
+    page_mode = state.get(SessionKey.PAGE_MODE)
+    if page_mode not in VALID_PAGE_MODES:
+        page_mode = PageMode.ADMIN if role == UserRole.ADMIN else PageMode.HOME
+        state[SessionKey.PAGE_MODE] = page_mode
+        changed = True
+
+    if role == UserRole.ADMIN:
+        if page_mode != PageMode.ADMIN:
+            state[SessionKey.PAGE_MODE] = PageMode.ADMIN
+            changed = True
+        return changed
+
+    if page_mode not in STUDENT_PAGE_MODES:
+        page_mode = PageMode.HOME
+        state[SessionKey.PAGE_MODE] = page_mode
+        changed = True
+
+    if page_mode in {PageMode.QUIZ, PageMode.GRADING} and not state.get(SessionKey.QUIZ_QUEUE):
+        state[SessionKey.PAGE_MODE] = PageMode.HOME
+        state[SessionKey.IS_GRADING] = False
+        state[SessionKey.GRADING_STARTED] = False
+        changed = True
+
+    if page_mode == PageMode.RESULTS and not state.get(SessionKey.ASSESSMENT_RESULTS):
+        state[SessionKey.PAGE_MODE] = PageMode.HOME
+        changed = True
+
+    return changed
 
 
 def set_authenticated_user(
