@@ -228,6 +228,11 @@ def apply_platform_visual_theme():
         display: none !important;
     }
 
+    .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
+    div[data-testid="stElementContainer"][data-stale="true"] {
+        opacity: 1 !important;
+    }
+
     .section-kicker {
         color: var(--brand-blue);
         font-size: 0.82rem;
@@ -354,6 +359,7 @@ def render_identity_access_page(
             prepare_student_login_state(username)
 
     apply_identity_page_layout()
+    st.markdown('<div id="route-page-auth"></div>', unsafe_allow_html=True)
     st.markdown(f"<h1 class='auth-page-title'>{APP_TITLE}</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
