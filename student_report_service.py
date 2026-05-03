@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+import re
 from typing import Any
+
+from app_constants import InteractionMarker
+
+HINT_STRENGTH_MARK_PATTERN = re.compile(
+    rf"{re.escape(InteractionMarker.HINT_STRENGTH_PREFIX)}[^{InteractionMarker.HINT_STRENGTH_SUFFIX}]+"
+    rf"{re.escape(InteractionMarker.HINT_STRENGTH_SUFFIX)}"
+)
 
 
 def is_correct_answer_response(response: Any) -> bool:
@@ -35,3 +43,9 @@ def extract_wrong_question_ids(answer_logs: list[tuple[Any, Any]]) -> set[int]:
         except (TypeError, ValueError):
             continue
     return wrong_qids
+
+
+def clean_restored_tutoring_query(query: Any) -> str:
+    cleaned = str(query or "").replace(InteractionMarker.TUTORING, "")
+    cleaned = HINT_STRENGTH_MARK_PATTERN.sub("", cleaned)
+    return cleaned.strip()

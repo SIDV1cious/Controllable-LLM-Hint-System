@@ -1,18 +1,19 @@
 import streamlit as st
 
-from app_constants import ChatRole
 from hint_text_utils import format_math
-from learning_session_service import restore_user_learning_state
 from session_keys import SessionKey
 from student_report_repository import (
     fetch_answer_logs,
     fetch_question_details_by_public_ids,
     fetch_total_study_seconds,
+    fetch_tutoring_logs_by_public_ids,
 )
-from student_report_service import calculate_learning_summary, extract_wrong_question_ids
+from student_report_service import (
+    calculate_learning_summary,
+    clean_restored_tutoring_query,
+    extract_wrong_question_ids,
+)
 from ui_feedback import render_route_loading_overlay
-
-REPORT_HISTORY_LOADED_PREFIX = "report_history_loaded_for_"
 
 
 def render_student_learning_report():
@@ -28,14 +29,11 @@ def render_student_learning_report():
         unsafe_allow_html=True,
     )
     username = st.session_state[SessionKey.CURRENT_USER]
-    report_history_key = f"{REPORT_HISTORY_LOADED_PREFIX}{username}"
     route_loading_passes = int(st.session_state.get(SessionKey.ROUTE_LOADING_PASSES, 0) or 0)
     route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE)) or route_loading_passes > 0
     route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)
-    needs_history_restore = not st.session_state.get(report_history_key)
-    should_show_loading_overlay = route_loading_active or needs_history_restore
     loading_overlay_slot = st.empty()
-    if should_show_loading_overlay:
+    if route_loading_active:
         render_route_loading_overlay(loading_overlay_slot, route_loading_message or "正在整理个人学情报告...")
 
     def finish_loading_transition() -> None:
@@ -46,15 +44,6 @@ def render_student_learning_report():
             if remaining_passes <= 0:
                 st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
             st.rerun()
-        if needs_history_restore:
-            st.session_state[SessionKey.ROUTE_LOADING_PASSES] = 0
-            st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = False
-            st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
-            st.rerun()
-
-    if needs_history_restore:
-        restore_user_learning_state(username)
-        st.session_state[report_history_key] = True
 
     total_seconds = fetch_total_study_seconds(username)
     answer_logs = fetch_answer_logs(username)
@@ -73,7 +62,9 @@ def render_student_learning_report():
         st.info("你目前没有任何错题记录")
         return
 
-    q_dict = fetch_question_details_by_public_ids(tuple(sorted(wrong_qids)))
+    wrong_qid_tuple = tuple(sorted(wrong_qids))
+    q_dict = fetch_question_details_by_public_ids(wrong_qid_tuple)
+    tutoring_logs = fetch_tutoring_logs_by_public_ids(username, wrong_qid_tuple)
 
     for qid in wrong_qids:
         if qid not in q_dict:
@@ -82,14 +73,11 @@ def render_student_learning_report():
         q_data = q_dict[qid]
         with st.expander(f"[{q_data['category']}] 错题回顾 (题号: {qid})"):
             st.info(format_math(q_data["content"]))
-            chat_histories = st.session_state[SessionKey.CHAT_HISTORIES]
-            if qid in chat_histories and chat_histories[qid]:
+            if tutoring_logs.get(qid):
                 st.markdown("##### 💬 智能辅导记录")
-                for message in chat_histories[qid]:
-                    if message["role"] == ChatRole.USER:
-                        st.markdown(f"**🧑‍🎓 你**: {message['content']}")
-                    else:
-                        st.markdown(f"**🤖 智能辅导员**: {message['content']}")
+                for query, response in tutoring_logs[qid]:
+                    st.markdown(f"**🧑‍🎓 你**: {clean_restored_tutoring_query(query)}")
+                    st.markdown(f"**🤖 智能辅导员**: {response}")
             else:
                 st.caption("暂无针对此题的对话辅导记录。")
 

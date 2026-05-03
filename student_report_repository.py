@@ -47,7 +47,39 @@ def fetch_question_details_by_public_ids(public_question_ids: tuple[int, ...]) -
     return {1000 + row[0]: {"category": row[1], "content": row[2]} for row in rows}
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def fetch_tutoring_logs_by_public_ids(
+    username: str,
+    public_question_ids: tuple[int, ...],
+) -> dict[int, list[tuple[str, str]]]:
+    if not public_question_ids:
+        return {}
+
+    stmt = text(
+        "SELECT question_id, user_query, ai_response "
+        "FROM interaction_logs "
+        "WHERE student_id = :u AND question_id IN :ids AND user_query LIKE :tutoring_marker "
+        "ORDER BY created_at"
+    ).bindparams(bindparam("ids", expanding=True))
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            stmt,
+            {
+                "u": username,
+                "ids": list(public_question_ids),
+                "tutoring_marker": f"{InteractionMarker.TUTORING}%",
+            },
+        ).fetchall()
+
+    grouped: dict[int, list[tuple[str, str]]] = {}
+    for question_id, query, response in rows:
+        grouped.setdefault(int(question_id), []).append((str(query or ""), str(response or "")))
+    return grouped
+
+
 def clear_student_report_cache() -> None:
     fetch_total_study_seconds.clear()
     fetch_answer_logs.clear()
     fetch_question_details_by_public_ids.clear()
+    fetch_tutoring_logs_by_public_ids.clear()
