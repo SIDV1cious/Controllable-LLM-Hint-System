@@ -78,37 +78,8 @@ def apply_platform_visual_theme():
         pointer-events: none !important;
     }
 
-    html,
-    body {
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
-        max-height: none !important;
-    }
-
-    body {
-        height: auto !important;
-    }
-
-    .stApp {
-        min-height: 100vh !important;
-        overflow-x: hidden !important;
-        overflow-y: visible !important;
-    }
-
-    .main,
-    section.main,
-    [data-testid="stAppViewContainer"],
-    [data-testid="stMain"],
-    [data-testid="stMainBlockContainer"] {
-        overflow: visible !important;
-        max-height: none !important;
-    }
-
     .block-container {
         max-width: 1220px;
-        min-height: auto !important;
-        height: auto !important;
-        max-height: none !important;
         padding-top: 1.55rem !important;
         padding-bottom: 2rem !important;
     }
