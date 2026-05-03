@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import streamlit as st
 from sqlalchemy import text
 
 from database_service import ensure_leakage_observability_columns, get_database_engine
@@ -63,10 +64,16 @@ def insert_interaction_log(payload: dict) -> None:
         conn.commit()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_student_interaction_logs(username: str):
     engine = get_database_engine()
     with engine.connect() as conn:
-        return conn.execute(
+        rows = conn.execute(
             text("SELECT question_id, user_query, ai_response " "FROM interaction_logs WHERE student_id = :u"),
             {"u": username},
         ).fetchall()
+    return [(row[0], row[1], row[2]) for row in rows]
+
+
+def clear_student_interaction_log_cache() -> None:
+    fetch_student_interaction_logs.clear()

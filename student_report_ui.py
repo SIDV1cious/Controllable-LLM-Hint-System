@@ -73,7 +73,7 @@ def render_student_learning_report():
         st.info("你目前没有任何错题记录")
         return
 
-    q_dict = fetch_question_details_by_public_ids(wrong_qids)
+    q_dict = fetch_question_details_by_public_ids(tuple(sorted(wrong_qids)))
 
     for qid in wrong_qids:
         if qid not in q_dict:

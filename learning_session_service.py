@@ -12,6 +12,7 @@ from app_errors import log_exception
 from hint_system_core import AppConfig, batch_assess, now_shanghai, verify_password
 from interaction_repository import (
     build_interaction_payload,
+    clear_student_interaction_log_cache,
     fetch_student_interaction_logs,
     insert_interaction_log,
 )
@@ -24,6 +25,7 @@ from session_state_manager import (
     start_quiz_session,
 )
 from study_session_repository import close_study_session, create_study_session
+from student_report_repository import clear_student_report_cache
 from ui_texts import EMPTY_COURSE_QUESTION_WARNING
 from user_repository import (
     clear_user_current_quiz_ids,
@@ -98,6 +100,8 @@ def record_learning_interaction(
             hint_safety_status=hint_safety_status,
         )
         insert_interaction_log(payload)
+        clear_student_interaction_log_cache()
+        clear_student_report_cache()
     except Exception as exc:
         log_exception("record_learning_interaction error", exc)
 

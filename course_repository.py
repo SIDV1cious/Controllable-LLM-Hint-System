@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import streamlit as st
 from sqlalchemy import text
 
 from app_errors import log_exception
@@ -26,6 +27,7 @@ def merge_course_catalog(
     return merged
 
 
+@st.cache_data(ttl=120, show_spinner=False)
 def fetch_custom_course_catalog() -> list[tuple[str, str]]:
     try:
         engine = get_database_engine()
@@ -37,5 +39,6 @@ def fetch_custom_course_catalog() -> list[tuple[str, str]]:
         return []
 
 
+@st.cache_data(ttl=120, show_spinner=False)
 def list_course_catalog() -> list[tuple[str, str]]:
     return merge_course_catalog(BASE_COURSES, fetch_custom_course_catalog())
