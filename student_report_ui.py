@@ -28,20 +28,30 @@ def render_student_learning_report():
     )
     username = st.session_state[SessionKey.CURRENT_USER]
     report_history_key = f"{REPORT_HISTORY_LOADED_PREFIX}{username}"
-    route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE))
+    route_loading_passes = int(st.session_state.get(SessionKey.ROUTE_LOADING_PASSES, 0) or 0)
+    route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE)) or route_loading_passes > 0
     route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)
-    should_show_loading_overlay = route_loading_active or not st.session_state.get(report_history_key)
+    needs_history_restore = not st.session_state.get(report_history_key)
+    should_show_loading_overlay = route_loading_active or needs_history_restore
     loading_overlay_slot = st.empty()
     if should_show_loading_overlay:
         render_route_loading_overlay(loading_overlay_slot, route_loading_message or "正在整理个人学情报告...")
 
     def finish_loading_transition() -> None:
-        if should_show_loading_overlay:
+        if route_loading_active:
+            remaining_passes = max(route_loading_passes, 1) - 1
+            st.session_state[SessionKey.ROUTE_LOADING_PASSES] = remaining_passes
+            st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = remaining_passes > 0
+            if remaining_passes <= 0:
+                st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
+            st.rerun()
+        if needs_history_restore:
+            st.session_state[SessionKey.ROUTE_LOADING_PASSES] = 0
             st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = False
             st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
             st.rerun()
 
-    if not st.session_state.get(report_history_key):
+    if needs_history_restore:
         restore_user_learning_state(username)
         st.session_state[report_history_key] = True
 

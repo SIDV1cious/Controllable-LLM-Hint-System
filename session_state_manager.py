@@ -29,6 +29,7 @@ SESSION_DEFAULTS: dict[str, Any] = {
     SessionKey.GRADING_STARTED: False,
     SessionKey.ROUTE_LOADING_MESSAGE: None,
     SessionKey.ROUTE_LOADING_ACTIVE: False,
+    SessionKey.ROUTE_LOADING_PASSES: 0,
 }
 
 VALID_PAGE_MODES = {

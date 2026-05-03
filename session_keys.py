@@ -20,6 +20,7 @@ class SessionKey:
     GRADING_STARTED = "grading_started"
     ROUTE_LOADING_MESSAGE = "route_loading_message"
     ROUTE_LOADING_ACTIVE = "route_loading_active"
+    ROUTE_LOADING_PASSES = "route_loading_passes"
 
 
 def answer_input(index: int) -> str:

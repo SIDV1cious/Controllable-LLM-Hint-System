@@ -372,7 +372,8 @@ def render_identity_access_page(
 
 
 def render_course_selection_portal(start_course_assessment_session):
-    route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE))
+    route_loading_passes = int(st.session_state.get(SessionKey.ROUTE_LOADING_PASSES, 0) or 0)
+    route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE)) or route_loading_passes > 0
     route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)
     loading_overlay_slot = st.empty()
     if route_loading_active:
@@ -399,6 +400,9 @@ def render_course_selection_portal(start_course_assessment_session):
             render_course_assessment_card(course_name, course_desc, start_course_assessment_session)
 
     if route_loading_active:
-        st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = False
-        st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
+        remaining_passes = max(route_loading_passes, 1) - 1
+        st.session_state[SessionKey.ROUTE_LOADING_PASSES] = remaining_passes
+        st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = remaining_passes > 0
+        if remaining_passes <= 0:
+            st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
         st.rerun()
