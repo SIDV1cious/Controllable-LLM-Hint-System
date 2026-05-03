@@ -8,7 +8,7 @@ from session_state_manager import set_authenticated_user
 def render_assessment_integrity_warning():
     st.markdown(
         """
-<div style="padding-top: 34px; margin-top: 10px; overflow: visible;">
+<div style="padding-top: 10px; margin-top: 0; overflow: visible;">
 <div role="alert" style="
     display: flex;
     align-items: center;
