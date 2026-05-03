@@ -25,7 +25,7 @@ from learning_session_service import (
 )
 from session_keys import SessionKey
 from session_state_manager import init_session_state
-from sidebar_navigation import render_public_sidebar_placeholder, render_sidebar_navigation
+from sidebar_navigation import render_sidebar_navigation
 from student_report_ui import render_student_learning_report
 
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -35,10 +35,8 @@ def run_controlled_hint_system():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     init_session_state()
     apply_platform_visual_theme()
-    sidebar_slot = st.sidebar.empty()
 
     if not st.session_state[SessionKey.LOGGED_IN]:
-        render_public_sidebar_placeholder(sidebar_slot)
         render_identity_access_page(
             authenticate_learning_user,
             register_learning_user,
@@ -47,6 +45,7 @@ def run_controlled_hint_system():
         )
         st.stop()
 
+    sidebar_slot = st.sidebar.empty()
     render_sidebar_navigation(sidebar_slot)
 
     if (
