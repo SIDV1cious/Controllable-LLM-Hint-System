@@ -10,21 +10,9 @@ from student_report_repository import (
     fetch_total_study_seconds,
 )
 from student_report_service import calculate_learning_summary, extract_wrong_question_ids
+from ui_feedback import render_route_loading_overlay
 
 REPORT_HISTORY_LOADED_PREFIX = "report_history_loaded_for_"
-
-
-def render_route_loading_overlay(slot, message: str) -> None:
-    slot.markdown(
-        f"""
-<div class="route-loading-overlay">
-    <div class="route-loading-card">
-        <span class="route-loading-dot"></span>{message}
-    </div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def render_student_learning_report():
@@ -40,10 +28,12 @@ def render_student_learning_report():
     )
     username = st.session_state[SessionKey.CURRENT_USER]
     report_history_key = f"{REPORT_HISTORY_LOADED_PREFIX}{username}"
-    should_show_loading_overlay = not st.session_state.get(report_history_key)
+    route_loading_message = st.session_state.pop(SessionKey.ROUTE_LOADING_MESSAGE, None)
+    should_show_loading_overlay = bool(route_loading_message) or not st.session_state.get(report_history_key)
     loading_overlay_slot = st.empty()
     if should_show_loading_overlay:
-        render_route_loading_overlay(loading_overlay_slot, "正在整理个人学情报告...")
+        render_route_loading_overlay(loading_overlay_slot, route_loading_message or "正在整理个人学情报告...")
+    if not st.session_state.get(report_history_key):
         restore_user_learning_state(username)
         st.session_state[report_history_key] = True
 

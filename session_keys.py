@@ -18,6 +18,7 @@ class SessionKey:
     CURRENT_COURSE = "current_course"
     IS_GRADING = "is_grading"
     GRADING_STARTED = "grading_started"
+    ROUTE_LOADING_MESSAGE = "route_loading_message"
 
 
 def answer_input(index: int) -> str:

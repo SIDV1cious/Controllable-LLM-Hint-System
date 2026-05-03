@@ -2,7 +2,9 @@ import streamlit as st
 
 from app_constants import APP_TITLE, UserRole
 from course_repository import list_course_catalog
+from session_keys import SessionKey
 from session_state_manager import set_authenticated_user
+from ui_feedback import render_route_loading_overlay
 
 LOGIN_ERROR_KEY = "identity_login_error"
 LOGIN_PASSWORD_KEY = "identity_login_password"
@@ -370,6 +372,11 @@ def render_identity_access_page(
 
 
 def render_course_selection_portal(start_course_assessment_session):
+    route_loading_message = st.session_state.pop(SessionKey.ROUTE_LOADING_MESSAGE, None)
+    loading_overlay_slot = st.empty()
+    if route_loading_message:
+        render_route_loading_overlay(loading_overlay_slot, route_loading_message)
+
     st.markdown(
         """
 <div class="page-hero course-lobby-hero">
@@ -389,3 +396,6 @@ def render_course_selection_portal(start_course_assessment_session):
     for idx, (course_name, course_desc) in enumerate(base_courses):
         with cols[idx % 4]:
             render_course_assessment_card(course_name, course_desc, start_course_assessment_session)
+
+    if route_loading_message:
+        loading_overlay_slot.empty()
