@@ -1,3 +1,5 @@
+import time
+
 import streamlit as st
 
 from app_constants import APP_TITLE, UserRole
@@ -7,6 +9,7 @@ from session_state_manager import set_authenticated_user
 from ui_feedback import render_route_loading_overlay
 
 LOGIN_ERROR_KEY = "identity_login_error"
+LOGIN_PENDING_KEY = "identity_login_pending"
 LOGIN_STATUS_KEY = "identity_login_status"
 LOGIN_PASSWORD_KEY = "identity_login_password"
 LOGIN_USERNAME_KEY = "identity_login_username"
@@ -227,6 +230,14 @@ def apply_platform_visual_theme():
     .stApp:has(#route-page-home) .st-key-identity_login_password,
     .stApp:has(#route-page-home) .st-key-FormSubmitter-login_form-----,
     .stApp:has(#route-page-home) .st-key-FormSubmitter-register_form-----,
+    .stApp:has(#route-page-auth-loading) .auth-page-title,
+    .stApp:has(#route-page-auth-loading) div[data-testid="stTabs"],
+    .stApp:has(#route-page-auth-loading) div[data-testid="stForm"]:has(.st-key-identity_login_username),
+    .stApp:has(#route-page-auth-loading) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
+    .stApp:has(#route-page-auth-loading) .st-key-identity_login_username,
+    .stApp:has(#route-page-auth-loading) .st-key-identity_login_password,
+    .stApp:has(#route-page-auth-loading) .st-key-FormSubmitter-login_form-----,
+    .stApp:has(#route-page-auth-loading) .st-key-FormSubmitter-register_form-----,
     .stApp:has(#route-page-admin) .auth-page-title,
     .stApp:has(#route-page-admin) div[data-testid="stTabs"],
     .stApp:has(#route-page-admin) div[data-testid="stForm"]:has(.st-key-identity_login_username),
@@ -247,6 +258,12 @@ def apply_platform_visual_theme():
     .stApp:has(#route-page-report) .st-key-FormSubmitter-login_form-----,
     .stApp:has(#route-page-report) .st-key-FormSubmitter-register_form----- {
         display: none !important;
+    }
+
+    .stApp:has(#route-page-auth-loading) div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: transparent !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
     }
 
     .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
@@ -386,6 +403,30 @@ def apply_identity_page_layout():
         line-height: 1.5;
     }
 
+    .identity-loading-icon {
+        display: inline-block;
+        margin-right: 10px;
+        animation: identity-spin 1.05s linear infinite;
+        transform-origin: center;
+    }
+
+    .identity-loading-shell {
+        min-height: 68vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .identity-loading-message {
+        margin: 0;
+    }
+
+    @keyframes identity-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
     @media (max-height: 760px) {
         .auth-page-title {
             margin-top: 3rem;
@@ -406,33 +447,63 @@ def render_course_assessment_card(course_name: str, course_desc: str, start_cour
             start_course_assessment_session(course_name)
 
 
+def render_identity_loading_page(message: str = "正在验证账号并加载学习数据...") -> None:
+    st.markdown('<div id="route-page-auth-loading"></div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+<div class="identity-loading-shell">
+    <h2 class="identity-loading-message">
+        <span class="identity-loading-icon">🔄</span>{message}
+    </h2>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_identity_access_page(
     authenticate_learning_user,
     register_learning_user,
     record_login_event,
     prepare_student_login_state,
 ):
-    def handle_login_submit() -> bool:
+    def process_pending_login() -> None:
         username = st.session_state.get(LOGIN_USERNAME_KEY, "").strip()
         password = st.session_state.get(LOGIN_PASSWORD_KEY, "").strip()
 
         if not username or not password:
             st.session_state[LOGIN_ERROR_KEY] = "请输入账号和密码"
-            return False
+            st.session_state.pop(LOGIN_PENDING_KEY, None)
+            st.session_state.pop(LOGIN_STATUS_KEY, None)
+            st.rerun()
 
         is_auth, role = authenticate_learning_user(username, password)
         if not is_auth:
             st.session_state[LOGIN_ERROR_KEY] = "账号或密码错误"
-            return False
+            st.session_state.pop(LOGIN_PENDING_KEY, None)
+            st.session_state.pop(LOGIN_STATUS_KEY, None)
+            st.session_state[LOGIN_PASSWORD_KEY] = ""
+            st.rerun()
 
         st.session_state.pop(LOGIN_ERROR_KEY, None)
+        st.session_state.pop(LOGIN_PENDING_KEY, None)
+        st.session_state.pop(LOGIN_STATUS_KEY, None)
+        st.session_state.pop(LOGIN_PASSWORD_KEY, None)
         set_authenticated_user(username, role)
         record_login_event(username)
         if role != UserRole.ADMIN:
             prepare_student_login_state(username)
-        return True
+        st.rerun()
 
     apply_identity_page_layout()
+
+    if st.session_state.get(LOGIN_PENDING_KEY):
+        render_identity_loading_page(st.session_state.get(LOGIN_STATUS_KEY, "正在验证账号并加载学习数据..."))
+        # Give the browser one short paint opportunity before the backend finishes auth work.
+        time.sleep(0.18)
+        process_pending_login()
+        st.stop()
+
     st.markdown('<div id="route-page-auth"></div>', unsafe_allow_html=True)
     st.markdown(f"<h1 class='auth-page-title'>{APP_TITLE}</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1])
@@ -448,13 +519,14 @@ def render_identity_access_page(
                     use_container_width=True,
                 )
                 if login_submitted:
-                    st.session_state[LOGIN_STATUS_KEY] = "正在验证账号并加载学习数据..."
-                    st.markdown(
-                        f"<div class='identity-login-status'>{st.session_state[LOGIN_STATUS_KEY]}</div>",
-                        unsafe_allow_html=True,
-                    )
-                    handle_login_submit()
-                    st.session_state.pop(LOGIN_STATUS_KEY, None)
+                    username = st.session_state.get(LOGIN_USERNAME_KEY, "").strip()
+                    password = st.session_state.get(LOGIN_PASSWORD_KEY, "").strip()
+                    if not username or not password:
+                        st.session_state[LOGIN_ERROR_KEY] = "请输入账号和密码"
+                    else:
+                        st.session_state.pop(LOGIN_ERROR_KEY, None)
+                        st.session_state[LOGIN_STATUS_KEY] = "正在验证账号并加载学习数据..."
+                        st.session_state[LOGIN_PENDING_KEY] = True
                     st.rerun()
                 if st.session_state.get(LOGIN_ERROR_KEY):
                     st.error(st.session_state[LOGIN_ERROR_KEY])
