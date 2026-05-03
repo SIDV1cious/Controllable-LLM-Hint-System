@@ -30,6 +30,12 @@ class InteractionMarker:
     HINT_STRENGTH_SUFFIX = "】"
 
 
+def should_render_sidebar_for_page(page_mode: str, user_role: str) -> bool:
+    if page_mode == PageMode.ADMIN and user_role == UserRole.ADMIN:
+        return True
+    return user_role == UserRole.STUDENT and page_mode in {PageMode.HOME, PageMode.REPORT}
+
+
 def format_tutoring_query(hint_strength: str, query: str) -> str:
     return (
         f"{InteractionMarker.TUTORING}"

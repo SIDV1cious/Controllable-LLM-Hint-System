@@ -3,7 +3,7 @@ import logging
 import streamlit as st
 
 from admin_console_ui import render_admin_console
-from app_constants import APP_TITLE, PageMode, UserRole
+from app_constants import APP_TITLE, PageMode, UserRole, should_render_sidebar_for_page
 from assessment_ui import (
     render_assessment_results_dashboard,
     render_assessment_workspace,
@@ -45,8 +45,13 @@ def run_controlled_hint_system():
         )
         st.stop()
 
-    sidebar_slot = st.sidebar.empty()
-    render_sidebar_navigation(sidebar_slot)
+    sidebar_slot = None
+    if should_render_sidebar_for_page(
+        st.session_state[SessionKey.PAGE_MODE],
+        st.session_state[SessionKey.USER_ROLE],
+    ):
+        sidebar_slot = st.sidebar.empty()
+        render_sidebar_navigation(sidebar_slot)
 
     if (
         st.session_state[SessionKey.PAGE_MODE] == PageMode.ADMIN

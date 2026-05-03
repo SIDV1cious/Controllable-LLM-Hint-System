@@ -262,7 +262,8 @@ def render_assessment_workspace():
 
 def render_automated_grading_screen(sidebar_slot, submit_answers_and_run_assessment):
     st.session_state[SessionKey.IS_GRADING] = True
-    sidebar_slot.empty()
+    if sidebar_slot is not None:
+        sidebar_slot.empty()
 
     st.markdown(
         """

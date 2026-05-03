@@ -16,6 +16,7 @@ from app_constants import (
     UserRole,
     format_answer_submission,
     format_tutoring_query,
+    should_render_sidebar_for_page,
 )
 from app_errors import friendly_error
 from assessment_logic import (
@@ -68,6 +69,16 @@ def test_choice_answer_normalization_accepts_common_formats():
     assert normalize_choice_answer("选择 D") == "D"
     assert normalize_choice_answer("alpha") is None
     assert normalize_choice_answer("x > 0") is None
+
+
+def test_sidebar_policy_keeps_immersive_pages_clean():
+    assert should_render_sidebar_for_page(PageMode.HOME, UserRole.STUDENT) is True
+    assert should_render_sidebar_for_page(PageMode.REPORT, UserRole.STUDENT) is True
+    assert should_render_sidebar_for_page(PageMode.ADMIN, UserRole.ADMIN) is True
+    assert should_render_sidebar_for_page(PageMode.QUIZ, UserRole.STUDENT) is False
+    assert should_render_sidebar_for_page(PageMode.GRADING, UserRole.STUDENT) is False
+    assert should_render_sidebar_for_page(PageMode.RESULTS, UserRole.STUDENT) is False
+    assert should_render_sidebar_for_page(PageMode.ADMIN, UserRole.STUDENT) is False
 
 
 def test_reference_answer_assessment_short_circuits_choice_questions():
