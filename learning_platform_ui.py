@@ -222,6 +222,55 @@ def apply_platform_visual_theme():
         text-transform: uppercase;
         margin-bottom: 0.25rem;
     }
+
+    .route-loading-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+            radial-gradient(circle at 16% 14%, rgba(37, 99, 235, 0.10), transparent 24rem),
+            radial-gradient(circle at 86% 18%, rgba(255, 75, 75, 0.08), transparent 22rem),
+            rgba(248, 251, 255, 0.96);
+        backdrop-filter: blur(8px);
+    }
+
+    .route-loading-card {
+        min-width: min(520px, 82vw);
+        padding: 28px 34px;
+        border: 1px solid #dbe7f5;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+        color: var(--text-main);
+        font-size: 20px;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .route-loading-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 10px;
+        border-radius: 999px;
+        background: var(--brand-red);
+        animation: route-pulse 0.9s ease-in-out infinite alternate;
+        vertical-align: 2px;
+    }
+
+    @keyframes route-pulse {
+        from {
+            transform: scale(0.72);
+            opacity: 0.45;
+        }
+        to {
+            transform: scale(1.18);
+            opacity: 1;
+        }
+    }
 </style>
         """,
         unsafe_allow_html=True,
