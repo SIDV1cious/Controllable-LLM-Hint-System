@@ -28,11 +28,19 @@ def render_student_learning_report():
     )
     username = st.session_state[SessionKey.CURRENT_USER]
     report_history_key = f"{REPORT_HISTORY_LOADED_PREFIX}{username}"
-    route_loading_message = st.session_state.pop(SessionKey.ROUTE_LOADING_MESSAGE, None)
-    should_show_loading_overlay = bool(route_loading_message) or not st.session_state.get(report_history_key)
+    route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE))
+    route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)
+    should_show_loading_overlay = route_loading_active or not st.session_state.get(report_history_key)
     loading_overlay_slot = st.empty()
     if should_show_loading_overlay:
         render_route_loading_overlay(loading_overlay_slot, route_loading_message or "正在整理个人学情报告...")
+
+    def finish_loading_transition() -> None:
+        if should_show_loading_overlay:
+            st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = False
+            st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
+            st.rerun()
+
     if not st.session_state.get(report_history_key):
         restore_user_learning_state(username)
         st.session_state[report_history_key] = True
@@ -50,8 +58,7 @@ def render_student_learning_report():
     st.markdown("---")
     st.subheader("📓 错题记录与智能辅导")
     if not wrong_qids:
-        if should_show_loading_overlay:
-            loading_overlay_slot.empty()
+        finish_loading_transition()
         st.info("你目前没有任何错题记录")
         return
 
@@ -75,5 +82,4 @@ def render_student_learning_report():
             else:
                 st.caption("暂无针对此题的对话辅导记录。")
 
-    if should_show_loading_overlay:
-        loading_overlay_slot.empty()
+    finish_loading_transition()

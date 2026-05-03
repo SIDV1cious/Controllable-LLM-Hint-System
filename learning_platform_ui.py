@@ -372,10 +372,11 @@ def render_identity_access_page(
 
 
 def render_course_selection_portal(start_course_assessment_session):
-    route_loading_message = st.session_state.pop(SessionKey.ROUTE_LOADING_MESSAGE, None)
+    route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE))
+    route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)
     loading_overlay_slot = st.empty()
-    if route_loading_message:
-        render_route_loading_overlay(loading_overlay_slot, route_loading_message)
+    if route_loading_active:
+        render_route_loading_overlay(loading_overlay_slot, route_loading_message or "正在返回课程学习大厅...")
 
     st.markdown(
         """
@@ -397,5 +398,7 @@ def render_course_selection_portal(start_course_assessment_session):
         with cols[idx % 4]:
             render_course_assessment_card(course_name, course_desc, start_course_assessment_session)
 
-    if route_loading_message:
-        loading_overlay_slot.empty()
+    if route_loading_active:
+        st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = False
+        st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
+        st.rerun()
