@@ -7,3 +7,4 @@ node_modules/
 streamlit-component-x/streamlit_component_x/frontend/node_modules/
 component-template/
 .pytest_cache/
+.claude/
