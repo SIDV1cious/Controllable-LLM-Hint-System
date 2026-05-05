@@ -8,11 +8,8 @@ from admin_monitoring_ui import (
     render_study_duration_tab,
 )
 from admin_prompt_ui import render_prompt_configuration_tab
-from app_constants import RouteAction
 from database_service import get_database_engine
 from experiment_admin_ui import render_experiment_analytics_dashboard
-from session_state_manager import begin_route_transition
-from ui_texts import ADMIN_DASHBOARD_TRANSITION_MESSAGE
 
 ADMIN_SECTION_OPTIONS = [
     "📊 可视化数据大屏",
@@ -23,15 +20,6 @@ ADMIN_SECTION_OPTIONS = [
     "🛠️ 课程与题库管理",
     "⚙️ 智能辅导大模型设置",
 ]
-
-
-def _schedule_dashboard_transition_if_needed():
-    if st.session_state.get("admin_console_section") == ADMIN_SECTION_OPTIONS[0]:
-        begin_route_transition(
-            RouteAction.OPEN_ADMIN_DASHBOARD,
-            ADMIN_DASHBOARD_TRANSITION_MESSAGE,
-            icon="🎓",
-        )
 
 
 def render_admin_console():
@@ -53,7 +41,6 @@ def render_admin_console():
         horizontal=True,
         label_visibility="collapsed",
         key="admin_console_section",
-        on_change=_schedule_dashboard_transition_if_needed,
     )
 
     if selected_section == "🛠️ 课程与题库管理":
