@@ -21,6 +21,9 @@ class SessionKey:
     ROUTE_LOADING_MESSAGE = "route_loading_message"
     ROUTE_LOADING_ACTIVE = "route_loading_active"
     ROUTE_LOADING_PASSES = "route_loading_passes"
+    ROUTE_LOADING_ACTION = "route_loading_action"
+    ROUTE_LOADING_PAYLOAD = "route_loading_payload"
+    ROUTE_LOADING_ICON = "route_loading_icon"
 
 
 def answer_input(index: int) -> str:

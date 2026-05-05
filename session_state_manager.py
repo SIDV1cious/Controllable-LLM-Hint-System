@@ -30,6 +30,9 @@ SESSION_DEFAULTS: dict[str, Any] = {
     SessionKey.ROUTE_LOADING_MESSAGE: None,
     SessionKey.ROUTE_LOADING_ACTIVE: False,
     SessionKey.ROUTE_LOADING_PASSES: 0,
+    SessionKey.ROUTE_LOADING_ACTION: None,
+    SessionKey.ROUTE_LOADING_PAYLOAD: {},
+    SessionKey.ROUTE_LOADING_ICON: "🔄",
 }
 
 VALID_PAGE_MODES = {
@@ -39,8 +42,16 @@ VALID_PAGE_MODES = {
     PageMode.GRADING,
     PageMode.RESULTS,
     PageMode.REPORT,
+    PageMode.TRANSITION,
 }
-STUDENT_PAGE_MODES = {PageMode.HOME, PageMode.QUIZ, PageMode.GRADING, PageMode.RESULTS, PageMode.REPORT}
+STUDENT_PAGE_MODES = {
+    PageMode.HOME,
+    PageMode.QUIZ,
+    PageMode.GRADING,
+    PageMode.RESULTS,
+    PageMode.REPORT,
+    PageMode.TRANSITION,
+}
 
 
 def _state(target: MutableMapping[str, Any] | None = None) -> MutableMapping[str, Any]:
@@ -96,6 +107,12 @@ def repair_session_state(target: MutableMapping[str, Any] | None = None) -> bool
         changed = True
 
     if role == UserRole.ADMIN:
+        if page_mode == PageMode.TRANSITION:
+            if state.get(SessionKey.ROUTE_LOADING_ACTION):
+                return changed
+            state[SessionKey.PAGE_MODE] = PageMode.ADMIN
+            state[SessionKey.ROUTE_LOADING_ACTIVE] = False
+            return True
         if page_mode != PageMode.ADMIN:
             state[SessionKey.PAGE_MODE] = PageMode.ADMIN
             changed = True
@@ -104,6 +121,11 @@ def repair_session_state(target: MutableMapping[str, Any] | None = None) -> bool
     if page_mode not in STUDENT_PAGE_MODES:
         page_mode = PageMode.HOME
         state[SessionKey.PAGE_MODE] = page_mode
+        changed = True
+
+    if page_mode == PageMode.TRANSITION and not state.get(SessionKey.ROUTE_LOADING_ACTION):
+        state[SessionKey.PAGE_MODE] = PageMode.HOME
+        state[SessionKey.ROUTE_LOADING_ACTIVE] = False
         changed = True
 
     if page_mode in {PageMode.QUIZ, PageMode.GRADING} and not state.get(SessionKey.QUIZ_QUEUE):
@@ -133,6 +155,33 @@ def set_authenticated_user(
 
 def navigate_to(page_mode: str, target: MutableMapping[str, Any] | None = None) -> None:
     _state(target)[SessionKey.PAGE_MODE] = page_mode
+
+
+def begin_route_transition(
+    action: str,
+    message: str,
+    icon: str = "🔄",
+    payload: dict[str, Any] | None = None,
+    target: MutableMapping[str, Any] | None = None,
+) -> None:
+    state = _state(target)
+    state[SessionKey.ROUTE_LOADING_ACTION] = action
+    state[SessionKey.ROUTE_LOADING_MESSAGE] = message
+    state[SessionKey.ROUTE_LOADING_ICON] = icon
+    state[SessionKey.ROUTE_LOADING_PAYLOAD] = payload or {}
+    state[SessionKey.ROUTE_LOADING_ACTIVE] = True
+    state[SessionKey.ROUTE_LOADING_PASSES] = 1
+    state[SessionKey.PAGE_MODE] = PageMode.TRANSITION
+
+
+def clear_route_transition(target: MutableMapping[str, Any] | None = None) -> None:
+    state = _state(target)
+    state[SessionKey.ROUTE_LOADING_ACTION] = None
+    state[SessionKey.ROUTE_LOADING_MESSAGE] = None
+    state[SessionKey.ROUTE_LOADING_ICON] = "🔄"
+    state[SessionKey.ROUTE_LOADING_PAYLOAD] = {}
+    state[SessionKey.ROUTE_LOADING_ACTIVE] = False
+    state[SessionKey.ROUTE_LOADING_PASSES] = 0
 
 
 def clear_active_assessment_state(target: MutableMapping[str, Any] | None = None) -> None:

@@ -2,11 +2,12 @@ import time
 
 import streamlit as st
 
-from app_constants import APP_TITLE, UserRole
+from app_constants import APP_TITLE, RouteAction, UserRole
 from course_repository import list_course_catalog
 from session_keys import SessionKey
-from session_state_manager import set_authenticated_user
-from ui_feedback import render_route_loading_overlay
+from session_state_manager import begin_route_transition, set_authenticated_user
+from ui_feedback import render_full_page_transition, render_route_loading_overlay
+from ui_texts import COURSE_TRANSITION_MESSAGE, HOME_TRANSITION_MESSAGE
 
 LOGIN_ERROR_KEY = "identity_login_error"
 LOGIN_PENDING_KEY = "identity_login_pending"
@@ -302,16 +303,43 @@ def apply_platform_visual_theme():
         backdrop-filter: blur(8px);
     }
 
+    .system-transition-shell {
+        min-height: 68vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .system-transition-message {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: auto;
+        margin: 0 auto;
+        text-align: center;
+        color: var(--text-main);
+        font-size: clamp(1.75rem, 3vw, 2.25rem);
+        font-weight: 700;
+        line-height: 1.3;
+        letter-spacing: -0.03em;
+    }
+
+    .system-transition-icon {
+        display: inline-block;
+        margin-right: 10px;
+        transform-origin: center;
+    }
+
+    .system-transition-icon.is-spinning {
+        animation: identity-spin 1.05s linear infinite;
+    }
+
     .route-loading-card {
         min-width: min(520px, 82vw);
-        padding: 28px 34px;
-        border: 1px solid #dbe7f5;
-        border-radius: 22px;
-        background: rgba(255, 255, 255, 0.92);
-        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
-        color: var(--text-main);
-        font-size: 20px;
-        font-weight: 800;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
         text-align: center;
     }
 
@@ -430,27 +458,23 @@ def apply_identity_page_layout():
     )
 
 
-def render_course_assessment_card(course_name: str, course_desc: str, start_course_assessment_session):
+def render_course_assessment_card(course_name: str, course_desc: str):
     with st.container(border=True):
         st.markdown("<div class='course-card-eyebrow'>COURSE MODULE</div>", unsafe_allow_html=True)
         st.markdown(f"### {course_name}")
         st.markdown(f"<div class='course-card-note'>{course_desc}</div>", unsafe_allow_html=True)
         if st.button(f"进入《{course_name}》测验", key=f"btn_{course_name}", use_container_width=True):
-            start_course_assessment_session(course_name)
+            begin_route_transition(
+                RouteAction.START_QUIZ,
+                COURSE_TRANSITION_MESSAGE,
+                icon="📚",
+                payload={"course_name": course_name},
+            )
+            st.rerun()
 
 
 def render_identity_loading_page(message: str = "正在验证账号并加载学习数据...") -> None:
-    st.markdown('<div id="route-page-auth-loading"></div>', unsafe_allow_html=True)
-    st.markdown(
-        f"""
-<div class="identity-loading-shell">
-    <h2 class="identity-loading-message">
-        <span class="identity-loading-icon">🔄</span>{message}
-    </h2>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    render_full_page_transition(message, icon="🔄", route_id="route-page-auth-loading", spin_icon=True)
 
 
 def render_identity_access_page(
@@ -530,14 +554,14 @@ def render_identity_access_page(
                         st.error("注册失败（学号已被占用或密码不一致）。")
 
 
-def render_course_selection_portal(start_course_assessment_session):
+def render_course_selection_portal():
     st.markdown('<div id="route-page-home"></div>', unsafe_allow_html=True)
     route_loading_passes = int(st.session_state.get(SessionKey.ROUTE_LOADING_PASSES, 0) or 0)
     route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE)) or route_loading_passes > 0
     route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)
     loading_overlay_slot = st.empty()
     if route_loading_active:
-        render_route_loading_overlay(loading_overlay_slot, route_loading_message or "正在返回课程学习大厅...")
+        render_route_loading_overlay(loading_overlay_slot, route_loading_message or HOME_TRANSITION_MESSAGE)
 
     st.markdown(
         """
@@ -557,7 +581,7 @@ def render_course_selection_portal(start_course_assessment_session):
     cols = st.columns(4)
     for idx, (course_name, course_desc) in enumerate(base_courses):
         with cols[idx % 4]:
-            render_course_assessment_card(course_name, course_desc, start_course_assessment_session)
+            render_course_assessment_card(course_name, course_desc)
 
     if route_loading_active:
         remaining_passes = max(route_loading_passes, 1) - 1

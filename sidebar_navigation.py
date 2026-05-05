@@ -1,9 +1,10 @@
 import streamlit as st
 
-from app_constants import PageMode, UserRole
+from app_constants import PageMode, RouteAction, UserRole
 from learning_session_service import clear_current_quiz_for_user
 from session_keys import SessionKey
-from session_state_manager import clear_active_assessment_state, navigate_to, reset_login_session
+from session_state_manager import begin_route_transition, clear_active_assessment_state, reset_login_session
+from ui_texts import ADMIN_DASHBOARD_TRANSITION_MESSAGE, HOME_TRANSITION_MESSAGE, REPORT_TRANSITION_MESSAGE
 
 
 def render_sidebar_navigation(sidebar_slot):
@@ -20,19 +21,22 @@ def render_sidebar_navigation(sidebar_slot):
                 if st.button("🏠 返回大厅"):
                     clear_current_quiz_for_user(st.session_state[SessionKey.CURRENT_USER])
                     clear_active_assessment_state()
-                    st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = "正在返回课程学习大厅..."
-                    st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = True
-                    st.session_state[SessionKey.ROUTE_LOADING_PASSES] = 1
-                    navigate_to(PageMode.HOME)
+                    begin_route_transition(RouteAction.RETURN_HOME, HOME_TRANSITION_MESSAGE, icon="🏠")
                     st.rerun()
 
             if st.session_state[SessionKey.PAGE_MODE] != PageMode.REPORT:
                 if st.button("📊 我的学情报告"):
-                    st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = "正在整理个人学情报告..."
-                    st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = True
-                    st.session_state[SessionKey.ROUTE_LOADING_PASSES] = 1
-                    navigate_to(PageMode.REPORT)
+                    begin_route_transition(RouteAction.OPEN_REPORT, REPORT_TRANSITION_MESSAGE, icon="📊")
                     st.rerun()
+
+        if st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN:
+            if st.button("🎓 管理端统计看板"):
+                begin_route_transition(
+                    RouteAction.OPEN_ADMIN_DASHBOARD,
+                    ADMIN_DASHBOARD_TRANSITION_MESSAGE,
+                    icon="🎓",
+                )
+                st.rerun()
 
         if st.button("🚪 退出登录"):
             if st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT:

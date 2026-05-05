@@ -2,12 +2,14 @@ from html import escape
 
 import streamlit as st
 
-from app_constants import PageMode
+from app_constants import PageMode, RouteAction
 from controlled_hint_ui import render_controlled_hint_panel
 from hint_system_core import build_result_export, format_math, now_shanghai
 from learning_platform_ui import render_assessment_integrity_warning
 from session_keys import SessionKey, answer_input, hint_safety_status, navigation_button, review_button
-from session_state_manager import clear_active_assessment_state, navigate_to
+from session_state_manager import begin_route_transition, clear_active_assessment_state, navigate_to
+from ui_feedback import render_full_page_transition
+from ui_texts import HOME_TRANSITION_MESSAGE
 
 
 def apply_results_dashboard_style():
@@ -286,11 +288,14 @@ section[data-testid="stSidebar"],
     justify-content: center;
 }
 </style>
-<div class="grading-state-shell">
-    <h2>🧠 系统正在阅卷中，请勿刷新或退出...</h2>
-</div>
 """,
         unsafe_allow_html=True,
+    )
+    render_full_page_transition(
+        "系统正在阅卷中，请勿刷新或退出...",
+        icon="🧠",
+        route_id="route-page-grading-loading",
+        spin_icon=False,
     )
 
     if not st.session_state[SessionKey.GRADING_STARTED]:
@@ -312,7 +317,7 @@ def render_assessment_results_dashboard(record_learning_interaction):
 
     if st.button("🔄 返回大厅开启新课程"):
         clear_active_assessment_state()
-        navigate_to(PageMode.HOME)
+        begin_route_transition(RouteAction.RETURN_HOME, HOME_TRANSITION_MESSAGE, icon="🏠")
         st.rerun()
 
     results = st.session_state[SessionKey.ASSESSMENT_RESULTS]

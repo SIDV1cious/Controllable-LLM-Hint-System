@@ -24,8 +24,8 @@ from session_state_manager import (
     set_assessment_results,
     start_quiz_session,
 )
-from study_session_repository import close_study_session, create_study_session
 from student_report_repository import clear_student_report_cache
+from study_session_repository import close_study_session, create_study_session
 from ui_texts import EMPTY_COURSE_QUESTION_WARNING
 from user_repository import (
     clear_user_current_quiz_ids,
@@ -119,14 +119,14 @@ def restore_user_learning_state(username: str) -> None:
         log_exception("restore_user_learning_state error", exc)
 
 
-def start_course_assessment_session(course_name: str) -> None:
+def start_course_assessment_session(course_name: str) -> bool:
     all_questions = fetch_questions_by_course(course_name)
     quiz_size = max(1, AppConfig.QUIZ_SIZE)
     course_questions = random.sample(all_questions, min(quiz_size, len(all_questions))) if all_questions else []
 
     if not course_questions:
         st.toast(EMPTY_COURSE_QUESTION_WARNING, icon="⚠️")
-        return
+        return False
 
     save_user_current_quiz_ids(
         st.session_state[SessionKey.CURRENT_USER],
@@ -139,6 +139,7 @@ def start_course_assessment_session(course_name: str) -> None:
     )
     start_quiz_session(course_name, course_questions, study_session_id)
     st.rerun()
+    return True
 
 
 def submit_answers_and_run_assessment() -> None:

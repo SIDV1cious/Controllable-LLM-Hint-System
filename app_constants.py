@@ -16,6 +16,14 @@ class PageMode:
     GRADING = "grading"
     RESULTS = "results"
     REPORT = "report"
+    TRANSITION = "transition"
+
+
+class RouteAction:
+    START_QUIZ = "start_quiz"
+    OPEN_REPORT = "open_report"
+    OPEN_ADMIN_DASHBOARD = "open_admin_dashboard"
+    RETURN_HOME = "return_home"
 
 
 class ChatRole:

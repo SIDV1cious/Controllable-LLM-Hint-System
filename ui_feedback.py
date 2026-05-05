@@ -21,12 +21,34 @@ def show_warning(message: str) -> None:
     st.toast(message, icon=WARNING_ICON)
 
 
+def render_full_page_transition(
+    message: str,
+    icon: str = "🔄",
+    route_id: str = "route-page-transition",
+    spin_icon: bool = True,
+) -> None:
+    icon_class = "system-transition-icon is-spinning" if spin_icon else "system-transition-icon"
+    st.markdown(f'<div id="{route_id}"></div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+<div class="system-transition-shell">
+    <h2 class="system-transition-message">
+        <span class="{icon_class}">{icon}</span>{message}
+    </h2>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_route_loading_overlay(slot, message: str) -> None:
     slot.markdown(
         f"""
 <div class="route-loading-overlay">
-    <div class="route-loading-card">
-        <span class="route-loading-dot"></span>{message}
+    <div class="system-transition-shell">
+        <h2 class="system-transition-message">
+            <span class="system-transition-icon is-spinning">🔄</span>{message}
+        </h2>
     </div>
 </div>
         """,

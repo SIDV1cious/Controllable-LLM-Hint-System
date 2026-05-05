@@ -13,6 +13,7 @@ from admin_observability_repository import (
 from app_constants import (
     InteractionMarker,
     PageMode,
+    RouteAction,
     UserRole,
     format_answer_submission,
     format_tutoring_query,
@@ -47,7 +48,9 @@ from prompt_config_repository import SYSTEM_INSTRUCTION_KEY
 from question_repository import public_ids_to_database_ids
 from session_keys import SessionKey, composer_input, hint_safety_status, quick_help_button
 from session_state_manager import (
+    begin_route_transition,
     clear_active_assessment_state,
+    clear_route_transition,
     complete_assessment_session,
     init_session_state,
     repair_session_state,
@@ -80,6 +83,7 @@ def test_sidebar_policy_keeps_immersive_pages_clean():
     assert should_render_sidebar_for_page(PageMode.QUIZ, UserRole.STUDENT) is False
     assert should_render_sidebar_for_page(PageMode.GRADING, UserRole.STUDENT) is False
     assert should_render_sidebar_for_page(PageMode.RESULTS, UserRole.STUDENT) is False
+    assert should_render_sidebar_for_page(PageMode.TRANSITION, UserRole.STUDENT) is False
     assert should_render_sidebar_for_page(PageMode.ADMIN, UserRole.STUDENT) is False
 
 
@@ -233,6 +237,7 @@ def test_session_state_manager_initializes_and_resets_state():
     assert state[SessionKey.APP_STATE_VERSION] == 2
     assert state[SessionKey.PAGE_MODE] == PageMode.HOME
     assert state[SessionKey.QUIZ_QUEUE] == []
+    assert state[SessionKey.ROUTE_LOADING_ACTION] is None
 
     set_authenticated_user("student001", UserRole.STUDENT, state)
     assert state[SessionKey.LOGGED_IN] is True
@@ -259,6 +264,30 @@ def test_session_state_repair_recovers_blank_page_states():
     assert state[SessionKey.PAGE_MODE] == PageMode.HOME
     assert state[SessionKey.IS_GRADING] is False
     assert state[SessionKey.GRADING_STARTED] is False
+
+
+def test_route_transition_state_is_explicit_and_clearable():
+    state = {}
+    init_session_state(state)
+
+    begin_route_transition(
+        RouteAction.START_QUIZ,
+        "正在加载题目并初始化测验...",
+        icon="📚",
+        payload={"course_name": "高等数学"},
+        target=state,
+    )
+
+    assert state[SessionKey.PAGE_MODE] == PageMode.TRANSITION
+    assert state[SessionKey.ROUTE_LOADING_ACTION] == RouteAction.START_QUIZ
+    assert state[SessionKey.ROUTE_LOADING_ICON] == "📚"
+    assert state[SessionKey.ROUTE_LOADING_PAYLOAD] == {"course_name": "高等数学"}
+
+    clear_route_transition(state)
+
+    assert state[SessionKey.ROUTE_LOADING_ACTION] is None
+    assert state[SessionKey.ROUTE_LOADING_ACTIVE] is False
+    assert state[SessionKey.ROUTE_LOADING_PAYLOAD] == {}
 
 
 def test_session_state_repair_migrates_legacy_quiz_sessions_to_home():
