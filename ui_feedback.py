@@ -28,9 +28,40 @@ def render_full_page_transition(
     spin_icon: bool = True,
 ) -> None:
     icon_class = "system-transition-icon is-spinning" if spin_icon else "system-transition-icon"
-    st.markdown(f'<div id="{route_id}"></div>', unsafe_allow_html=True)
     st.markdown(
         f"""
+<style>
+.stApp:has(#{route_id}) section[data-testid="stSidebar"],
+.stApp:has(#{route_id}) [data-testid="stSidebar"],
+.stApp:has(#{route_id}) [data-testid="stSidebarCollapsedControl"] {{
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    min-width: 0 !important;
+}}
+
+.stApp:has(#{route_id}) [data-testid="stAppViewContainer"] {{
+    margin-left: 0 !important;
+}}
+
+.stApp:has(#{route_id}) [data-stale="true"],
+.stApp:has(#{route_id}) [data-stale="true"] * {{
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}}
+
+.stApp:has(#{route_id}) .block-container {{
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}}
+
+.stApp:has(#{route_id}) .system-transition-shell {{
+    min-height: 100vh;
+    width: 100%;
+}}
+</style>
+<div id="{route_id}"></div>
 <div class="system-transition-shell">
     <h2 class="system-transition-message">
         <span class="{icon_class}">{icon}</span>{message}
