@@ -239,7 +239,6 @@ def apply_platform_visual_theme():
     .stApp:has(#route-page-auth-loading) .st-key-FormSubmitter-login_form-----,
     .stApp:has(#route-page-auth-loading) .st-key-FormSubmitter-register_form-----,
     .stApp:has(#route-page-admin) .auth-page-title,
-    .stApp:has(#route-page-admin) div[data-testid="stTabs"],
     .stApp:has(#route-page-admin) div[data-testid="stForm"]:has(.st-key-identity_login_username),
     .stApp:has(#route-page-admin) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
     .stApp:has(#route-page-admin) .st-key-identity_login_username,
