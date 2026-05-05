@@ -12,7 +12,7 @@ from database_service import get_database_engine
 from experiment_admin_ui import render_experiment_analytics_dashboard
 
 ADMIN_SECTION_OPTIONS = [
-    "📊 可视化数据大屏",
+    "📊 数据概览",
     "🧪 实验分析",
     "🕒 登录日志",
     "⏱️ 学习时长追踪",
@@ -52,7 +52,7 @@ def render_admin_console():
         return
 
     with get_database_engine().connect() as conn:
-        if selected_section == "📊 可视化数据大屏":
+        if selected_section == "📊 数据概览":
             render_learning_overview_dashboard(conn)
         elif selected_section == "🧪 实验分析":
             render_experiment_analytics_dashboard(conn)

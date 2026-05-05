@@ -30,7 +30,7 @@ def render_sidebar_navigation(sidebar_slot):
                     st.rerun()
 
         if st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN:
-            if st.button("🎓 管理端统计看板"):
+            if st.button("🎓 管理端控制台"):
                 begin_route_transition(
                     RouteAction.OPEN_ADMIN_DASHBOARD,
                     ADMIN_DASHBOARD_TRANSITION_MESSAGE,
