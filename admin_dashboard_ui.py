@@ -3,10 +3,10 @@ import streamlit as st
 
 from admin_observability_repository import (
     build_leakage_score_distribution,
-    fetch_active_user_trend,
-    fetch_course_accuracy_summary,
-    fetch_course_study_duration_summary,
-    fetch_hint_leakage_records,
+    fetch_cached_active_user_trend,
+    fetch_cached_course_accuracy_summary,
+    fetch_cached_course_study_duration_summary,
+    fetch_cached_hint_leakage_records,
     summarize_hint_leakage_records,
 )
 from app_errors import log_exception
@@ -25,11 +25,11 @@ def _apply_plotly_panel_theme(fig):
     return fig
 
 
-def render_learning_overview_dashboard(conn):
+def render_learning_overview_dashboard():
     with st.container(border=True):
         st.markdown("#### 🕒 最近7天系统活跃人数趋势")
         try:
-            df_active = fetch_active_user_trend(conn)
+            df_active = fetch_cached_active_user_trend()
             if not df_active.empty:
                 fig_active = px.line(
                     df_active,
@@ -51,7 +51,7 @@ def render_learning_overview_dashboard(conn):
         st.markdown("#### 📘 各科课程学习时长占比")
         col_chart1, col_data1 = st.columns([2, 1])
         try:
-            df_duration = fetch_course_study_duration_summary(conn)
+            df_duration = fetch_cached_course_study_duration_summary()
             if not df_duration.empty:
                 fig_pie = px.pie(
                     df_duration,
@@ -79,7 +79,7 @@ def render_learning_overview_dashboard(conn):
     with st.container(border=True):
         st.markdown("#### ✅ 全系统题目平均正确率统计")
         try:
-            df_accuracy, has_answer_records = fetch_course_accuracy_summary(conn)
+            df_accuracy, has_answer_records = fetch_cached_course_accuracy_summary()
             if not has_answer_records:
                 st.info("暂无答题提交数据，无法计算正确率。")
             elif df_accuracy.empty:
@@ -102,7 +102,7 @@ def render_learning_overview_dashboard(conn):
     with st.container(border=True):
         st.markdown("#### 🛡️ 智能辅导答案泄露控制统计")
         try:
-            df_leak = fetch_hint_leakage_records(conn)
+            df_leak = fetch_cached_hint_leakage_records()
             if not df_leak.empty:
                 leakage_summary = summarize_hint_leakage_records(df_leak)
                 c_leak1, c_leak2, c_leak3 = st.columns(3)

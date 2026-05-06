@@ -1,11 +1,14 @@
 import re
 
 import pandas as pd
+import streamlit as st
 from sqlalchemy import text
 
+from database_service import get_database_engine
 from hint_system_core import ensure_leakage_observability_columns, now_shanghai
 
 HINT_STRENGTH_PATTERN = re.compile(r"【提示强度：([^】]+)】")
+EXPERIMENT_ANALYTICS_CACHE_TTL_SECONDS = 30
 
 
 def _extract_hint_strength(user_query: str) -> str:
@@ -79,6 +82,16 @@ def fetch_hint_experiment_logs(conn) -> pd.DataFrame:
     df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
     df["experiment_date"] = df["created_at"].dt.date.astype(str)
     return df
+
+
+@st.cache_data(ttl=EXPERIMENT_ANALYTICS_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_cached_hint_experiment_logs() -> pd.DataFrame:
+    with get_database_engine().connect() as conn:
+        return fetch_hint_experiment_logs(conn)
+
+
+def clear_experiment_analytics_cache() -> None:
+    fetch_cached_hint_experiment_logs.clear()
 
 
 def summarize_hint_experiment(df: pd.DataFrame) -> dict:

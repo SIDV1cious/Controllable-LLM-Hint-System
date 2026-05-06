@@ -1,15 +1,15 @@
 import streamlit as st
 
 from admin_observability_repository import (
-    fetch_recent_interaction_logs,
-    fetch_recent_login_logs,
-    fetch_recent_study_duration_logs,
+    fetch_cached_recent_interaction_logs,
+    fetch_cached_recent_login_logs,
+    fetch_cached_recent_study_duration_logs,
 )
 
 
-def render_login_logs_tab(conn):
+def render_login_logs_tab():
     st.subheader("学生活跃度监控")
-    df_login = fetch_recent_login_logs(conn)
+    df_login = fetch_cached_recent_login_logs()
     st.dataframe(df_login, use_container_width=True)
     if not df_login.empty:
         st.download_button(
@@ -21,9 +21,9 @@ def render_login_logs_tab(conn):
         )
 
 
-def render_study_duration_tab(conn):
+def render_study_duration_tab():
     st.subheader("各科课程学习时长分析")
-    df_study = fetch_recent_study_duration_logs(conn)
+    df_study = fetch_cached_recent_study_duration_logs()
     st.dataframe(df_study, use_container_width=True)
     if not df_study.empty:
         st.download_button(
@@ -35,9 +35,9 @@ def render_study_duration_tab(conn):
         )
 
 
-def render_interaction_monitoring_tab(conn):
+def render_interaction_monitoring_tab():
     st.subheader("大模型交互质量抽查")
-    df_chat = fetch_recent_interaction_logs(conn)
+    df_chat = fetch_cached_recent_interaction_logs()
     st.dataframe(df_chat, use_container_width=True)
     if not df_chat.empty:
         st.download_button(

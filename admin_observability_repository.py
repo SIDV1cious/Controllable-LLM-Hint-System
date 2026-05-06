@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import pandas as pd
+import streamlit as st
 from sqlalchemy import text
 
 from app_constants import InteractionMarker
+from database_service import get_database_engine
 
 ANSWER_SUBMISSION_PATTERN = f"{InteractionMarker.ANSWER_SUBMISSION}%"
 TUTORING_PATTERN = f"{InteractionMarker.TUTORING}%"
+ADMIN_OBSERVABILITY_CACHE_TTL_SECONDS = 30
 LEAKAGE_SCORE_LEVELS = {
     0: "0 安全",
     1: "1 轻微风险",
@@ -186,3 +189,55 @@ def fetch_recent_interaction_logs(conn, limit: int = 50) -> pd.DataFrame:
             conn,
             params={"limit": limit},
         )
+
+
+@st.cache_data(ttl=ADMIN_OBSERVABILITY_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_cached_active_user_trend() -> pd.DataFrame:
+    with get_database_engine().connect() as conn:
+        return fetch_active_user_trend(conn)
+
+
+@st.cache_data(ttl=ADMIN_OBSERVABILITY_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_cached_course_study_duration_summary() -> pd.DataFrame:
+    with get_database_engine().connect() as conn:
+        return fetch_course_study_duration_summary(conn)
+
+
+@st.cache_data(ttl=ADMIN_OBSERVABILITY_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_cached_course_accuracy_summary() -> tuple[pd.DataFrame, bool]:
+    with get_database_engine().connect() as conn:
+        return fetch_course_accuracy_summary(conn)
+
+
+@st.cache_data(ttl=ADMIN_OBSERVABILITY_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_cached_hint_leakage_records() -> pd.DataFrame:
+    with get_database_engine().connect() as conn:
+        return fetch_hint_leakage_records(conn)
+
+
+@st.cache_data(ttl=ADMIN_OBSERVABILITY_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_cached_recent_login_logs(limit: int = 50) -> pd.DataFrame:
+    with get_database_engine().connect() as conn:
+        return fetch_recent_login_logs(conn, limit)
+
+
+@st.cache_data(ttl=ADMIN_OBSERVABILITY_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_cached_recent_study_duration_logs(limit: int = 50) -> pd.DataFrame:
+    with get_database_engine().connect() as conn:
+        return fetch_recent_study_duration_logs(conn, limit)
+
+
+@st.cache_data(ttl=ADMIN_OBSERVABILITY_CACHE_TTL_SECONDS, show_spinner=False)
+def fetch_cached_recent_interaction_logs(limit: int = 50) -> pd.DataFrame:
+    with get_database_engine().connect() as conn:
+        return fetch_recent_interaction_logs(conn, limit)
+
+
+def clear_admin_observability_cache() -> None:
+    fetch_cached_active_user_trend.clear()
+    fetch_cached_course_study_duration_summary.clear()
+    fetch_cached_course_accuracy_summary.clear()
+    fetch_cached_hint_leakage_records.clear()
+    fetch_cached_recent_login_logs.clear()
+    fetch_cached_recent_study_duration_logs.clear()
+    fetch_cached_recent_interaction_logs.clear()

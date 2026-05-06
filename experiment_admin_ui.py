@@ -5,7 +5,7 @@ import streamlit as st
 from experiment_analytics_service import (
     build_experiment_export_dataframe,
     build_experiment_markdown_report,
-    fetch_hint_experiment_logs,
+    fetch_cached_hint_experiment_logs,
     summarize_hint_experiment,
 )
 
@@ -177,7 +177,7 @@ def _render_export_area(df: pd.DataFrame):
         )
 
 
-def render_experiment_analytics_dashboard(conn):
+def render_experiment_analytics_dashboard():
     apply_experiment_dashboard_style()
     st.markdown(
         """
@@ -193,7 +193,7 @@ def render_experiment_analytics_dashboard(conn):
     )
 
     try:
-        df = fetch_hint_experiment_logs(conn)
+        df = fetch_cached_hint_experiment_logs()
     except Exception as exc:
         st.warning(f"实验数据读取失败：{exc}")
         return
