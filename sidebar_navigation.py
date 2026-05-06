@@ -1,5 +1,6 @@
 import streamlit as st
 
+from admin_console_ui import ADMIN_SECTION_OPTIONS
 from app_constants import PageMode, RouteAction, UserRole
 from learning_session_service import clear_current_quiz_for_user
 from session_keys import SessionKey
@@ -31,9 +32,16 @@ def render_sidebar_navigation(sidebar_slot):
 
         if (
             st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN
-            and st.session_state[SessionKey.PAGE_MODE] != PageMode.ADMIN
         ):
-            if st.button("🎓 管理端控制台"):
+            if st.session_state[SessionKey.PAGE_MODE] == PageMode.ADMIN:
+                if st.session_state.get("admin_console_section") not in ADMIN_SECTION_OPTIONS:
+                    st.session_state["admin_console_section"] = ADMIN_SECTION_OPTIONS[0]
+                st.radio(
+                    "教务管理导航",
+                    ADMIN_SECTION_OPTIONS,
+                    key="admin_console_section",
+                )
+            elif st.button("🎓 管理端控制台"):
                 begin_route_transition(
                     RouteAction.OPEN_ADMIN_DASHBOARD,
                     ADMIN_DASHBOARD_TRANSITION_MESSAGE,

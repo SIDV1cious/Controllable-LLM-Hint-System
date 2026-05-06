@@ -22,6 +22,14 @@ ADMIN_SECTION_OPTIONS = [
 ]
 
 
+def _get_selected_admin_section() -> str:
+    selected_section = st.session_state.get("admin_console_section", ADMIN_SECTION_OPTIONS[0])
+    if selected_section not in ADMIN_SECTION_OPTIONS:
+        selected_section = ADMIN_SECTION_OPTIONS[0]
+        st.session_state["admin_console_section"] = selected_section
+    return selected_section
+
+
 def render_admin_console():
     st.markdown('<div id="route-page-admin"></div>', unsafe_allow_html=True)
     st.markdown(
@@ -35,13 +43,8 @@ def render_admin_console():
         unsafe_allow_html=True,
     )
 
-    selected_section = st.radio(
-        "管理模块",
-        ADMIN_SECTION_OPTIONS,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="admin_console_section",
-    )
+    selected_section = _get_selected_admin_section()
+    st.markdown(f"## {selected_section}")
 
     if selected_section == "🛠️ 课程与题库管理":
         render_course_and_question_management_tab()
