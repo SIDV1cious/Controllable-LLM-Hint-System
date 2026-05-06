@@ -13,7 +13,6 @@ from student_report_service import (
     clean_restored_tutoring_query,
     extract_wrong_question_ids,
 )
-from ui_feedback import render_route_loading_overlay
 
 
 def render_student_learning_report():
@@ -29,22 +28,6 @@ def render_student_learning_report():
         unsafe_allow_html=True,
     )
     username = st.session_state[SessionKey.CURRENT_USER]
-    route_loading_passes = int(st.session_state.get(SessionKey.ROUTE_LOADING_PASSES, 0) or 0)
-    route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE)) or route_loading_passes > 0
-    route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)
-    loading_overlay_slot = st.empty()
-    if route_loading_active:
-        render_route_loading_overlay(loading_overlay_slot, route_loading_message or "正在整理个人学情报告...")
-
-    def finish_loading_transition() -> None:
-        if route_loading_active:
-            remaining_passes = max(route_loading_passes, 1) - 1
-            st.session_state[SessionKey.ROUTE_LOADING_PASSES] = remaining_passes
-            st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = remaining_passes > 0
-            if remaining_passes <= 0:
-                st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
-            st.rerun()
-
     total_seconds = fetch_total_study_seconds(username)
     answer_logs = fetch_answer_logs(username)
     summary = calculate_learning_summary(total_seconds, answer_logs)
@@ -58,7 +41,6 @@ def render_student_learning_report():
     st.markdown("---")
     st.subheader("📓 错题记录与智能辅导")
     if not wrong_qids:
-        finish_loading_transition()
         st.info("你目前没有任何错题记录")
         return
 
@@ -80,5 +62,3 @@ def render_student_learning_report():
                     st.markdown(f"**🤖 智能辅导员**: {response}")
             else:
                 st.caption("暂无针对此题的对话辅导记录。")
-
-    finish_loading_transition()

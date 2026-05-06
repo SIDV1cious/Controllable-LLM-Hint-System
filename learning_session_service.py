@@ -119,7 +119,7 @@ def restore_user_learning_state(username: str) -> None:
         log_exception("restore_user_learning_state error", exc)
 
 
-def start_course_assessment_session(course_name: str) -> bool:
+def prepare_course_assessment_session(course_name: str) -> bool:
     all_questions = fetch_questions_by_course(course_name)
     quiz_size = max(1, AppConfig.QUIZ_SIZE)
     course_questions = random.sample(all_questions, min(quiz_size, len(all_questions))) if all_questions else []
@@ -138,8 +138,14 @@ def start_course_assessment_session(course_name: str) -> bool:
         now_shanghai(),
     )
     start_quiz_session(course_name, course_questions, study_session_id)
-    st.rerun()
     return True
+
+
+def start_course_assessment_session(course_name: str) -> bool:
+    is_started = prepare_course_assessment_session(course_name)
+    if is_started:
+        st.rerun()
+    return is_started
 
 
 def submit_answers_and_run_assessment() -> None:

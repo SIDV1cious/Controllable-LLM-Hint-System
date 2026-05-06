@@ -4,13 +4,11 @@ import streamlit as st
 
 from app_constants import APP_TITLE, RouteAction, UserRole
 from course_repository import list_course_catalog
-from session_keys import SessionKey
 from session_state_manager import begin_route_transition, set_authenticated_user
-from ui_feedback import render_full_page_transition, render_route_loading_overlay
+from ui_feedback import ROUTE_TRANSITION_SECONDS, render_full_page_transition
 from ui_texts import (
     ADMIN_LOGIN_TRANSITION_MESSAGE,
     COURSE_TRANSITION_MESSAGE,
-    HOME_TRANSITION_MESSAGE,
     STUDENT_LOGIN_TRANSITION_MESSAGE,
 )
 
@@ -225,51 +223,6 @@ def apply_platform_visual_theme():
         margin-bottom: 0.15rem;
     }
 
-    .stApp:has(#route-page-home) .student-report-hero,
-    .stApp:has(#route-page-home) div[data-testid="stMetric"],
-    .stApp:has(#route-page-home) .auth-page-title,
-    .stApp:has(#route-page-home) div[data-testid="stTabs"],
-    .stApp:has(#route-page-home) div[data-testid="stForm"]:has(.st-key-identity_login_username),
-    .stApp:has(#route-page-home) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
-    .stApp:has(#route-page-home) .st-key-identity_login_username,
-    .stApp:has(#route-page-home) .st-key-identity_login_password,
-    .stApp:has(#route-page-home) .st-key-FormSubmitter-login_form-----,
-    .stApp:has(#route-page-home) .st-key-FormSubmitter-register_form-----,
-    .stApp:has(#route-page-auth-loading) .auth-page-title,
-    .stApp:has(#route-page-auth-loading) div[data-testid="stTabs"],
-    .stApp:has(#route-page-auth-loading) div[data-testid="stForm"]:has(.st-key-identity_login_username),
-    .stApp:has(#route-page-auth-loading) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
-    .stApp:has(#route-page-auth-loading) .st-key-identity_login_username,
-    .stApp:has(#route-page-auth-loading) .st-key-identity_login_password,
-    .stApp:has(#route-page-auth-loading) .st-key-FormSubmitter-login_form-----,
-    .stApp:has(#route-page-auth-loading) .st-key-FormSubmitter-register_form-----,
-    .stApp:has(#route-page-admin) .auth-page-title,
-    .stApp:has(#route-page-admin) div[data-testid="stForm"]:has(.st-key-identity_login_username),
-    .stApp:has(#route-page-admin) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
-    .stApp:has(#route-page-admin) .st-key-identity_login_username,
-    .stApp:has(#route-page-admin) .st-key-identity_login_password,
-    .stApp:has(#route-page-admin) .st-key-FormSubmitter-login_form-----,
-    .stApp:has(#route-page-admin) .st-key-FormSubmitter-register_form-----,
-    .stApp:has(#route-page-report) .course-lobby-hero,
-    .stApp:has(#route-page-report) .course-selection-guide,
-    .stApp:has(#route-page-report) div[data-testid="stVerticalBlockBorderWrapper"]:has(.course-card-eyebrow),
-    .stApp:has(#route-page-report) .auth-page-title,
-    .stApp:has(#route-page-report) div[data-testid="stTabs"],
-    .stApp:has(#route-page-report) div[data-testid="stForm"]:has(.st-key-identity_login_username),
-    .stApp:has(#route-page-report) div[data-testid="stForm"]:has(.st-key-FormSubmitter-register_form-----),
-    .stApp:has(#route-page-report) .st-key-identity_login_username,
-    .stApp:has(#route-page-report) .st-key-identity_login_password,
-    .stApp:has(#route-page-report) .st-key-FormSubmitter-login_form-----,
-    .stApp:has(#route-page-report) .st-key-FormSubmitter-register_form----- {
-        display: none !important;
-    }
-
-    .stApp:has(#route-page-auth-loading) div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: transparent !important;
-        border-color: transparent !important;
-        box-shadow: none !important;
-    }
-
     .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
     [data-stale="true"],
     .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
@@ -291,20 +244,6 @@ def apply_platform_visual_theme():
         letter-spacing: 0.08em;
         text-transform: uppercase;
         margin-bottom: 0.25rem;
-    }
-
-    .route-loading-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 999999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background:
-            radial-gradient(circle at 16% 14%, rgba(37, 99, 235, 0.10), transparent 24rem),
-            radial-gradient(circle at 86% 18%, rgba(255, 75, 75, 0.08), transparent 22rem),
-            rgba(248, 251, 255, 0.96);
-        backdrop-filter: blur(8px);
     }
 
     .system-transition-shell {
@@ -338,36 +277,6 @@ def apply_platform_visual_theme():
         animation: identity-spin 1.05s linear infinite;
     }
 
-    .route-loading-card {
-        min-width: min(520px, 82vw);
-        padding: 0;
-        border: 0;
-        background: transparent;
-        box-shadow: none;
-        text-align: center;
-    }
-
-    .route-loading-dot {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        margin-right: 10px;
-        border-radius: 999px;
-        background: var(--brand-red);
-        animation: route-pulse 0.9s ease-in-out infinite alternate;
-        vertical-align: 2px;
-    }
-
-    @keyframes route-pulse {
-        from {
-            transform: scale(0.72);
-            opacity: 0.45;
-        }
-        to {
-            transform: scale(1.18);
-            opacity: 1;
-        }
-    }
 </style>
         """,
         unsafe_allow_html=True,
@@ -523,7 +432,7 @@ def render_identity_access_page(
     if st.session_state.get(LOGIN_PENDING_KEY):
         pending_username = st.session_state.get(LOGIN_USERNAME_KEY, "")
         render_identity_loading_page(_login_transition_message_for(pending_username))
-        time.sleep(0.65)
+        time.sleep(ROUTE_TRANSITION_SECONDS)
         process_pending_login()
         st.stop()
 
@@ -567,13 +476,6 @@ def render_identity_access_page(
 
 def render_course_selection_portal():
     st.markdown('<div id="route-page-home"></div>', unsafe_allow_html=True)
-    route_loading_passes = int(st.session_state.get(SessionKey.ROUTE_LOADING_PASSES, 0) or 0)
-    route_loading_active = bool(st.session_state.get(SessionKey.ROUTE_LOADING_ACTIVE)) or route_loading_passes > 0
-    route_loading_message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE)
-    loading_overlay_slot = st.empty()
-    if route_loading_active:
-        render_route_loading_overlay(loading_overlay_slot, route_loading_message or HOME_TRANSITION_MESSAGE)
-
     st.markdown(
         """
 <div class="page-hero course-lobby-hero">
@@ -593,11 +495,3 @@ def render_course_selection_portal():
     for idx, (course_name, course_desc) in enumerate(base_courses):
         with cols[idx % 4]:
             render_course_assessment_card(course_name, course_desc)
-
-    if route_loading_active:
-        remaining_passes = max(route_loading_passes, 1) - 1
-        st.session_state[SessionKey.ROUTE_LOADING_PASSES] = remaining_passes
-        st.session_state[SessionKey.ROUTE_LOADING_ACTIVE] = remaining_passes > 0
-        if remaining_passes <= 0:
-            st.session_state[SessionKey.ROUTE_LOADING_MESSAGE] = None
-        st.rerun()

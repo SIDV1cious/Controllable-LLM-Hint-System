@@ -7,6 +7,7 @@ import streamlit as st
 SUCCESS_ICON = "✅"
 ERROR_ICON = "❌"
 WARNING_ICON = "⚠️"
+ROUTE_TRANSITION_SECONDS = 0.55
 
 
 def show_success(message: str) -> None:
@@ -66,21 +67,6 @@ def render_full_page_transition(
     <h2 class="system-transition-message">
         <span class="{icon_class}">{icon}</span>{message}
     </h2>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_route_loading_overlay(slot, message: str) -> None:
-    slot.markdown(
-        f"""
-<div class="route-loading-overlay">
-    <div class="system-transition-shell">
-        <h2 class="system-transition-message">
-            <span class="system-transition-icon is-spinning">🔄</span>{message}
-        </h2>
-    </div>
 </div>
         """,
         unsafe_allow_html=True,

@@ -18,36 +18,35 @@ from learning_platform_ui import (
 from learning_session_service import (
     authenticate_learning_user,
     clear_current_quiz_for_user,
+    prepare_course_assessment_session,
     record_learning_interaction,
     record_login_event,
     register_learning_user,
-    start_course_assessment_session,
     submit_answers_and_run_assessment,
 )
 from session_keys import SessionKey
 from session_state_manager import clear_route_transition, init_session_state, navigate_to, repair_session_state
 from sidebar_navigation import render_sidebar_navigation
 from student_report_ui import render_student_learning_report
-from ui_feedback import render_full_page_transition
+from ui_feedback import ROUTE_TRANSITION_SECONDS, render_full_page_transition
 
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def _render_pending_route_transition(start_course_assessment_session_fn):
+def _render_pending_route_transition(prepare_course_assessment_session_fn):
     action = st.session_state.get(SessionKey.ROUTE_LOADING_ACTION)
     message = st.session_state.get(SessionKey.ROUTE_LOADING_MESSAGE) or "正在加载页面..."
     icon = st.session_state.get(SessionKey.ROUTE_LOADING_ICON) or "🔄"
     payload = st.session_state.get(SessionKey.ROUTE_LOADING_PAYLOAD) or {}
 
     render_full_page_transition(message, icon=icon, route_id="route-page-transition", spin_icon=icon == "🔄")
-    time.sleep(0.65)
+    time.sleep(ROUTE_TRANSITION_SECONDS)
 
     clear_route_transition()
     if action == RouteAction.START_QUIZ:
         course_name = payload.get("course_name")
-        if course_name:
-            start_course_assessment_session_fn(course_name)
-        navigate_to(PageMode.HOME)
+        if not course_name or not prepare_course_assessment_session_fn(course_name):
+            navigate_to(PageMode.HOME)
     elif action == RouteAction.OPEN_REPORT:
         navigate_to(PageMode.REPORT)
     elif action == RouteAction.OPEN_ADMIN_DASHBOARD:
@@ -81,7 +80,7 @@ def run_controlled_hint_system():
 
     if st.session_state[SessionKey.PAGE_MODE] == PageMode.TRANSITION:
         with main_content_slot.container():
-            _render_pending_route_transition(start_course_assessment_session)
+            _render_pending_route_transition(prepare_course_assessment_session)
         st.stop()
 
     sidebar_slot = None
