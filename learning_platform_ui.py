@@ -7,7 +7,12 @@ from course_repository import list_course_catalog
 from session_keys import SessionKey
 from session_state_manager import begin_route_transition, set_authenticated_user
 from ui_feedback import render_full_page_transition, render_route_loading_overlay
-from ui_texts import COURSE_TRANSITION_MESSAGE, HOME_TRANSITION_MESSAGE
+from ui_texts import (
+    ADMIN_LOGIN_TRANSITION_MESSAGE,
+    COURSE_TRANSITION_MESSAGE,
+    HOME_TRANSITION_MESSAGE,
+    STUDENT_LOGIN_TRANSITION_MESSAGE,
+)
 
 LOGIN_ERROR_KEY = "identity_login_error"
 LOGIN_PENDING_KEY = "identity_login_pending"
@@ -472,7 +477,13 @@ def render_course_assessment_card(course_name: str, course_desc: str):
             st.rerun()
 
 
-def render_identity_loading_page(message: str = "正在验证账号并加载学习数据...") -> None:
+def _login_transition_message_for(username: str) -> str:
+    if username.strip().lower() == UserRole.ADMIN:
+        return ADMIN_LOGIN_TRANSITION_MESSAGE
+    return STUDENT_LOGIN_TRANSITION_MESSAGE
+
+
+def render_identity_loading_page(message: str = STUDENT_LOGIN_TRANSITION_MESSAGE) -> None:
     render_full_page_transition(message, icon="🔄", route_id="route-page-auth-loading", spin_icon=True)
 
 
@@ -510,7 +521,8 @@ def render_identity_access_page(
     apply_identity_page_layout()
 
     if st.session_state.get(LOGIN_PENDING_KEY):
-        render_identity_loading_page()
+        pending_username = st.session_state.get(LOGIN_USERNAME_KEY, "")
+        render_identity_loading_page(_login_transition_message_for(pending_username))
         time.sleep(0.65)
         process_pending_login()
         st.stop()

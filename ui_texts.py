@@ -12,6 +12,8 @@ TUTORING_SPINNER = "正在生成智能辅导并进行答案泄露检测....."
 DEFAULT_PEDAGOGICAL_INTENT = "自主提问"
 
 EMPTY_COURSE_QUESTION_WARNING = "题库内目前无该课程对应题目。"
+STUDENT_LOGIN_TRANSITION_MESSAGE = "正在验证账号并加载学习数据..."
+ADMIN_LOGIN_TRANSITION_MESSAGE = "正在验证管理员账号并加载教务管理控制台..."
 COURSE_TRANSITION_MESSAGE = "正在加载题目并初始化测验..."
 REPORT_TRANSITION_MESSAGE = "正在生成个人学情报告..."
 ADMIN_DASHBOARD_TRANSITION_MESSAGE = "正在汇总管理端统计看板..."
