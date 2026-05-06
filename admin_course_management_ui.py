@@ -14,7 +14,7 @@ from admin_content_repository import (
     update_course_and_question_category,
     update_custom_question,
 )
-from ui_feedback import show_error, show_success, show_warning
+from ui_feedback import render_empty_state, show_error, show_success, show_warning
 
 
 def _load_course_names() -> list:
@@ -50,7 +50,7 @@ def _render_course_delete_tab():
                 show_success(f"已彻底删除课程《{del_c_name}》！")
                 st.rerun()
         else:
-            st.info("暂无自定义课程可以删除。")
+            render_empty_state("暂无自定义课程可以删除。", title="课程列表为空", icon="📚")
             st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
 
@@ -61,7 +61,7 @@ def _render_course_edit_tab():
         edit_c_options = {}
 
     if not edit_c_options:
-        st.info("暂无自定义课程可以修改。")
+        render_empty_state("暂无自定义课程可以修改。", title="课程列表为空", icon="📚")
         return
 
     edit_c_choice = st.selectbox("👇 第一步：选择需要修改的课程", list(edit_c_options.keys()), key="edit_c_select")
@@ -93,9 +93,9 @@ def _render_course_preview_tab():
             columns=["课程名称", "课程简介描述"],
         )
         if not df_custom_c.empty:
-            st.dataframe(df_custom_c, use_container_width=True)
+            st.dataframe(df_custom_c, use_container_width=True, hide_index=True)
         else:
-            st.info("当前云端数据库中暂无任何自定义课程。")
+            render_empty_state("当前云端数据库中暂无任何自定义课程。", title="暂无自定义课程", icon="📚")
     except Exception as e:
         st.warning(f"读取课程失败: {e}")
 
@@ -130,7 +130,7 @@ def _render_question_delete_tab():
                 show_success("指定题目已永久删除！")
                 st.rerun()
         else:
-            st.info("暂无自定义题目可以删除。")
+            render_empty_state("暂无自定义题目可以删除。", title="题库列表为空", icon="📝")
             st.form_submit_button("确认删除", disabled=True, use_container_width=True)
 
 
@@ -141,7 +141,7 @@ def _render_question_edit_tab(all_courses: list):
         edit_q_options = {}
 
     if not edit_q_options:
-        st.info("暂无自定义题目可以修改。")
+        render_empty_state("暂无自定义题目可以修改。", title="题库列表为空", icon="📝")
         return
 
     edit_q_choice = st.selectbox("👇 第一步：选择需要修改的题目", list(edit_q_options.keys()), key="edit_q_select")
@@ -170,15 +170,15 @@ def _render_question_preview_tab():
             columns=["内部ID", "所属课程", "题目完整内容"],
         )
         if not df_custom_q.empty:
-            st.dataframe(df_custom_q, use_container_width=True)
+            st.dataframe(df_custom_q, use_container_width=True, hide_index=True)
         else:
-            st.info("当前云端数据库中暂无任何自定义题目。")
+            render_empty_state("当前云端数据库中暂无任何自定义题目。", title="暂无自定义题目", icon="📝")
     except Exception as e:
         st.warning(f"读取题库失败: {e}")
 
 
 def render_course_and_question_management_tab():
-    st.subheader("📚 课程管理")
+    st.markdown("<div class='app-section-heading'><h3 class='app-section-title'>📚 课程管理</h3></div>", unsafe_allow_html=True)
     t_c_add, t_c_del, t_c_edit, t_c_view = st.tabs(
         ["➕ 录入新课程", "🗑️ 删除自定义课程", "✏️ 修改自定义课程", "👀 预览自定义课程"]
     )
@@ -192,7 +192,7 @@ def render_course_and_question_management_tab():
         _render_course_preview_tab()
 
     st.divider()
-    st.subheader("📝 题库管理")
+    st.markdown("<div class='app-section-heading'><h3 class='app-section-title'>📝 题库管理</h3></div>", unsafe_allow_html=True)
     all_courses = _load_course_names()
     t_add, t_del, t_edit, t_view = st.tabs(
         ["➕ 录入新题目", "🗑️ 删除自定义题目", "✏️ 修改自定义题目", "👀 预览自定义题库"]

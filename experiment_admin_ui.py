@@ -8,6 +8,21 @@ from experiment_analytics_service import (
     fetch_cached_hint_experiment_logs,
     summarize_hint_experiment,
 )
+from ui_feedback import render_empty_state
+
+
+def _apply_experiment_chart_theme(fig):
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(248,251,255,0.68)",
+        font={"family": "Arial, sans-serif", "color": "#334155"},
+        margin={"l": 20, "r": 20, "t": 18, "b": 20},
+        hoverlabel={"bgcolor": "white", "bordercolor": "#dbe4f0", "font_size": 13},
+        height=360,
+    )
+    fig.update_xaxes(showgrid=False, linecolor="#dbe4f0", tickfont={"color": "#64748b"})
+    fig.update_yaxes(gridcolor="#e8eef7", zerolinecolor="#dbe4f0", tickfont={"color": "#64748b"})
+    return fig
 
 
 def apply_experiment_dashboard_style():
@@ -99,7 +114,7 @@ def _render_distribution_charts(df: pd.DataFrame):
             color="hint_strength",
             color_discrete_sequence=px.colors.qualitative.Set2,
         )
-        st.plotly_chart(fig_strength, use_container_width=True)
+        st.plotly_chart(_apply_experiment_chart_theme(fig_strength), use_container_width=True)
 
     with chart_cols[1]:
         fig_intent = px.bar(
@@ -110,7 +125,7 @@ def _render_distribution_charts(df: pd.DataFrame):
             color="pedagogical_intent",
             color_discrete_sequence=px.colors.qualitative.Pastel,
         )
-        st.plotly_chart(fig_intent, use_container_width=True)
+        st.plotly_chart(_apply_experiment_chart_theme(fig_intent), use_container_width=True)
 
     chart_cols2 = st.columns(2)
     with chart_cols2[0]:
@@ -121,7 +136,7 @@ def _render_distribution_charts(df: pd.DataFrame):
             labels={"leakage_score": "泄露评分", "count": "提示数量"},
             color_discrete_sequence=["#2563eb"],
         )
-        st.plotly_chart(fig_score, use_container_width=True)
+        st.plotly_chart(_apply_experiment_chart_theme(fig_score), use_container_width=True)
 
     with chart_cols2[1]:
         fig_status = px.pie(
@@ -132,7 +147,7 @@ def _render_distribution_charts(df: pd.DataFrame):
             color_discrete_sequence=px.colors.qualitative.Safe,
         )
         fig_status.update_traces(textposition="inside", textinfo="percent+label")
-        st.plotly_chart(fig_status, use_container_width=True)
+        st.plotly_chart(_apply_experiment_chart_theme(fig_status), use_container_width=True)
 
 
 def _render_trend_chart(df: pd.DataFrame):
@@ -153,7 +168,7 @@ def _render_trend_chart(df: pd.DataFrame):
         markers=True,
         labels={"experiment_date": "日期", "value": "指标值", "variable": "指标"},
     )
-    st.plotly_chart(fig_trend, use_container_width=True)
+    st.plotly_chart(_apply_experiment_chart_theme(fig_trend), use_container_width=True)
 
 
 def _render_export_area(df: pd.DataFrame):
@@ -199,12 +214,16 @@ def render_experiment_analytics_dashboard():
         return
 
     if df.empty:
-        st.info("暂无智能辅导实验数据。学生生成过辅导提示后，这里会自动出现统计结果。")
+        render_empty_state(
+            "学生生成过辅导提示后，这里会自动出现统计结果。",
+            title="暂无智能辅导实验数据",
+            icon="🧪",
+        )
         return
 
     filtered_df = _filter_experiment_dataframe(df)
     if filtered_df.empty:
-        st.info("当前筛选条件下暂无数据。")
+        render_empty_state("请调整课程、提示强度或教学意图筛选条件。", title="当前筛选条件下暂无数据", icon="🔎")
         return
 
     _render_summary_metrics(filtered_df)

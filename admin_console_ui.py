@@ -49,6 +49,15 @@ ADMIN_SECTIONS = [
 ]
 ADMIN_SECTION_OPTIONS = [section["label"] for section in ADMIN_SECTIONS]
 ADMIN_SECTION_BY_LABEL = {section["label"]: section for section in ADMIN_SECTIONS}
+ADMIN_SECTION_DESCRIPTIONS = {
+    "📊 数据概览": "查看系统活跃趋势、课程学习时长、正确率和答案泄露控制指标。",
+    "🧪 实验分析": "围绕提示强度、教学意图、泄露检测与自动重写汇总实验数据。",
+    "🕒 登录日志": "追踪学生账号登录记录，用于观察系统使用活跃度。",
+    "⏱️ 学习时长追踪": "按课程汇总学习会话时长，辅助分析学生投入情况。",
+    "💬 AI辅导监控": "抽查智能辅导请求、模型回复与安全控制字段。",
+    "🛠️ 课程与题库管理": "维护课程模块与自定义题目，支持答辩演示和扩展测试。",
+    "⚙️ 智能辅导大模型设置": "配置系统提示词，统一控制受控提示生成策略。",
+}
 
 
 def _get_selected_admin_section() -> str:
@@ -73,5 +82,16 @@ def render_admin_console():
     )
 
     selected_section = _get_selected_admin_section()
-    st.markdown(f"## {selected_section}")
+    st.markdown(
+        f"""
+<div class="admin-section-heading">
+    <div>
+        <div class="app-section-kicker">CURRENT MODULE</div>
+        <h2 class="admin-section-title">{selected_section}</h2>
+        <div class="admin-section-subtitle">{ADMIN_SECTION_DESCRIPTIONS[selected_section]}</div>
+    </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
     ADMIN_SECTION_BY_LABEL[selected_section]["renderer"]()

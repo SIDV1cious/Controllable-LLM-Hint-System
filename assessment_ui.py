@@ -8,7 +8,7 @@ from hint_system_core import build_result_export, format_math, now_shanghai
 from learning_platform_ui import render_assessment_integrity_warning
 from session_keys import SessionKey, answer_input, hint_safety_status, navigation_button, review_button
 from session_state_manager import begin_route_transition, clear_active_assessment_state, navigate_to
-from ui_feedback import render_full_page_transition
+from ui_feedback import render_empty_state, render_full_page_transition
 from ui_texts import HOME_TRANSITION_MESSAGE
 
 
@@ -362,7 +362,11 @@ def render_assessment_results_dashboard(record_learning_interaction):
     with right_col:
         if st.session_state[SessionKey.REVIEW_QUESTION_INDEX] is None:
             with st.container(border=True):
-                st.info("👈🏻请先在左侧选择一道题，查看题目详情并请求智能辅导。")
+                render_empty_state(
+                    "请先在左侧选择一道题，查看题目详情并请求智能辅导。",
+                    title="等待选择复盘题目",
+                    icon="👈🏻",
+                )
             return
 
         review_index = st.session_state[SessionKey.REVIEW_QUESTION_INDEX]

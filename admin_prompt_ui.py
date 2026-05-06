@@ -7,7 +7,7 @@ from ui_feedback import show_error, show_success, show_warning
 
 
 def render_prompt_configuration_tab():
-    st.subheader("🧠 大模型 Prompt 注入控制台")
+    st.markdown("<div class='app-section-heading'><h3 class='app-section-title'>🧠 大模型 Prompt 注入控制台</h3></div>", unsafe_allow_html=True)
     st.info("💡 在这里热更新大模型的底层性格与辅导策略！修改保存后，所有学生的 AI 辅导体验将瞬间改变。")
     try:
         current_prompt = get_system_instruction(SYSTEM_INSTRUCTION)

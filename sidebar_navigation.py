@@ -17,7 +17,15 @@ def render_sidebar_navigation(sidebar_slot):
 
     with sidebar_slot.container():
         role_label = "管理员" if st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN else "学生"
-        st.write(f"当前账号: `{st.session_state[SessionKey.CURRENT_USER]}` ({role_label})")
+        st.markdown(
+            f"""
+<div class="sidebar-user-card">
+    <div class="sidebar-user-label">当前账号</div>
+    <div class="sidebar-user-name"><code>{st.session_state[SessionKey.CURRENT_USER]}</code>（{role_label}）</div>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         if st.session_state[SessionKey.USER_ROLE] == UserRole.STUDENT:
             if st.session_state[SessionKey.PAGE_MODE] != PageMode.HOME:

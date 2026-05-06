@@ -47,6 +47,15 @@ def apply_controlled_hint_panel_style():
         gap: 8px;
     }
 
+    .tutoring-title::before {
+        content: "";
+        display: inline-block;
+        width: 7px;
+        height: 22px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ff4b4b, #2563eb);
+    }
+
     .tutoring-subtitle {
         color: #64748b;
         font-size: 14px;
@@ -59,6 +68,10 @@ def apply_controlled_hint_panel_style():
         font-weight: 700;
         color: #334155;
         margin: 0.75rem 0 0.45rem 0;
+    }
+
+    .stApp:has(.tutoring-title) div.stButton > button {
+        min-height: 2.55rem;
     }
 
     .composer-guide {
@@ -131,10 +144,15 @@ def apply_controlled_hint_panel_style():
         border: 1px solid #e2e8f0;
         background: rgba(255, 255, 255, 0.78);
         box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
+        margin-bottom: 0.65rem;
     }
 
     div[data-testid="stRadio"] label {
         font-weight: 650;
+    }
+
+    div[data-testid="stRadio"] {
+        padding: 0.15rem 0 0.25rem 0;
     }
 </style>
         """,

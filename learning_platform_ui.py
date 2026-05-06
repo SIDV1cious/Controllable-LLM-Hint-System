@@ -58,6 +58,8 @@ def apply_platform_visual_theme():
         --brand-red: #ff4b4b;
         --brand-blue: #2563eb;
         --soft-blue: #eef6ff;
+        --surface-subtle: rgba(248, 251, 255, 0.86);
+        --panel-min-height: 360px;
         --shadow-soft: 0 18px 42px rgba(15, 23, 42, 0.07);
         --shadow-card: 0 12px 30px rgba(30, 64, 175, 0.06);
     }
@@ -138,6 +140,26 @@ def apply_platform_visual_theme():
         box-shadow: var(--shadow-card);
     }
 
+    div[data-testid="stAlert"] {
+        border-radius: 14px;
+        border: 1px solid #dbe7f5;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.035);
+    }
+
+    div[data-testid="stDataFrame"] {
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
+    }
+
+    div[data-testid="stPlotlyChart"] {
+        min-height: var(--panel-min-height);
+        border-radius: 16px;
+        padding: 0.15rem 0.25rem;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(248, 251, 255, 0.72));
+    }
+
     div[data-testid="stTextInput"] input,
     div[data-testid="stTextArea"] textarea,
     div[data-baseweb="select"] {
@@ -166,6 +188,52 @@ def apply_platform_visual_theme():
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
         border-right: 1px solid #e5e7eb;
+    }
+
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: 0.65rem;
+    }
+
+    section[data-testid="stSidebar"] label {
+        color: #334155;
+        font-weight: 700;
+    }
+
+    section[data-testid="stSidebar"] div.stButton > button {
+        min-height: 2.6rem;
+        justify-content: flex-start;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.76);
+    }
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] {
+        display: grid;
+        gap: 0.15rem;
+    }
+
+    .sidebar-user-card {
+        padding: 12px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #ffffff, #f8fbff);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+        margin: 0.35rem 0 0.55rem 0;
+    }
+
+    .sidebar-user-label {
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .sidebar-user-name {
+        color: var(--text-main);
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.45;
     }
 
     .page-hero {
@@ -221,6 +289,95 @@ def apply_platform_visual_theme():
         font-weight: 800;
         letter-spacing: 0.08em;
         margin-bottom: 0.15rem;
+    }
+
+    .app-section-heading {
+        margin: 1rem 0 0.75rem 0;
+    }
+
+    .app-section-kicker {
+        color: var(--brand-blue);
+        font-size: 0.76rem;
+        font-weight: 850;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 0.18rem;
+    }
+
+    .app-section-title {
+        color: var(--text-main);
+        font-size: clamp(1.35rem, 2.1vw, 1.85rem);
+        font-weight: 820;
+        line-height: 1.3;
+        letter-spacing: -0.035em;
+        margin: 0;
+    }
+
+    .ui-empty-state {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 92px;
+        padding: 18px 20px;
+        border: 1px solid #dbe7f5;
+        border-radius: 18px;
+        background:
+            linear-gradient(135deg, rgba(255,255,255,0.92), rgba(238,246,255,0.88)),
+            radial-gradient(circle at right top, rgba(37,99,235,0.08), transparent 14rem);
+        box-shadow: var(--shadow-card);
+    }
+
+    .ui-empty-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: #eef6ff;
+        font-size: 22px;
+    }
+
+    .ui-empty-title {
+        color: var(--text-main);
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1.35;
+        margin-bottom: 3px;
+    }
+
+    .ui-empty-message {
+        color: var(--text-muted);
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .admin-section-heading {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 0.9rem 0 0.8rem 0;
+        padding: 14px 16px;
+        border: 1px solid #dbe7f5;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.86), rgba(248,251,255,0.78));
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
+    }
+
+    .admin-section-title {
+        color: var(--text-main);
+        font-size: clamp(1.35rem, 2vw, 1.75rem);
+        font-weight: 820;
+        letter-spacing: -0.035em;
+        line-height: 1.25;
+        margin: 0;
+    }
+
+    .admin-section-subtitle {
+        color: var(--text-muted);
+        font-size: 13px;
+        line-height: 1.55;
+        margin-top: 2px;
     }
 
     .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))

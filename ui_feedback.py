@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from html import escape
+
 import streamlit as st
 
 SUCCESS_ICON = "✅"
@@ -20,6 +22,29 @@ def show_error(message: str) -> None:
 
 def show_warning(message: str) -> None:
     st.toast(message, icon=WARNING_ICON)
+
+
+def render_empty_state(
+    message: str,
+    *,
+    title: str = "暂无数据",
+    icon: str = "ℹ️",
+) -> None:
+    safe_title = escape(title)
+    safe_message = escape(message)
+    safe_icon = escape(icon)
+    st.markdown(
+        f"""
+<div class="ui-empty-state">
+    <div class="ui-empty-icon">{safe_icon}</div>
+    <div>
+        <div class="ui-empty-title">{safe_title}</div>
+        <div class="ui-empty-message">{safe_message}</div>
+    </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_full_page_transition(

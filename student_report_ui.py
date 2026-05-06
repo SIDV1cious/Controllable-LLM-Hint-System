@@ -13,6 +13,7 @@ from student_report_service import (
     clean_restored_tutoring_query,
     extract_wrong_question_ids,
 )
+from ui_feedback import render_empty_state
 
 
 def render_student_learning_report():
@@ -39,9 +40,12 @@ def render_student_learning_report():
     col3.metric("🎯 历史平均正确率", f"{summary['accuracy']} %")
 
     st.markdown("---")
-    st.subheader("📓 错题记录与智能辅导")
+    st.markdown(
+        "<div class='app-section-heading'><h3 class='app-section-title'>📓 错题记录与智能辅导</h3></div>",
+        unsafe_allow_html=True,
+    )
     if not wrong_qids:
-        st.info("你目前没有任何错题记录")
+        render_empty_state("继续保持！后续出现错题时，这里会自动汇总题目和智能辅导记录。", title="你目前没有任何错题记录", icon="🎯")
         return
 
     wrong_qid_tuple = tuple(sorted(wrong_qids))
