@@ -79,6 +79,71 @@ def apply_controlled_hint_panel_style():
         margin: 0.75rem 0 0.45rem 0;
     }
 
+    .strategy-panel-note {
+        color: #64748b;
+        font-size: 13px;
+        line-height: 1.55;
+        margin: -0.1rem 0 0.55rem 0;
+    }
+
+    .strength-policy-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 9px;
+        margin: 0.45rem 0 0.75rem 0;
+    }
+
+    .strength-policy-card {
+        border: 1px solid #dbe7f5;
+        border-radius: 15px;
+        padding: 10px 11px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(248,251,255,0.82));
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+    }
+
+    .strength-policy-card.selected {
+        border-color: #ff8f8f;
+        background:
+            linear-gradient(135deg, rgba(255, 245, 245, 0.96), rgba(248, 251, 255, 0.9)),
+            radial-gradient(circle at right top, rgba(255, 75, 75, 0.12), transparent 7rem);
+    }
+
+    .strength-policy-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #1f2937;
+        font-size: 13px;
+        font-weight: 780;
+        margin-bottom: 3px;
+    }
+
+    .strength-policy-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 2px 8px;
+        color: #1d4ed8;
+        background: #dbeafe;
+        border: 1px solid #bfdbfe;
+        font-size: 11px;
+        font-weight: 720;
+    }
+
+    .strength-policy-desc {
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.55;
+    }
+
+    .quick-request-intent {
+        text-align: center;
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.4;
+        margin-top: 0.25rem;
+    }
+
     .stApp:has(.tutoring-title) div.stButton > button {
         min-height: 2.55rem;
     }
@@ -166,6 +231,53 @@ def apply_controlled_hint_panel_style():
         color: #1f2937;
     }
 
+    .tutoring-message-meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 0.35rem;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+
+    .tutoring-message-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #2563eb;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+
+    .tutoring-message-meta.user .tutoring-message-dot {
+        background: #ff4b4b;
+        box-shadow: 0 0 0 4px rgba(255, 75, 75, 0.12);
+    }
+
+    .generation-status-card,
+    .rewrite-notice-card {
+        border: 1px solid #dbe7f5;
+        border-radius: 14px;
+        padding: 10px 12px;
+        margin: 0.45rem 0 0.65rem 0;
+        background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
+        color: #475569;
+        font-size: 13px;
+        line-height: 1.55;
+    }
+
+    .generation-status-card strong,
+    .rewrite-notice-card strong {
+        color: #1f2937;
+        font-weight: 760;
+    }
+
+    .rewrite-notice-card {
+        border-color: #fed7aa;
+        background: linear-gradient(135deg, #fff7ed 0%, #ffffff 100%);
+    }
+
     div[data-testid="stChatMessage"] p {
         line-height: 1.75;
     }
@@ -179,6 +291,10 @@ def apply_controlled_hint_panel_style():
     }
 
     @media (max-width: 720px) {
+        .strength-policy-grid {
+            grid-template-columns: 1fr;
+        }
+
         .tutoring-title {
             font-size: 18px;
         }
@@ -203,15 +319,82 @@ def _normalize_hint_dialogue_history(history: list):
             message["content"] = TUTORING_TITLE
 
 
+def _render_message_header(role: str, title: str, description: str) -> None:
+    role_class = "user" if role == ChatRole.USER else "assistant"
+    st.markdown(
+        f"""
+<div class="tutoring-message-meta {role_class}">
+    <span class="tutoring-message-dot"></span>
+    <span>{escape(title)}</span>
+    <span>｜{escape(description)}</span>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_strength_policy_cards(selected_strength: str) -> None:
+    policy_meta = {
+        "轻提示": ("方向提醒", "只指出概念入口和思考方向，尽量保留学生自主推理空间。"),
+        "中提示": ("下一步引导", "提示下一步关键思路，适合卡在中间步骤时使用。"),
+        "强提示": ("分步支架", "给出更具体的分步提示，但仍避免直接暴露最终答案。"),
+    }
+    cards = []
+    for label, description in HINT_STRENGTH_OPTIONS.items():
+        badge, teaching_goal = policy_meta.get(label, ("策略控制", description))
+        selected_class = " selected" if label == selected_strength else ""
+        cards.append(
+            f"""
+<div class="strength-policy-card{selected_class}">
+    <div class="strength-policy-label">
+        {escape(label)}
+        <span class="strength-policy-badge">{escape(badge)}</span>
+    </div>
+    <div class="strength-policy-desc">{escape(teaching_goal)}</div>
+</div>
+            """
+        )
+
+    st.markdown(f"<div class='strength-policy-grid'>{''.join(cards)}</div>", unsafe_allow_html=True)
+
+
+def _render_generation_status() -> None:
+    st.markdown(
+        """
+<div class="generation-status-card">
+    <strong>生成链路：</strong>正在生成启发式提示，并同步进行答案泄露检测与必要重写。
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_rewrite_notice(rewrite_count: int) -> None:
+    st.markdown(
+        f"""
+<div class="rewrite-notice-card">
+    <strong>自动重写：</strong>已重写 {rewrite_count} 次，以降低答案信息泄露风险。
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _render_hint_dialogue_history(history: list):
     for message in history:
         with st.chat_message(message["role"]):
-            if message.get("role") == ChatRole.ASSISTANT and message.get("content") == TUTORING_TITLE:
+            role = message.get("role")
+            if role == ChatRole.USER:
+                _render_message_header(ChatRole.USER, "学生提问", "作为本轮受控提示的输入意图")
+                st.markdown(format_math(message["content"]))
+            elif role == ChatRole.ASSISTANT and message.get("content") == TUTORING_TITLE:
+                _render_message_header(ChatRole.ASSISTANT, "辅导入口", "可选择提示强度与教学意图")
                 st.markdown(
                     f"<div class='tutoring-chat-title'>{TUTORING_TITLE}</div>",
                     unsafe_allow_html=True,
                 )
             else:
+                _render_message_header(ChatRole.ASSISTANT, "受控智能辅导", "启发式提示 · 泄露检测 · 安全输出")
                 st.markdown(format_math(message["content"]))
 
 
@@ -293,6 +476,10 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
 
     st.markdown("<div class='tutoring-divider'></div>", unsafe_allow_html=True)
     st.markdown("<div class='hint-control-label'>提示强度控制</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='strategy-panel-note'>选择本轮提示的介入程度，系统会据此约束提示粒度与答案暴露风险。</div>",
+        unsafe_allow_html=True,
+    )
     selected_strength = st.radio(
         "提示强度控制",
         list(HINT_STRENGTH_OPTIONS.keys()),
@@ -302,8 +489,13 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
         label_visibility="collapsed",
         format_func=lambda label: f"{label}｜{HINT_STRENGTH_OPTIONS[label]}",
     )
+    _render_strength_policy_cards(selected_strength)
 
     st.markdown("<div class='quick-request-label'>快捷请求</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='strategy-panel-note'>快捷请求会记录教学意图，便于后续分析学生更需要哪类辅导。</div>",
+        unsafe_allow_html=True,
+    )
     quick_cols = st.columns(len(PEDAGOGICAL_QUICK_REQUESTS))
     for quick_index, request_config in enumerate(PEDAGOGICAL_QUICK_REQUESTS):
         with quick_cols[quick_index]:
@@ -313,6 +505,10 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                 st.session_state[composer_input_key] = ""
                 st.session_state[composer_reset_key] = True
                 st.rerun()
+            st.markdown(
+                f"<div class='quick-request-intent'>{escape(request_config['intent'])}</div>",
+                unsafe_allow_html=True,
+            )
 
     st.markdown(
         f"<div class='composer-guide'>{TUTORING_COMPOSER_GUIDE}</div>",
@@ -344,6 +540,8 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
             last_query = history[-1]["content"]
             pedagogical_intent = st.session_state.get(pending_intent_key, DEFAULT_PEDAGOGICAL_INTENT)
             try:
+                _render_message_header(ChatRole.ASSISTANT, "生成中", "提示生成 · 泄露检测 · 自动重写")
+                _render_generation_status()
                 with st.spinner(TUTORING_SPINNER):
                     controlled = generate_controlled_hint(
                         data["question_data"],
@@ -358,7 +556,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                 st.session_state[safety_status_key] = status
                 _render_safety_status(status)
                 if controlled["rewrite_count"] > 0:
-                    st.caption(f"已自动重写 {controlled['rewrite_count']} 次，以降低答案泄露风险。")
+                    _render_rewrite_notice(controlled["rewrite_count"])
                 history.append({"role": ChatRole.ASSISTANT, "content": final})
                 record_learning_interaction(
                     qid,
