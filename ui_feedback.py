@@ -29,13 +29,15 @@ def render_empty_state(
     *,
     title: str = "暂无数据",
     icon: str = "ℹ️",
+    compact: bool = False,
 ) -> None:
     safe_title = escape(title)
     safe_message = escape(message)
     safe_icon = escape(icon)
+    state_class = "ui-empty-state compact" if compact else "ui-empty-state"
     st.markdown(
         f"""
-<div class="ui-empty-state">
+<div class="{state_class}">
     <div class="ui-empty-icon">{safe_icon}</div>
     <div>
         <div class="ui-empty-title">{safe_title}</div>
@@ -45,6 +47,30 @@ def render_empty_state(
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_admin_panel_title(title: str, icon: str = "📊") -> None:
+    safe_title = escape(title)
+    safe_icon = escape(icon)
+    st.markdown(
+        f"""
+<div class="admin-panel-title">
+    <span class="admin-panel-title-icon">{safe_icon}</span>
+    <span>{safe_title}</span>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_admin_empty_panel(
+    title: str,
+    message: str,
+    *,
+    icon: str = "ℹ️",
+) -> None:
+    with st.container(border=True):
+        render_empty_state(message, title=title, icon=icon, compact=True)
 
 
 def render_full_page_transition(

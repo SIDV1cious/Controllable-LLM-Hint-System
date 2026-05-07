@@ -10,7 +10,9 @@ from admin_observability_repository import (
     summarize_hint_leakage_records,
 )
 from app_errors import log_exception
-from ui_feedback import render_empty_state
+from ui_feedback import render_admin_panel_title, render_empty_state
+
+PLOTLY_CHART_CONFIG = {"displayModeBar": False}
 
 
 def _apply_plotly_panel_theme(fig):
@@ -29,7 +31,7 @@ def _apply_plotly_panel_theme(fig):
 
 def render_learning_overview_dashboard():
     with st.container(border=True):
-        st.markdown("#### 🕒 最近7天系统活跃人数趋势")
+        render_admin_panel_title("最近7天系统活跃人数趋势", "🕒")
         try:
             df_active = fetch_cached_active_user_trend()
             if not df_active.empty:
@@ -42,19 +44,22 @@ def render_learning_overview_dashboard():
                     color_discrete_sequence=["#2563eb"],
                 )
                 fig_active.update_traces(line_width=3, marker_size=8)
-                st.plotly_chart(_apply_plotly_panel_theme(fig_active), use_container_width=True)
+                st.plotly_chart(
+                    _apply_plotly_panel_theme(fig_active),
+                    use_container_width=True,
+                    config=PLOTLY_CHART_CONFIG,
+                )
             else:
-                render_empty_state("最近7天暂无登录记录。", title="暂无活跃趋势", icon="🕒")
+                render_empty_state("最近7天暂无登录记录。", title="暂无活跃趋势", icon="🕒", compact=True)
         except Exception as e:
             log_exception("Dashboard active users", e)
 
-    st.markdown("---")
     with st.container(border=True):
-        st.markdown("#### 📘 各科课程学习时长占比")
-        col_chart1, col_data1 = st.columns([2, 1])
+        render_admin_panel_title("各科课程学习时长占比", "📘")
         try:
             df_duration = fetch_cached_course_study_duration_summary()
             if not df_duration.empty:
+                col_chart1, col_data1 = st.columns([2, 1])
                 fig_pie = px.pie(
                     df_duration,
                     values="total_minutes",
@@ -70,21 +75,24 @@ def render_learning_overview_dashboard():
                     height=360,
                 )
                 with col_chart1:
-                    st.plotly_chart(fig_pie, use_container_width=True)
+                    st.plotly_chart(fig_pie, use_container_width=True, config=PLOTLY_CHART_CONFIG)
                 with col_data1:
-                    st.dataframe(df_duration[["course_name", "total_minutes"]], hide_index=True)
+                    st.dataframe(
+                        df_duration[["course_name", "total_minutes"]],
+                        hide_index=True,
+                        use_container_width=True,
+                    )
             else:
-                render_empty_state("暂无课程学习时长记录。", title="暂无学习时长数据", icon="📘")
+                render_empty_state("暂无课程学习时长记录。", title="暂无学习时长数据", icon="📘", compact=True)
         except Exception as e:
             log_exception("Dashboard duration", e)
 
-    st.markdown("---")
     with st.container(border=True):
-        st.markdown("#### ✅ 全系统题目平均正确率统计")
+        render_admin_panel_title("全系统题目平均正确率统计", "✅")
         try:
             df_accuracy, has_answer_records = fetch_cached_course_accuracy_summary()
             if not has_answer_records:
-                render_empty_state("暂无答题提交数据，无法计算正确率。", title="暂无答题数据", icon="✅")
+                render_empty_state("暂无答题提交数据，无法计算正确率。", title="暂无答题数据", icon="✅", compact=True)
             elif df_accuracy.empty:
                 st.warning("⚠️ 无法生成图表：题号映射失败！")
             else:
@@ -97,13 +105,16 @@ def render_learning_overview_dashboard():
                     color_discrete_sequence=["#2563eb"],
                 )
                 fig_bar.update_traces(width=0.36 if len(df_accuracy) == 1 else 0.55, texttemplate="%{text}%")
-                st.plotly_chart(_apply_plotly_panel_theme(fig_bar), use_container_width=True)
+                st.plotly_chart(
+                    _apply_plotly_panel_theme(fig_bar),
+                    use_container_width=True,
+                    config=PLOTLY_CHART_CONFIG,
+                )
         except Exception as e:
             st.error(f"⚠️ 图表加载报错: {e}")
 
-    st.markdown("---")
     with st.container(border=True):
-        st.markdown("#### 🛡️ 智能辅导答案泄露控制统计")
+        render_admin_panel_title("智能辅导答案泄露控制统计", "🛡️")
         try:
             df_leak = fetch_cached_hint_leakage_records()
             if not df_leak.empty:
@@ -134,9 +145,18 @@ def render_learning_overview_dashboard():
                     yaxis_title="提示数量",
                     xaxis_title="泄露风险等级",
                 )
-                st.plotly_chart(_apply_plotly_panel_theme(fig_leak), use_container_width=True)
+                st.plotly_chart(
+                    _apply_plotly_panel_theme(fig_leak),
+                    use_container_width=True,
+                    config=PLOTLY_CHART_CONFIG,
+                )
             else:
-                render_empty_state("暂无智能辅导提示数据，无法计算泄露控制指标。", title="暂无辅导安全数据", icon="🛡️")
+                render_empty_state(
+                    "暂无智能辅导提示数据，无法计算泄露控制指标。",
+                    title="暂无辅导安全数据",
+                    icon="🛡️",
+                    compact=True,
+                )
         except Exception as e:
             log_exception("Leakage dashboard", e)
-            render_empty_state("当前数据库尚未记录泄露控制扩展指标。", title="暂无扩展指标", icon="🛡️")
+            render_empty_state("当前数据库尚未记录泄露控制扩展指标。", title="暂无扩展指标", icon="🛡️", compact=True)

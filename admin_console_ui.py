@@ -73,7 +73,7 @@ def _get_selected_admin_section() -> str:
 def _render_admin_section_heading(selected_section: str) -> None:
     with st.container(border=True):
         info_col, action_col = st.columns(
-            [0.84, 0.16],
+            [0.86, 0.14],
             vertical_alignment="center",
         )
         with info_col:

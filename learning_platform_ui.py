@@ -327,6 +327,16 @@ def apply_platform_visual_theme():
         box-shadow: var(--shadow-card);
     }
 
+    .ui-empty-state.compact {
+        min-height: 132px;
+        justify-content: flex-start;
+        margin: 0.2rem 0 0.1rem 0;
+        background:
+            linear-gradient(135deg, rgba(255,255,255,0.94), rgba(241,247,255,0.9)),
+            radial-gradient(circle at left top, rgba(37,99,235,0.08), transparent 12rem);
+        box-shadow: none;
+    }
+
     .ui-empty-icon {
         display: inline-flex;
         align-items: center;
@@ -377,6 +387,52 @@ def apply_platform_visual_theme():
         font-size: 13px;
         line-height: 1.55;
         margin-top: 2px;
+    }
+
+    .admin-panel-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-main);
+        font-size: clamp(1.05rem, 1.55vw, 1.38rem);
+        font-weight: 820;
+        line-height: 1.35;
+        letter-spacing: -0.03em;
+        margin: 0.08rem 0 0.75rem 0;
+    }
+
+    .admin-panel-title-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2em;
+    }
+
+    .admin-chart-panel {
+        min-height: 380px;
+    }
+
+    .admin-table-panel {
+        min-height: 300px;
+    }
+
+    .admin-section-action-button {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .stApp:has(#route-page-admin) [data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: #d7e3f3;
+        border-radius: 18px;
+        background:
+            linear-gradient(135deg, rgba(255,255,255,0.88), rgba(248,251,255,0.72)),
+            radial-gradient(circle at right top, rgba(37,99,235,0.045), transparent 14rem);
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.035);
+    }
+
+    .stApp:has(#route-page-admin) .js-plotly-plot .modebar {
+        display: none !important;
     }
 
     .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
