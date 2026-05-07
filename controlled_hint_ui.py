@@ -39,12 +39,13 @@ def apply_controlled_hint_panel_style():
     .tutoring-title {
         font-size: 20px;
         font-weight: 700;
-        line-height: 1.55;
+        line-height: 1.45;
         color: #1f2937;
-        margin: 0 0 0.35rem 0;
+        margin: 0 0 0.55rem 0;
         display: inline-flex;
         align-items: center;
         gap: 8px;
+        letter-spacing: -0.01em;
     }
 
     .tutoring-title::before {
@@ -57,10 +58,18 @@ def apply_controlled_hint_panel_style():
     }
 
     .tutoring-subtitle {
-        color: #64748b;
+        border: 1px solid #dbe7f5;
+        border-radius: 15px;
+        padding: 10px 12px;
+        color: #475569;
         font-size: 14px;
-        line-height: 1.55;
-        margin-bottom: 0.85rem;
+        font-weight: 620;
+        line-height: 1.6;
+        margin: 0 0 0.95rem 0;
+        background:
+            linear-gradient(135deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 0.92)),
+            radial-gradient(circle at right top, rgba(37, 99, 235, 0.08), transparent 9rem);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
     }
 
     .quick-request-label {
@@ -78,7 +87,7 @@ def apply_controlled_hint_panel_style():
         font-size: 18px;
         font-weight: 700;
         line-height: 1.6;
-        margin: 0.55rem 0 0.65rem 0;
+        margin: 0.65rem 0 0.65rem 0;
         color: #1f2937;
     }
 
@@ -96,12 +105,14 @@ def apply_controlled_hint_panel_style():
     }
 
     .safety-status-card {
-        border-radius: 12px;
+        border-radius: 16px;
         border: 1px solid #dbe7f5;
-        background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
-        padding: 12px 14px;
-        margin: 0.7rem 0 0.25rem 0;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        background:
+            linear-gradient(135deg, #f8fbff 0%, #ffffff 100%),
+            radial-gradient(circle at right top, rgba(255, 75, 75, 0.08), transparent 8rem);
+        padding: 13px 15px;
+        margin: 0.8rem 0 0.35rem 0;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.045);
     }
 
     .safety-status-title {
@@ -142,9 +153,21 @@ def apply_controlled_hint_panel_style():
     div[data-testid="stChatMessage"] {
         border-radius: 16px;
         border: 1px solid #e2e8f0;
-        background: rgba(255, 255, 255, 0.78);
+        background:
+            linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(248, 251, 255, 0.78));
         box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
         margin-bottom: 0.65rem;
+    }
+
+    .tutoring-chat-title {
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.55;
+        color: #1f2937;
+    }
+
+    div[data-testid="stChatMessage"] p {
+        line-height: 1.75;
     }
 
     div[data-testid="stRadio"] label {
@@ -153,6 +176,16 @@ def apply_controlled_hint_panel_style():
 
     div[data-testid="stRadio"] {
         padding: 0.15rem 0 0.25rem 0;
+    }
+
+    @media (max-width: 720px) {
+        .tutoring-title {
+            font-size: 18px;
+        }
+
+        .composer-guide {
+            font-size: 16px;
+        }
     }
 </style>
         """,
@@ -175,7 +208,7 @@ def _render_hint_dialogue_history(history: list):
         with st.chat_message(message["role"]):
             if message.get("role") == ChatRole.ASSISTANT and message.get("content") == TUTORING_TITLE:
                 st.markdown(
-                    f"<div style='font-size: 20px; font-weight: 700; line-height: 1.55;'>{TUTORING_TITLE}</div>",
+                    f"<div class='tutoring-chat-title'>{TUTORING_TITLE}</div>",
                     unsafe_allow_html=True,
                 )
             else:

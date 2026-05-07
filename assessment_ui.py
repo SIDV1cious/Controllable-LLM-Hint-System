@@ -42,11 +42,59 @@ def apply_results_dashboard_style():
         margin: 0;
     }
 
+    .result-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0.9rem 0 0.8rem 0;
+    }
+
+    .result-summary-card {
+        border: 1px solid #dbe7f5;
+        border-radius: 18px;
+        padding: 15px 16px;
+        background:
+            linear-gradient(135deg, rgba(255,255,255,0.94), rgba(241,247,255,0.86)),
+            radial-gradient(circle at right top, rgba(37,99,235,0.08), transparent 10rem);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+    }
+
+    .result-summary-label {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 720;
+        line-height: 1.4;
+        margin-bottom: 5px;
+    }
+
+    .result-summary-value {
+        color: #1f2937;
+        font-size: clamp(1.45rem, 2.2vw, 2rem);
+        font-weight: 820;
+        line-height: 1.15;
+        letter-spacing: -0.035em;
+    }
+
     .review-panel-title {
         font-size: 18px;
         font-weight: 750;
         color: #1f2937;
-        margin: 0 0 0.8rem 0;
+        margin: 0 0 0.2rem 0;
+    }
+
+    .review-panel-subtitle {
+        color: #64748b;
+        font-size: 13px;
+        line-height: 1.55;
+        margin: 0 0 0.75rem 0;
+    }
+
+    .question-review-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 0.55rem;
     }
 
     .question-review-title {
@@ -56,14 +104,67 @@ def apply_results_dashboard_style():
         font-size: 17px;
         font-weight: 750;
         color: #1f2937;
-        margin-bottom: 0.45rem;
+        margin: 0;
+    }
+
+    .question-status-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 760;
+        white-space: nowrap;
+    }
+
+    .question-status-correct {
+        color: #166534;
+        background: #dcfce7;
+        border: 1px solid #bbf7d0;
+    }
+
+    .question-status-wrong {
+        color: #991b1b;
+        background: #fee2e2;
+        border: 1px solid #fecaca;
+    }
+
+    .question-content-label {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 750;
+        margin: 0.35rem 0 0.35rem 0;
     }
 
     .answer-line {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #dbe7f5;
+        border-radius: 999px;
+        padding: 6px 12px;
+        background: #f8fbff;
         color: #334155;
         font-size: 15px;
         line-height: 1.7;
         margin: 0.55rem 0 0.85rem 0;
+    }
+
+    .answer-line strong {
+        color: #1f2937;
+        font-weight: 760;
+    }
+
+    @media (max-width: 920px) {
+        .result-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 560px) {
+        .result-summary-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
     .safety-summary {
@@ -146,6 +247,25 @@ def apply_results_dashboard_style():
         """,
         unsafe_allow_html=True,
     )
+
+
+def _render_result_summary_cards(total_count: int, correct_count: int, wrong_count: int, accuracy: float) -> None:
+    cards = [
+        ("本次题数", total_count),
+        ("答对题数", correct_count),
+        ("待复盘错题", wrong_count),
+        ("正确率", f"{accuracy}%"),
+    ]
+    card_html = "".join(
+        f"""
+<div class="result-summary-card">
+    <div class="result-summary-label">{escape(str(label))}</div>
+    <div class="result-summary-value">{escape(str(value))}</div>
+</div>
+        """
+        for label, value in cards
+    )
+    st.markdown(f"<div class='result-summary-grid'>{card_html}</div>", unsafe_allow_html=True)
 
 
 def _render_safety_summary(results: list):
@@ -327,19 +447,17 @@ def render_assessment_results_dashboard(record_learning_interaction):
         wrong_count = total_count - correct_count
         accuracy = round(correct_count / total_count * 100, 1) if total_count else 0.0
 
-        metric_cols = st.columns(4)
-        metric_cols[0].metric("本次题数", total_count)
-        metric_cols[1].metric("答对题数", correct_count)
-        metric_cols[2].metric("待复盘错题", wrong_count)
-        metric_cols[3].metric("正确率", f"{accuracy}%")
+        _render_result_summary_cards(total_count, correct_count, wrong_count, accuracy)
 
-        st.download_button(
-            "📥 导出本次测验结果",
-            build_result_export(results).encode("utf-8-sig"),
-            file_name=f"quiz_result_{now_shanghai():%Y%m%d_%H%M%S}.md",
-            mime="text/markdown",
-            use_container_width=True,
-        )
+        action_cols = st.columns([0.48, 0.52])
+        with action_cols[0]:
+            st.download_button(
+                "📥 导出本次测验结果",
+                build_result_export(results).encode("utf-8-sig"),
+                file_name=f"quiz_result_{now_shanghai():%Y%m%d_%H%M%S}.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
         _render_safety_summary(results)
 
     st.divider()
@@ -347,6 +465,10 @@ def render_assessment_results_dashboard(record_learning_interaction):
     with left_col:
         with st.container(border=True):
             st.markdown("<div class='review-panel-title'>题目复盘</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='review-panel-subtitle'>点击题号查看题干、作答结果，并请求受控智能辅导。</div>",
+                unsafe_allow_html=True,
+            )
             for index, result in enumerate(st.session_state[SessionKey.ASSESSMENT_RESULTS]):
                 label = "✅ 正确" if result["is_correct"] else "❌ 错误"
                 button_type = "primary" if st.session_state[SessionKey.REVIEW_QUESTION_INDEX] == index else "secondary"
@@ -366,19 +488,29 @@ def render_assessment_results_dashboard(record_learning_interaction):
                     "请先在左侧选择一道题，查看题目详情并请求智能辅导。",
                     title="等待选择复盘题目",
                     icon="👈🏻",
+                    compact=True,
                 )
             return
 
         review_index = st.session_state[SessionKey.REVIEW_QUESTION_INDEX]
         data = st.session_state[SessionKey.ASSESSMENT_RESULTS][review_index]
         with st.container(border=True):
+            status_label = "✅ 正确" if data["is_correct"] else "❌ 错误"
+            status_class = "question-status-correct" if data["is_correct"] else "question-status-wrong"
+            safe_answer = escape(str(data["user_answer"]))
             st.markdown(
-                f"<div class='question-review-title'>第 {review_index + 1} 题 · {'正确' if data['is_correct'] else '错误'}</div>",
+                f"""
+<div class="question-review-header">
+    <div class="question-review-title">第 {review_index + 1} 题</div>
+    <div class="question-status-badge {status_class}">{status_label}</div>
+</div>
+                """,
                 unsafe_allow_html=True,
             )
+            st.markdown("<div class='question-content-label'>题目详情</div>", unsafe_allow_html=True)
             st.info(format_math(data["question_data"]["content"]))
             st.markdown(
-                f"<div class='answer-line'><strong>您的作答：</strong>{data['user_answer']}</div>",
+                f"<div class='answer-line'><strong>您的作答：</strong>{safe_answer}</div>",
                 unsafe_allow_html=True,
             )
             st.divider()
