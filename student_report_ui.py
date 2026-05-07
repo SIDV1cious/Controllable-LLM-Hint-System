@@ -45,7 +45,9 @@ def render_student_learning_report():
         unsafe_allow_html=True,
     )
     if not wrong_qids:
-        render_empty_state("继续保持！后续出现错题时，这里会自动汇总题目和智能辅导记录。", title="你目前没有任何错题记录", icon="🎯")
+        render_empty_state(
+            "继续保持！后续出现错题时，这里会自动汇总题目和智能辅导记录。", title="你目前没有任何错题记录", icon="🎯"
+        )
         return
 
     wrong_qid_tuple = tuple(sorted(wrong_qids))

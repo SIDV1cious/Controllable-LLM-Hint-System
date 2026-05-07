@@ -178,7 +178,9 @@ def _render_question_preview_tab():
 
 
 def render_course_and_question_management_tab():
-    st.markdown("<div class='app-section-heading'><h3 class='app-section-title'>📚 课程管理</h3></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='app-section-heading'><h3 class='app-section-title'>📚 课程管理</h3></div>", unsafe_allow_html=True
+    )
     t_c_add, t_c_del, t_c_edit, t_c_view = st.tabs(
         ["➕ 录入新课程", "🗑️ 删除自定义课程", "✏️ 修改自定义课程", "👀 预览自定义课程"]
     )
@@ -192,7 +194,9 @@ def render_course_and_question_management_tab():
         _render_course_preview_tab()
 
     st.divider()
-    st.markdown("<div class='app-section-heading'><h3 class='app-section-title'>📝 题库管理</h3></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='app-section-heading'><h3 class='app-section-title'>📝 题库管理</h3></div>", unsafe_allow_html=True
+    )
     all_courses = _load_course_names()
     t_add, t_del, t_edit, t_view = st.tabs(
         ["➕ 录入新题目", "🗑️ 删除自定义题目", "✏️ 修改自定义题目", "👀 预览自定义题库"]
