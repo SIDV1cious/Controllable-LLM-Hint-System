@@ -46,7 +46,7 @@ from leakage_detection_service import heuristic_leakage_check
 from llm_gateway import build_llm_call_metadata
 from prompt_config_repository import SYSTEM_INSTRUCTION_KEY
 from question_repository import public_ids_to_database_ids
-from session_keys import SessionKey, composer_input, hint_safety_status, quick_help_button
+from session_keys import SessionKey, composer_empty_feedback, composer_input, hint_safety_status, quick_help_button
 from session_state_manager import (
     begin_route_transition,
     clear_active_assessment_state,
@@ -406,6 +406,7 @@ def test_interaction_payload_truncates_observability_fields():
 
 def test_dynamic_session_key_builders_are_stable():
     assert composer_input(1001) == "composer_input_1001"
+    assert composer_empty_feedback(1001) == "composer_empty_feedback_1001"
     assert hint_safety_status(1001) == "hint_safety_status_1001"
     assert quick_help_button(1001, 2) == "quick_help_1001_2"
 

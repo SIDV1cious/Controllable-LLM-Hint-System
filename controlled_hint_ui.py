@@ -8,6 +8,7 @@ from hint_system_core import format_math, generate_controlled_hint
 from math_comp import math_input
 from session_keys import (
     SessionKey,
+    composer_empty_feedback,
     composer_input,
     composer_reset,
     hint_safety_status,
@@ -202,6 +203,21 @@ def apply_controlled_hint_panel_style():
         line-height: 1.6;
         margin: 0.65rem 0 0.65rem 0;
         color: #1f2937;
+    }
+
+    .composer-empty-alert {
+        border: 1px solid #fecaca;
+        background:
+            linear-gradient(135deg, #fff7f7 0%, #fff 100%),
+            radial-gradient(circle at left center, rgba(255, 75, 75, 0.10), transparent 7rem);
+        color: #991b1b;
+        border-radius: 14px;
+        padding: 10px 12px;
+        margin: 0.55rem 0 0.2rem 0;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.55;
+        box-shadow: 0 10px 22px rgba(153, 27, 27, 0.06);
     }
 
     .tutoring-divider {
@@ -588,6 +604,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
 
     composer_input_key = composer_input(qid)
     composer_reset_key = composer_reset(qid)
+    composer_empty_feedback_key = composer_empty_feedback(qid)
     math_widget_version_key = math_widget_version(qid)
 
     if composer_input_key not in st.session_state:
@@ -595,6 +612,9 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
 
     if composer_reset_key not in st.session_state:
         st.session_state[composer_reset_key] = False
+
+    if composer_empty_feedback_key not in st.session_state:
+        st.session_state[composer_empty_feedback_key] = False
 
     if math_widget_version_key not in st.session_state:
         st.session_state[math_widget_version_key] = 0
@@ -604,8 +624,11 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
 
     if st.session_state[composer_reset_key]:
         st.session_state[composer_input_key] = ""
+        st.session_state[composer_empty_feedback_key] = False
         st.session_state[math_widget_version_key] += 1
         st.session_state[composer_reset_key] = False
+
+    generation_pending = bool(history and history[-1]["role"] == ChatRole.USER)
 
     st.markdown("<div class='tutoring-divider'></div>", unsafe_allow_html=True)
     st.markdown("<div class='hint-control-label'>提示强度控制</div>", unsafe_allow_html=True)
@@ -660,18 +683,36 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
 
         if composer_value is not None:
             st.session_state[composer_input_key] = composer_value
+            if composer_value.strip():
+                st.session_state[composer_empty_feedback_key] = False
+
+    if st.session_state.get(composer_empty_feedback_key):
+        st.markdown(
+            f"<div class='composer-empty-alert'>{escape(TUTORING_EMPTY_WARNING)}</div>",
+            unsafe_allow_html=True,
+        )
 
     send_col1, send_col2 = st.columns([5, 1])
     with send_col2:
-        if st.button("发送", key=send_help_button(qid), type="primary", use_container_width=True):
+        send_label = "生成中..." if generation_pending else "发送"
+        if st.button(
+            send_label,
+            key=send_help_button(qid),
+            type="primary",
+            use_container_width=True,
+            disabled=generation_pending,
+        ):
             query = st.session_state.get(composer_input_key, "").strip()
             if query:
                 history.append({"role": ChatRole.USER, "content": query})
                 st.session_state[pending_intent_key] = DEFAULT_PEDAGOGICAL_INTENT
+                st.session_state[composer_empty_feedback_key] = False
                 st.session_state[composer_reset_key] = True
                 st.rerun()
             else:
-                st.warning(TUTORING_EMPTY_WARNING)
+                st.session_state[composer_empty_feedback_key] = True
+                st.toast(TUTORING_EMPTY_WARNING, icon="⚠️")
+                st.rerun()
 
     if history and history[-1]["role"] == ChatRole.USER:
         with st.chat_message("assistant"):

@@ -58,6 +58,10 @@ def composer_reset(question_id: int) -> str:
     return f"composer_reset_{question_id}"
 
 
+def composer_empty_feedback(question_id: int) -> str:
+    return f"composer_empty_feedback_{question_id}"
+
+
 def math_widget_version(question_id: int) -> str:
     return f"math_widget_version_{question_id}"
 
