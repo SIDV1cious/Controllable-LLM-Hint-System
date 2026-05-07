@@ -1,4 +1,4 @@
-"""Streamlit deployment entrypoint for the controllable LLM hint system."""
+"""Streamlit Cloud entrypoint for the controllable LLM hint system."""
 
 from controlled_hint_system_app import run_controlled_hint_system
 
