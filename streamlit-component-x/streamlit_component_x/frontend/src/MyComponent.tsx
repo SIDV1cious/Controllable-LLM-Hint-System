@@ -285,6 +285,10 @@ const MyComponent = ({ args }: ComponentProps) => {
   const formulaRefs = useRef<Record<string, any>>({});
   const activeFormulaIdRef = useRef<string | null>(null);
   const lastValueRef = useRef(args.default_value || "");
+  const pendingValueRef = useRef(args.default_value || "");
+  const committedValueRef = useRef(args.default_value || "");
+  const syncTimerRef = useRef<number | null>(null);
+  const isComposingRef = useRef(false);
   const idCounterRef = useRef(0);
 
   const [matrixRows, setMatrixRows] = useState(1);
@@ -373,14 +377,35 @@ const MyComponent = ({ args }: ComponentProps) => {
     savedRangeRef.current = range.cloneRange();
   };
 
-  const syncValue = () => {
+  const clearSyncTimer = () => {
+    if (syncTimerRef.current) {
+      window.clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
+  };
+
+  const flushValueToStreamlit = () => {
+    clearSyncTimer();
+    if (pendingValueRef.current === committedValueRef.current) return;
+    committedValueRef.current = pendingValueRef.current;
+    Streamlit.setComponentValue(pendingValueRef.current);
+  };
+
+  const syncValue = (immediate = false) => {
     const editor = editorRef.current;
     if (!editor) return;
 
     const value = serializeEditor(editor);
     lastValueRef.current = value;
-    Streamlit.setComponentValue(value);
-    refreshFrameHeight();
+    pendingValueRef.current = value;
+
+    if (immediate) {
+      flushValueToStreamlit();
+      return;
+    }
+
+    clearSyncTimer();
+    syncTimerRef.current = window.setTimeout(flushValueToStreamlit, 240);
   };
 
   const removeFormula = (chip: HTMLElement) => {
@@ -391,7 +416,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (isZeroWidthText(previous)) previous.remove();
 
     chip.remove();
-    syncValue();
+    syncValue(true);
 
     const editor = editorRef.current;
     if (!editor) return;
@@ -447,7 +472,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     mathField.addEventListener("blur", () => {
       normalizeFilledPrompts(mathField);
       chip.dataset.latex = getMathFieldLatex(mathField, "latex");
-      syncValue();
+      syncValue(true);
     });
 
     mathField.addEventListener("keydown", (event: KeyboardEvent) => {
@@ -488,6 +513,19 @@ const MyComponent = ({ args }: ComponentProps) => {
     syncValue();
   };
 
+  const insertLineBreak = () => {
+    const range = getEditorRange();
+    if (!range) return;
+
+    range.deleteContents();
+    const lineBreak = document.createElement("br");
+    const spacer = document.createTextNode(ZERO_WIDTH_SPACE);
+    range.insertNode(lineBreak);
+    lineBreak.after(spacer);
+    setCaretAfter(spacer);
+    syncValue();
+  };
+
   const insertFormulaBox = (initialLatex = "") => {
     if (!mathRuntimeReady) return;
 
@@ -510,7 +548,7 @@ const MyComponent = ({ args }: ComponentProps) => {
       if (initialLatex) {
         insertIntoMathField(mathField, initialLatex);
         chip.dataset.latex = getMathFieldLatex(mathField, "latex");
-        syncValue();
+        syncValue(true);
       }
     }, 0);
   };
@@ -568,7 +606,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     const chip = mathField.closest(".inline-formula-chip") as HTMLElement | null;
     if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
-    syncValue();
+    syncValue(true);
   };
 
   const insertMatrix = () => {
@@ -602,7 +640,7 @@ const MyComponent = ({ args }: ComponentProps) => {
   const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      insertPlainText("\n");
+      insertLineBreak();
       return;
     }
 
@@ -663,6 +701,8 @@ const MyComponent = ({ args }: ComponentProps) => {
   useEffect(() => {
     renderValue(args.default_value || "", mathRuntimeReady);
     lastValueRef.current = args.default_value || "";
+    pendingValueRef.current = args.default_value || "";
+    committedValueRef.current = args.default_value || "";
   }, []);
 
   useEffect(() => {
@@ -687,6 +727,10 @@ const MyComponent = ({ args }: ComponentProps) => {
       renderValue(lastValueRef.current, true);
     }
   }, [mathRuntimeReady]);
+
+  useEffect(() => {
+    refreshFrameHeight();
+  }, [openToolbarGroup, mathRuntimeStatus]);
 
   useEffect(() => {
     const style = document.createElement("style");
@@ -809,6 +853,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     refreshFrameHeight();
 
     return () => {
+      clearSyncTimer();
       document.head.removeChild(style);
     };
   }, []);
@@ -1006,10 +1051,20 @@ const MyComponent = ({ args }: ComponentProps) => {
         }}
         onMouseUp={saveSelection}
         onKeyUp={saveSelection}
-        onInput={() => {
+        onCompositionStart={() => {
+          isComposingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          isComposingRef.current = false;
           saveSelection();
           syncValue();
         }}
+        onInput={() => {
+          if (isComposingRef.current) return;
+          saveSelection();
+          syncValue();
+        }}
+        onBlur={() => syncValue(true)}
         onKeyDown={handleEditorKeyDown}
         onPaste={handlePaste}
         style={editorStyle}
