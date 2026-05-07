@@ -7,8 +7,10 @@ from admin_monitoring_ui import (
     render_login_logs_tab,
     render_study_duration_tab,
 )
+from admin_observability_repository import clear_admin_observability_cache
 from admin_prompt_ui import render_prompt_configuration_tab
 from experiment_admin_ui import render_experiment_analytics_dashboard
+from experiment_analytics_service import clear_experiment_analytics_cache
 
 ADMIN_SECTIONS = [
     {
@@ -68,6 +70,34 @@ def _get_selected_admin_section() -> str:
     return selected_section
 
 
+def _render_admin_section_heading(selected_section: str) -> None:
+    heading_col, refresh_col = st.columns([0.78, 0.22])
+    with heading_col:
+        st.markdown(
+            f"""
+<div class="admin-section-heading">
+    <div>
+        <div class="app-section-kicker">CURRENT MODULE</div>
+        <h2 class="admin-section-title">{selected_section}</h2>
+        <div class="admin-section-subtitle">{ADMIN_SECTION_DESCRIPTIONS[selected_section]}</div>
+    </div>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with refresh_col:
+        st.markdown('<div class="admin-refresh-action-spacer"></div>', unsafe_allow_html=True)
+        if st.button(
+            "🔄 刷新数据",
+            help="清空管理端统计缓存，并重新读取最新看板数据。",
+            use_container_width=True,
+        ):
+            clear_admin_observability_cache()
+            clear_experiment_analytics_cache()
+            st.toast("管理端统计数据已刷新", icon="🔄")
+            st.rerun()
+
+
 def render_admin_console():
     st.markdown('<div id="route-page-admin"></div>', unsafe_allow_html=True)
     st.markdown(
@@ -82,16 +112,5 @@ def render_admin_console():
     )
 
     selected_section = _get_selected_admin_section()
-    st.markdown(
-        f"""
-<div class="admin-section-heading">
-    <div>
-        <div class="app-section-kicker">CURRENT MODULE</div>
-        <h2 class="admin-section-title">{selected_section}</h2>
-        <div class="admin-section-subtitle">{ADMIN_SECTION_DESCRIPTIONS[selected_section]}</div>
-    </div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    _render_admin_section_heading(selected_section)
     ADMIN_SECTION_BY_LABEL[selected_section]["renderer"]()

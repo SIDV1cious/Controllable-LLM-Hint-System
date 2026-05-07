@@ -1,9 +1,7 @@
 import streamlit as st
 
 from admin_console_ui import ADMIN_SECTION_OPTIONS
-from admin_observability_repository import clear_admin_observability_cache
 from app_constants import PageMode, RouteAction, UserRole
-from experiment_analytics_service import clear_experiment_analytics_cache
 from learning_session_service import clear_current_quiz_for_user
 from session_keys import SessionKey
 from session_state_manager import begin_route_transition, clear_active_assessment_state, reset_login_session
@@ -49,10 +47,6 @@ def render_sidebar_navigation(sidebar_slot):
                     ADMIN_SECTION_OPTIONS,
                     key="admin_console_section",
                 )
-                if st.button("🔄 刷新管理端数据", use_container_width=True):
-                    clear_admin_observability_cache()
-                    clear_experiment_analytics_cache()
-                    st.rerun()
             elif st.button("🎓 管理端控制台"):
                 begin_route_transition(
                     RouteAction.OPEN_ADMIN_DASHBOARD,
