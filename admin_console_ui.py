@@ -71,10 +71,8 @@ def _get_selected_admin_section() -> str:
 
 
 def _render_admin_section_heading(selected_section: str) -> None:
-    heading_col, refresh_col = st.columns([0.78, 0.22])
-    with heading_col:
-        st.markdown(
-            f"""
+    st.markdown(
+        f"""
 <div class="admin-section-heading">
     <div>
         <div class="app-section-kicker">CURRENT MODULE</div>
@@ -82,11 +80,12 @@ def _render_admin_section_heading(selected_section: str) -> None:
         <div class="admin-section-subtitle">{ADMIN_SECTION_DESCRIPTIONS[selected_section]}</div>
     </div>
 </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        """,
+        unsafe_allow_html=True,
+    )
+
+    _, refresh_col = st.columns([0.86, 0.14])
     with refresh_col:
-        st.markdown('<div class="admin-refresh-action-spacer"></div>', unsafe_allow_html=True)
         if st.button(
             "🔄 刷新数据",
             help="清空管理端统计缓存，并重新读取最新看板数据。",

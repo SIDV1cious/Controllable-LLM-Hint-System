@@ -364,10 +364,6 @@ def apply_platform_visual_theme():
         box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
     }
 
-    .admin-refresh-action-spacer {
-        height: 1.08rem;
-    }
-
     .admin-section-title {
         color: var(--text-main);
         font-size: clamp(1.35rem, 2vw, 1.75rem);
@@ -382,12 +378,6 @@ def apply_platform_visual_theme():
         font-size: 13px;
         line-height: 1.55;
         margin-top: 2px;
-    }
-
-    @media (max-width: 900px) {
-        .admin-refresh-action-spacer {
-            height: 0;
-        }
     }
 
     .stApp:has(#route-page-auth):not(:has(#route-page-home)):not(:has(#route-page-report))
