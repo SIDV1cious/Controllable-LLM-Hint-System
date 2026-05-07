@@ -356,12 +356,11 @@ def apply_platform_visual_theme():
         display: flex;
         align-items: center;
         gap: 14px;
-        margin: 0.9rem 0 0.8rem 0;
-        padding: 14px 16px;
-        border: 1px solid #dbe7f5;
-        border-radius: 18px;
-        background: linear-gradient(135deg, rgba(255,255,255,0.86), rgba(248,251,255,0.78));
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
     }
 
     .admin-section-title {
