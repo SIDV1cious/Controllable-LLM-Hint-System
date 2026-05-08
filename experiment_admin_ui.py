@@ -59,6 +59,10 @@ def _render_summary_metrics(df: pd.DataFrame):
         metric_cols[2].metric("自动重写触发率", f"{summary['rewrite_rate']}%")
         metric_cols[3].metric("平均泄露评分", summary["avg_leakage_score"])
         metric_cols[4].metric("高风险候选数", summary["high_risk_count"])
+        observability_cols = st.columns(3)
+        observability_cols[0].metric("平均输入长度", f"{summary['avg_request_chars']} 字符")
+        observability_cols[1].metric("平均公式数量", summary["avg_formula_fragments"])
+        observability_cols[2].metric("平均生成耗时", f"{summary['avg_generation_elapsed_ms']} ms")
 
 
 def _render_distribution_charts(df: pd.DataFrame):

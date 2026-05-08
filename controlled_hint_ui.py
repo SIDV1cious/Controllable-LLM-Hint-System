@@ -1,9 +1,11 @@
+import time
 from html import escape
 
 import streamlit as st
 
 from app_constants import ChatRole, format_tutoring_query
 from app_errors import log_exception
+from hint_request_observability import build_hint_request_observability
 from hint_system_core import format_math, generate_controlled_hint
 from math_comp import math_input
 from session_keys import (
@@ -722,6 +724,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                 _render_message_header(ChatRole.ASSISTANT, "生成中", "提示生成 · 泄露检测 · 自动重写")
                 _render_generation_status()
                 with st.spinner(TUTORING_SPINNER):
+                    generation_started_at = time.perf_counter()
                     controlled = generate_controlled_hint(
                         data["question_data"],
                         data["user_answer"],
@@ -729,6 +732,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                         last_query,
                         hint_strength=selected_strength,
                     )
+                generation_elapsed_ms = round((time.perf_counter() - generation_started_at) * 1000)
                 final = controlled["hint"]
                 st.markdown(format_math(final))
                 status = _build_safety_status(controlled, pedagogical_intent)
@@ -748,6 +752,11 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                     hint_strength=selected_strength,
                     pedagogical_intent=pedagogical_intent,
                     hint_safety_status=status["label"],
+                    **build_hint_request_observability(
+                        last_query,
+                        generation_elapsed_ms,
+                        controlled["rewrite_count"],
+                    ),
                 )
             except Exception as exc:
                 log_exception("Controlled hint generation error", exc)

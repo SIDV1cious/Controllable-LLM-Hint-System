@@ -9,6 +9,24 @@ from hint_system_core import ensure_leakage_observability_columns, now_shanghai
 
 HINT_STRENGTH_PATTERN = re.compile(r"【提示强度：([^】]+)】")
 EXPERIMENT_ANALYTICS_CACHE_TTL_SECONDS = 30
+EXPERIMENT_NUMERIC_COLUMNS = [
+    "is_leaking_answer",
+    "leakage_score",
+    "rewrite_count",
+    "request_char_count",
+    "formula_fragment_count",
+    "generation_elapsed_ms",
+    "rewrite_triggered",
+]
+
+
+def ensure_experiment_observability_columns(df: pd.DataFrame) -> pd.DataFrame:
+    normalized = df.copy()
+    for column in EXPERIMENT_NUMERIC_COLUMNS:
+        if column not in normalized.columns:
+            normalized[column] = 0
+        normalized[column] = pd.to_numeric(normalized[column], errors="coerce").fillna(0).astype(int)
+    return normalized
 
 
 def _extract_hint_strength(user_query: str) -> str:
@@ -52,6 +70,10 @@ def fetch_hint_experiment_logs(conn) -> pd.DataFrame:
             il.hint_strength,
             il.pedagogical_intent,
             il.hint_safety_status,
+            il.request_char_count,
+            il.formula_fragment_count,
+            il.generation_elapsed_ms,
+            il.rewrite_triggered,
             il.created_at
         FROM interaction_logs il
         LEFT JOIN custom_questions cq ON il.question_id = cq.id + 1000
@@ -63,9 +85,7 @@ def fetch_hint_experiment_logs(conn) -> pd.DataFrame:
     if df.empty:
         return df
 
-    numeric_columns = ["is_leaking_answer", "leakage_score", "rewrite_count"]
-    for column in numeric_columns:
-        df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0).astype(int)
+    df = ensure_experiment_observability_columns(df)
 
     df["hint_strength"] = df.apply(
         lambda row: (
@@ -102,8 +122,12 @@ def summarize_hint_experiment(df: pd.DataFrame) -> dict:
             "rewrite_rate": 0.0,
             "avg_leakage_score": 0.0,
             "high_risk_count": 0,
+            "avg_request_chars": 0.0,
+            "avg_formula_fragments": 0.0,
+            "avg_generation_elapsed_ms": 0.0,
         }
 
+    df = ensure_experiment_observability_columns(df)
     total_hints = len(df)
     final_leak_count = int(df["is_leaking_answer"].sum())
     rewrite_session_count = int((df["rewrite_count"] > 0).sum())
@@ -114,6 +138,9 @@ def summarize_hint_experiment(df: pd.DataFrame) -> dict:
         "rewrite_rate": round(rewrite_session_count / total_hints * 100, 2),
         "avg_leakage_score": round(float(df["leakage_score"].mean()), 2),
         "high_risk_count": high_risk_count,
+        "avg_request_chars": round(float(df["request_char_count"].mean()), 1),
+        "avg_formula_fragments": round(float(df["formula_fragment_count"].mean()), 1),
+        "avg_generation_elapsed_ms": round(float(df["generation_elapsed_ms"].mean()), 1),
     }
 
 
@@ -121,12 +148,16 @@ def build_grouped_experiment_summary(df: pd.DataFrame, column: str) -> pd.DataFr
     if df.empty or column not in df.columns:
         return pd.DataFrame(columns=[column, "提示数量", "平均泄露评分", "平均重写次数"])
 
+    df = ensure_experiment_observability_columns(df)
     return (
         df.groupby(column)
         .agg(
             提示数量=("id", "count"),
             平均泄露评分=("leakage_score", "mean"),
             平均重写次数=("rewrite_count", "mean"),
+            平均输入长度=("request_char_count", "mean"),
+            平均公式数量=("formula_fragment_count", "mean"),
+            平均生成耗时ms=("generation_elapsed_ms", "mean"),
         )
         .reset_index()
     )
@@ -136,6 +167,7 @@ def build_experiment_export_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
 
+    df = ensure_experiment_observability_columns(df)
     export_columns = {
         "id": "记录ID",
         "student_id": "学生账号",
@@ -148,6 +180,10 @@ def build_experiment_export_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         "leakage_score": "泄露评分",
         "rewrite_count": "重写次数",
         "leakage_reason": "检测原因",
+        "request_char_count": "输入长度",
+        "formula_fragment_count": "公式数量",
+        "generation_elapsed_ms": "生成耗时(ms)",
+        "rewrite_triggered": "是否触发重写",
         "student_request": "学生请求",
         "ai_response": "系统提示",
         "created_at": "生成时间",
@@ -169,6 +205,9 @@ def build_experiment_markdown_report(df: pd.DataFrame) -> str:
         f"- 自动重写触发率：{summary['rewrite_rate']}%",
         f"- 平均泄露评分：{summary['avg_leakage_score']}",
         f"- 高风险候选提示数：{summary['high_risk_count']}",
+        f"- 平均输入长度：{summary['avg_request_chars']} 字符",
+        f"- 平均公式数量：{summary['avg_formula_fragments']} 个",
+        f"- 平均生成耗时：{summary['avg_generation_elapsed_ms']} ms",
         "",
     ]
 
@@ -189,7 +228,10 @@ def build_experiment_markdown_report(df: pd.DataFrame) -> str:
             lines.append(
                 f"- {row[column]}：{int(row['提示数量'])} 条，"
                 f"平均泄露评分 {row['平均泄露评分']:.2f}，"
-                f"平均重写次数 {row['平均重写次数']:.2f}"
+                f"平均重写次数 {row['平均重写次数']:.2f}，"
+                f"平均输入长度 {row['平均输入长度']:.1f}，"
+                f"平均公式数量 {row['平均公式数量']:.1f}，"
+                f"平均生成耗时 {row['平均生成耗时ms']:.1f}ms"
             )
         lines.append("")
 

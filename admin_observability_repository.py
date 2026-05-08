@@ -95,7 +95,8 @@ def fetch_course_accuracy_summary(conn) -> tuple[pd.DataFrame, bool]:
 def fetch_hint_leakage_records(conn) -> pd.DataFrame:
     return pd.read_sql(
         text(
-            "SELECT is_leaking_answer, leakage_score, rewrite_count "
+            "SELECT is_leaking_answer, leakage_score, rewrite_count, request_char_count, "
+            "formula_fragment_count, generation_elapsed_ms, rewrite_triggered "
             "FROM interaction_logs WHERE user_query LIKE :pattern"
         ),
         conn,
@@ -173,7 +174,9 @@ def fetch_recent_interaction_logs(conn, limit: int = 50) -> pd.DataFrame:
                 "SELECT student_id AS '学号', question_id AS '题号', hint_strength AS '提示强度', "
                 "pedagogical_intent AS '教学意图', hint_safety_status AS '安全状态', "
                 "user_query AS '学生提问', ai_response AS '系统反馈', is_leaking_answer AS '是否泄露', "
-                "leakage_score AS '泄露评分', rewrite_count AS '重写次数', leakage_reason AS '检测原因', "
+                "leakage_score AS '泄露评分', rewrite_count AS '重写次数', rewrite_triggered AS '是否触发重写', "
+                "request_char_count AS '输入长度', formula_fragment_count AS '公式数量', "
+                "generation_elapsed_ms AS '生成耗时(ms)', leakage_reason AS '检测原因', "
                 "created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT :limit"
             ),
             conn,

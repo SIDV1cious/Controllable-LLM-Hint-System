@@ -31,6 +31,7 @@ from experiment_analytics_service import (
     build_experiment_export_dataframe,
     build_experiment_markdown_report,
     build_grouped_experiment_summary,
+    ensure_experiment_observability_columns,
     summarize_hint_experiment,
 )
 from hint_policy import (
@@ -40,6 +41,7 @@ from hint_policy import (
     is_high_risk_leakage_score,
     normalize_hint_strength,
 )
+from hint_request_observability import build_hint_request_observability, count_formula_fragments
 from hint_text_utils import format_math, parse_json_object
 from interaction_repository import build_interaction_payload
 from leakage_detection_service import heuristic_leakage_check
@@ -140,6 +142,10 @@ def test_experiment_summary_and_export_are_stable():
                 "leakage_score": 0,
                 "rewrite_count": 0,
                 "leakage_reason": "未发现泄露",
+                "request_char_count": 12,
+                "formula_fragment_count": 0,
+                "generation_elapsed_ms": 850,
+                "rewrite_triggered": 0,
                 "student_request": "检查错误",
                 "ai_response": "先回到定义。",
                 "created_at": pd.Timestamp("2026-05-01 09:00:00"),
@@ -156,6 +162,10 @@ def test_experiment_summary_and_export_are_stable():
                 "leakage_score": 2,
                 "rewrite_count": 1,
                 "leakage_reason": "候选提示包含关键中间结论",
+                "request_char_count": 18,
+                "formula_fragment_count": 2,
+                "generation_elapsed_ms": 1250,
+                "rewrite_triggered": 1,
                 "student_request": "提示下一步",
                 "ai_response": "先列出矩阵的基本关系。",
                 "created_at": pd.Timestamp("2026-05-01 09:05:00"),
@@ -168,15 +178,22 @@ def test_experiment_summary_and_export_are_stable():
     assert summary["final_leak_rate"] == 0.0
     assert summary["rewrite_rate"] == 50.0
     assert summary["avg_leakage_score"] == 1.0
+    assert summary["avg_request_chars"] == 15.0
+    assert summary["avg_formula_fragments"] == 1.0
+    assert summary["avg_generation_elapsed_ms"] == 1050.0
 
     export_df = build_experiment_export_dataframe(df)
     assert "提示强度" in export_df.columns
     assert "教学意图" in export_df.columns
+    assert "输入长度" in export_df.columns
+    assert "公式数量" in export_df.columns
+    assert "生成耗时(ms)" in export_df.columns
 
     report = build_experiment_markdown_report(df)
     assert "受控解题提示生成实验数据报告" in report
     assert "按课程统计" in report
     assert "按提示强度统计" in report
+    assert "平均生成耗时" in report
 
 
 def test_experiment_grouped_summary_supports_course_dimension():
@@ -192,6 +209,31 @@ def test_experiment_grouped_summary_supports_course_dimension():
     course_counts = dict(zip(grouped["course_name"], grouped["提示数量"], strict=False))
 
     assert course_counts == {"线性代数": 1, "高等数学": 2}
+
+
+def test_experiment_observability_columns_backfill_legacy_dataframes():
+    df = pd.DataFrame([{"id": 1, "leakage_score": 2, "rewrite_count": 1}])
+
+    normalized = ensure_experiment_observability_columns(df)
+
+    assert normalized["request_char_count"].tolist() == [0]
+    assert normalized["formula_fragment_count"].tolist() == [0]
+    assert normalized["generation_elapsed_ms"].tolist() == [0]
+    assert normalized["rewrite_triggered"].tolist() == [0]
+
+
+def test_hint_request_observability_counts_text_formula_and_latency():
+    query = "请提示下一步\n$x^2+1$\n矩阵：\\begin{pmatrix}1&0\\\\0&1\\end{pmatrix}"
+
+    observability = build_hint_request_observability(query, generation_elapsed_ms=1234.6, rewrite_count=1)
+
+    assert count_formula_fragments(query) == 2
+    assert observability == {
+        "request_char_count": len(query),
+        "formula_fragment_count": 2,
+        "generation_elapsed_ms": 1235,
+        "rewrite_triggered": 1,
+    }
 
 
 def test_hint_policy_defaults_and_risk_threshold_are_stable():
@@ -224,8 +266,9 @@ def test_llm_call_metadata_counts_messages_and_prompt_chars():
 def test_leakage_observability_ddl_is_centralized():
     ddl = iter_leakage_observability_ddl()
 
-    assert len(ddl) == 8
+    assert len(ddl) == 12
     assert any("leakage_score" in statement for statement in ddl)
+    assert any("generation_elapsed_ms" in statement for statement in ddl)
     assert any("idx_interaction_hint_strength" in statement for statement in ddl)
 
 
@@ -394,6 +437,10 @@ def test_interaction_payload_truncates_observability_fields():
         hint_strength="中提示" * 20,
         pedagogical_intent="错因诊断" * 20,
         hint_safety_status="泄露检测通过" * 20,
+        request_char_count=18,
+        formula_fragment_count=2,
+        generation_elapsed_ms=1234,
+        rewrite_triggered=1,
     )
 
     assert payload["qid"] == 1001
@@ -402,6 +449,10 @@ def test_interaction_payload_truncates_observability_fields():
     assert len(payload["strength"]) == 32
     assert len(payload["intent"]) == 64
     assert len(payload["status"]) == 64
+    assert payload["request_chars"] == 18
+    assert payload["formula_count"] == 2
+    assert payload["elapsed_ms"] == 1234
+    assert payload["rewrite_flag"] == 1
 
 
 def test_dynamic_session_key_builders_are_stable():

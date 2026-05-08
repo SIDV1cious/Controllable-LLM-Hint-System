@@ -84,6 +84,10 @@ def record_learning_interaction(
     hint_strength: str = "",
     pedagogical_intent: str = "",
     hint_safety_status: str = "",
+    request_char_count: int = 0,
+    formula_fragment_count: int = 0,
+    generation_elapsed_ms: int = 0,
+    rewrite_triggered: int = 0,
 ) -> None:
     try:
         payload = build_interaction_payload(
@@ -98,6 +102,10 @@ def record_learning_interaction(
             hint_strength=hint_strength,
             pedagogical_intent=pedagogical_intent,
             hint_safety_status=hint_safety_status,
+            request_char_count=request_char_count,
+            formula_fragment_count=formula_fragment_count,
+            generation_elapsed_ms=generation_elapsed_ms,
+            rewrite_triggered=rewrite_triggered,
         )
         insert_interaction_log(payload)
         clear_student_interaction_log_cache()

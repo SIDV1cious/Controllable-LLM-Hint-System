@@ -13,6 +13,10 @@ LEAKAGE_OBSERVABILITY_COLUMN_DDL = [
     "ALTER TABLE interaction_logs ADD COLUMN hint_strength VARCHAR(32)",
     "ALTER TABLE interaction_logs ADD COLUMN pedagogical_intent VARCHAR(64)",
     "ALTER TABLE interaction_logs ADD COLUMN hint_safety_status VARCHAR(64)",
+    "ALTER TABLE interaction_logs ADD COLUMN request_char_count INT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN formula_fragment_count INT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN generation_elapsed_ms INT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN rewrite_triggered TINYINT DEFAULT 0",
 ]
 
 LEAKAGE_OBSERVABILITY_INDEX_DDL = [
