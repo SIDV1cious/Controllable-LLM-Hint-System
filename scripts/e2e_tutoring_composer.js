@@ -24,6 +24,11 @@ const PASSWORD = process.env.E2E_STUDENT_PASSWORD || "";
 const COURSE_NAME = process.env.E2E_COURSE_NAME || "高等数学";
 const ANSWER_TEXT = process.env.E2E_ANSWER_TEXT || "A";
 const RUN_REAL_SEND = process.env.E2E_RUN_REAL_SEND === "1";
+const BROWSER_CHANNEL = process.env.E2E_BROWSER_CHANNEL || "chrome";
+const SCENARIO_FILTER = (process.env.E2E_SCENARIO_FILTER || "")
+  .split(/[,\s]+/)
+  .map((item) => item.trim())
+  .filter(Boolean);
 const SCREENSHOT_PATH =
   process.env.E2E_SCREENSHOT_PATH ||
   `${process.env.TEMP || "/tmp"}/tutoring_composer_e2e.png`;
@@ -32,6 +37,17 @@ const REPORT_PATH =
   `${process.env.TEMP || "/tmp"}/tutoring_composer_e2e_report.json`;
 
 const SCREENSHOT_DIR = path.dirname(SCREENSHOT_PATH);
+
+function scenarioMatchesFilter(scenario) {
+  if (SCENARIO_FILTER.length === 0) return true;
+  return SCENARIO_FILTER.some(
+    (token) =>
+      token === "*" ||
+      token === "all" ||
+      token === scenario.id ||
+      token === scenario.type
+  );
+}
 
 async function appContext(page) {
   return page.frames().find((frame) => frame.url().includes("/~/+/")) || page;
@@ -534,8 +550,13 @@ const scenarios = [
   },
 ];
 
+function shouldRunRealSendSmoke() {
+  if (!RUN_REAL_SEND) return false;
+  return scenarioMatchesFilter({ id: "real_send_smoke", type: "send" });
+}
+
 async function maybeRunRealSendSmoke(page, componentFrame, results) {
-  if (!RUN_REAL_SEND) return;
+  if (!shouldRunRealSendSmoke()) return;
 
   const scenario = {
     id: "real_send_smoke",
@@ -567,7 +588,11 @@ async function maybeRunRealSendSmoke(page, componentFrame, results) {
 (async () => {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
-  const browser = await chromium.launch({ headless: true, channel: "chrome" });
+  const launchOptions = { headless: true };
+  if (BROWSER_CHANNEL && BROWSER_CHANNEL !== "chromium") {
+    launchOptions.channel = BROWSER_CHANNEL;
+  }
+  const browser = await chromium.launch(launchOptions);
   const page = await browser.newPage({ viewport: { width: 1365, height: 1500 } });
   const results = [];
 
@@ -577,7 +602,16 @@ async function maybeRunRealSendSmoke(page, componentFrame, results) {
     await completeQuizIfNeeded(page);
     await selectReviewQuestion(page);
 
-    for (const scenario of scenarios) {
+    const selectedScenarios = scenarios.filter(scenarioMatchesFilter);
+    if (selectedScenarios.length === 0 && !shouldRunRealSendSmoke()) {
+      throw new Error(
+        `No E2E scenarios matched E2E_SCENARIO_FILTER=${JSON.stringify(
+          SCENARIO_FILTER
+        )}.`
+      );
+    }
+
+    for (const scenario of selectedScenarios) {
       await runScenario(page, scenario, results);
     }
     await maybeRunRealSendSmoke(page, null, results);
@@ -586,6 +620,8 @@ async function maybeRunRealSendSmoke(page, componentFrame, results) {
     const report = {
       app_url: APP_URL,
       run_real_send: RUN_REAL_SEND,
+      browser_channel: BROWSER_CHANNEL,
+      scenario_filter: SCENARIO_FILTER,
       total: results.length,
       passed: results.length - failed.length,
       failed: failed.length,

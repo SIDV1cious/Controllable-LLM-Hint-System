@@ -1,0 +1,78 @@
+name: Tutoring Composer E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: "Streamlit app URL"
+        required: true
+        default: "https://controllable-llm-hint-system-zzt.streamlit.app/"
+      scenario_filter:
+        description: "Comma-separated scenario ids or types"
+        required: false
+        default: "empty_send_warning,plain_chinese_english_emoji,multiple_formulas,matrix_1x1"
+      run_real_send:
+        description: "Trigger one real LLM send smoke test"
+        required: true
+        type: choice
+        options:
+          - "0"
+          - "1"
+        default: "0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tutoring-composer-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tutoring-composer-e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.59.1
+          npx playwright install chromium
+
+      - name: Validate credentials
+        run: |
+          if [ -z "${E2E_STUDENT_USERNAME}" ] || [ -z "${E2E_STUDENT_PASSWORD}" ]; then
+            echo "Set repository secrets E2E_STUDENT_USERNAME and E2E_STUDENT_PASSWORD before running this workflow."
+            exit 1
+          fi
+        env:
+          E2E_STUDENT_USERNAME: ${{ secrets.E2E_STUDENT_USERNAME }}
+          E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+
+      - name: Run tutoring composer E2E
+        env:
+          E2E_APP_URL: ${{ inputs.app_url }}
+          E2E_STUDENT_USERNAME: ${{ secrets.E2E_STUDENT_USERNAME }}
+          E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+          E2E_SCENARIO_FILTER: ${{ inputs.scenario_filter }}
+          E2E_RUN_REAL_SEND: ${{ inputs.run_real_send }}
+          E2E_BROWSER_CHANNEL: chromium
+          E2E_SCREENSHOT_PATH: ${{ runner.temp }}/tutoring_composer_e2e.png
+          E2E_REPORT_PATH: ${{ runner.temp }}/tutoring_composer_e2e_report.json
+        run: node scripts/e2e_tutoring_composer.js
+
+      - name: Upload E2E report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tutoring-composer-e2e-report
+          path: |
+            ${{ runner.temp }}/tutoring_composer_e2e*.png
+            ${{ runner.temp }}/tutoring_composer_e2e_report.json
+          if-no-files-found: ignore

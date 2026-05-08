@@ -135,3 +135,22 @@ python reset_db.py
 ```powershell
 streamlit run app.py
 ```
+
+## 智能辅导输入框 E2E 测试
+
+智能辅导提示词输入框支持独立浏览器端测试脚本，适合每次改动公式输入、矩阵、发送链路后做回归验证：
+
+```powershell
+$env:E2E_APP_URL="http://localhost:8517"
+$env:E2E_STUDENT_USERNAME="3021244094"
+$env:E2E_STUDENT_PASSWORD="3021244094"
+$env:E2E_SCENARIO_FILTER="plain_chinese_english_emoji,multiple_formulas,matrix_1x1"
+$env:E2E_RUN_REAL_SEND="0"
+node scripts/e2e_tutoring_composer.js
+```
+
+常用环境变量：
+
+- `E2E_SCENARIO_FILTER`：按场景 ID 或类型筛选测试，留空表示跑全部非真实发送场景。
+- `E2E_RUN_REAL_SEND=1`：额外执行一次真实发送 smoke，请谨慎用于线上环境。
+- `E2E_REPORT_PATH` / `E2E_SCREENSHOT_PATH`：指定 JSON 报告和截图输出位置。
