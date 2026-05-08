@@ -408,6 +408,14 @@ const MyComponent = ({ args }: ComponentProps) => {
     syncTimerRef.current = window.setTimeout(flushValueToStreamlit, 240);
   };
 
+  const flushCurrentComposerValue = () => {
+    Object.values(formulaRefs.current).forEach((mathField: any) => {
+      const chip = mathField?.closest?.(".inline-formula-chip") as HTMLElement | null;
+      if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
+    });
+    syncValue(true);
+  };
+
   const removeFormula = (chip: HTMLElement) => {
     const next = chip.nextSibling;
     const previous = chip.previousSibling;
@@ -867,7 +875,12 @@ const MyComponent = ({ args }: ComponentProps) => {
       : activeFormulaGroup?.items ?? [];
 
   return (
-    <div style={containerStyle}>
+    <div
+      style={containerStyle}
+      onBlurCapture={() => window.setTimeout(flushCurrentComposerValue, 0)}
+      onMouseLeave={flushCurrentComposerValue}
+      onPointerLeave={flushCurrentComposerValue}
+    >
       <div style={groupToolbarStyle}>
         <button
           type="button"

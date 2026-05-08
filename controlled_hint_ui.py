@@ -657,7 +657,12 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
     quick_cols = st.columns(len(PEDAGOGICAL_QUICK_REQUESTS))
     for quick_index, request_config in enumerate(PEDAGOGICAL_QUICK_REQUESTS):
         with quick_cols[quick_index]:
-            if st.button(request_config["label"], key=quick_help_button(qid, quick_index), use_container_width=True):
+            if st.button(
+                request_config["label"],
+                key=quick_help_button(qid, quick_index),
+                use_container_width=True,
+                disabled=generation_pending,
+            ):
                 history.append({"role": ChatRole.USER, "content": request_config["prompt"]})
                 st.session_state[pending_intent_key] = request_config["intent"]
                 st.session_state[composer_input_key] = ""
