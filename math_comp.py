@@ -16,4 +16,9 @@ else:
 
 
 def math_input(default_value="", key=None):
-    return _component_func(default_value=default_value, key=key, default=default_value)
+    return _component_func(
+        default_value=default_value,
+        storage_key=str(key or ""),
+        key=key,
+        default=default_value,
+    )

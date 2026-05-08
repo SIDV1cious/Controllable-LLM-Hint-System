@@ -124,3 +124,7 @@ def run_controlled_hint_system():
                 PageMode.ADMIN if st.session_state[SessionKey.USER_ROLE] == UserRole.ADMIN else PageMode.HOME
             )
             st.rerun()
+
+
+if __name__ == "__main__":
+    run_controlled_hint_system()

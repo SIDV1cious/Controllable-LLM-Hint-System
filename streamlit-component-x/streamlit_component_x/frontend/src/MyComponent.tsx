@@ -27,8 +27,12 @@ type FormulaGroup = {
 
 type MathRuntimeStatus = "loading" | "ready" | "failed";
 
-const FRAME_HEIGHT = 520;
+const COMPACT_FRAME_HEIGHT = 420;
+const EXPANDED_FRAME_HEIGHT = 520;
+const COMPACT_CONTAINER_HEIGHT = "385px";
+const EXPANDED_CONTAINER_HEIGHT = "485px";
 const MAX_MATRIX_SIZE = 10;
+const VALUE_SYNC_DEBOUNCE_MS = 80;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
@@ -280,13 +284,29 @@ const createCasesLatex = (segmentCount: number) => {
 };
 
 const MyComponent = ({ args }: ComponentProps) => {
+  const storageKey =
+    typeof args.storage_key === "string" && args.storage_key
+      ? `controlled_hint_composer:${args.storage_key}`
+      : null;
+  const readInitialValue = () => {
+    const defaultValue = String(args.default_value || "");
+    if (defaultValue) return defaultValue;
+    if (!storageKey) return "";
+    try {
+      return window.localStorage.getItem(storageKey) || "";
+    } catch (_error) {
+      return "";
+    }
+  };
+  const initialValue = readInitialValue();
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
   const formulaRefs = useRef<Record<string, any>>({});
   const activeFormulaIdRef = useRef<string | null>(null);
-  const lastValueRef = useRef(args.default_value || "");
-  const pendingValueRef = useRef(args.default_value || "");
-  const committedValueRef = useRef(args.default_value || "");
+  const lastValueRef = useRef(initialValue);
+  const pendingValueRef = useRef(initialValue);
+  const committedValueRef = useRef(initialValue);
+  const initialValueRef = useRef(initialValue);
   const syncTimerRef = useRef<number | null>(null);
   const isComposingRef = useRef(false);
   const idCounterRef = useRef(0);
@@ -301,8 +321,9 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const createId = () => `formula_${Date.now()}_${idCounterRef.current++}`;
   const refreshFrameHeight = () => {
-    window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 0);
-    window.setTimeout(() => Streamlit.setFrameHeight(FRAME_HEIGHT), 80);
+    const frameHeight = openToolbarGroup ? EXPANDED_FRAME_HEIGHT : COMPACT_FRAME_HEIGHT;
+    window.setTimeout(() => Streamlit.setFrameHeight(frameHeight), 0);
+    window.setTimeout(() => Streamlit.setFrameHeight(frameHeight), 80);
   };
 
   const isInsideEditor = (node: Node | null) => {
@@ -391,6 +412,20 @@ const MyComponent = ({ args }: ComponentProps) => {
     Streamlit.setComponentValue(pendingValueRef.current);
   };
 
+  const persistDraftValue = (value: string) => {
+    if (!storageKey) return;
+    try {
+      if (value) {
+        window.localStorage.setItem(storageKey, value);
+      } else {
+        window.localStorage.removeItem(storageKey);
+      }
+    } catch (_error) {
+      // Local storage can be unavailable in strict privacy modes; Streamlit sync
+      // remains the source of truth in that case.
+    }
+  };
+
   const syncValue = (immediate = false) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -398,6 +433,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     const value = serializeEditor(editor);
     lastValueRef.current = value;
     pendingValueRef.current = value;
+    persistDraftValue(value);
 
     if (immediate) {
       flushValueToStreamlit();
@@ -405,7 +441,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     }
 
     clearSyncTimer();
-    syncTimerRef.current = window.setTimeout(flushValueToStreamlit, 240);
+    syncTimerRef.current = window.setTimeout(flushValueToStreamlit, VALUE_SYNC_DEBOUNCE_MS);
   };
 
   const flushCurrentComposerValue = () => {
@@ -707,10 +743,10 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   useEffect(() => {
-    renderValue(args.default_value || "", mathRuntimeReady);
-    lastValueRef.current = args.default_value || "";
-    pendingValueRef.current = args.default_value || "";
-    committedValueRef.current = args.default_value || "";
+    renderValue(initialValueRef.current, mathRuntimeReady);
+    lastValueRef.current = initialValueRef.current;
+    pendingValueRef.current = initialValueRef.current;
+    committedValueRef.current = initialValueRef.current;
   }, []);
 
   useEffect(() => {
@@ -876,7 +912,10 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   return (
     <div
-      style={containerStyle}
+      style={{
+        ...containerStyle,
+        height: openToolbarGroup ? EXPANDED_CONTAINER_HEIGHT : COMPACT_CONTAINER_HEIGHT,
+      }}
       onBlurCapture={() => window.setTimeout(flushCurrentComposerValue, 0)}
       onMouseLeave={flushCurrentComposerValue}
       onPointerLeave={flushCurrentComposerValue}
