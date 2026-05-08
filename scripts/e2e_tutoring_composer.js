@@ -210,12 +210,30 @@ function scenarioScreenshotPath(id) {
 }
 
 async function getComponentFrame(page) {
-  await page.waitForTimeout(800);
-  const componentFrame = page.frames().find((frame) =>
-    frame.url().includes("/component/math_comp")
-  );
-  if (!componentFrame) throw new Error("Math composer iframe was not found.");
-  return componentFrame;
+  const deadline = Date.now() + 30000;
+  let lastComponentFrame = null;
+
+  while (Date.now() < deadline) {
+    const componentFrame = page
+      .frames()
+      .find((frame) => frame.url().includes("/component/math_comp"));
+
+    if (componentFrame) {
+      lastComponentFrame = componentFrame;
+      const isReady = await componentFrame
+        .locator(".mixed-editor")
+        .count()
+        .then((count) => count > 0)
+        .catch(() => false);
+
+      if (isReady) return componentFrame;
+    }
+
+    await page.waitForTimeout(400);
+  }
+
+  if (lastComponentFrame) throw new Error("Math composer iframe was found but editor was not ready.");
+  throw new Error("Math composer iframe was not found.");
 }
 
 async function getEditor(componentFrame) {
