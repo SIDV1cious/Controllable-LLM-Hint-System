@@ -54,8 +54,16 @@ async function appContext(page) {
 }
 
 async function bodyText(page) {
-  const context = await appContext(page);
-  return context.locator("body").innerText().catch(() => "");
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    try {
+      const context = await appContext(page);
+      return await context.locator("body").innerText({ timeout: 1000 });
+    } catch (_error) {
+      await page.waitForTimeout(250);
+    }
+  }
+  return "";
 }
 
 async function waitUntil(page, predicate, timeout = 30000, step = 600) {
@@ -360,9 +368,12 @@ async function runScenario(page, scenario, results) {
     await clearComposer(componentFrame);
     componentFrame = await getComponentFrame(page);
     await scenario.run(page, componentFrame);
-    await forceComposerFlush(page, componentFrame);
-    componentFrame = await getComponentFrame(page);
-    const state = await readComposerState(componentFrame);
+    let state = { text: "", html: "", latexValues: [] };
+    if (!scenario.skipFinalComposerRead) {
+      await forceComposerFlush(page, componentFrame);
+      componentFrame = await getComponentFrame(page);
+      state = await readComposerState(componentFrame);
+    }
     await scenario.assert(state, page, componentFrame);
     await page.screenshot({ path: screenshot, fullPage: true });
     results.push({
@@ -557,10 +568,12 @@ function shouldRunRealSendSmoke() {
 
 async function maybeRunRealSendSmoke(page, componentFrame, results) {
   if (!shouldRunRealSendSmoke()) return;
+  let observedGenerationState = false;
 
   const scenario = {
     id: "real_send_smoke",
     type: "send",
+    skipFinalComposerRead: true,
     run: async (_page, frame) => {
       const editor = await getEditor(frame);
       await editor.click();
@@ -570,14 +583,26 @@ async function maybeRunRealSendSmoke(page, componentFrame, results) {
       if (!sent) throw new Error("Send button was not available after input.");
       await waitUntil(
         page,
-        (text) => text.includes("正在生成智能辅导") || text.includes("泄露检测") || text.includes("受控智能辅导"),
+        (text) => text.includes("正在生成智能辅导") || text.includes("生成链路"),
         45000
+      );
+      observedGenerationState = true;
+      await waitUntil(
+        page,
+        (text) => text.includes("受控智能辅导") && text.includes("答案泄露检测状态"),
+        120000
       );
     },
     assert: async (_state, targetPage) => {
       const text = await bodyText(targetPage);
-      if (!text.includes("受控智能辅导") && !text.includes("泄露检测")) {
-        throw new Error("Real send smoke did not reach tutoring generation output.");
+      if (!observedGenerationState) {
+        throw new Error("Real send smoke did not observe generation state.");
+      }
+      if (!text.includes("受控智能辅导")) {
+        throw new Error("Real send smoke did not render assistant output.");
+      }
+      if (!text.includes("答案泄露检测状态")) {
+        throw new Error("Real send smoke did not render leakage detection status.");
       }
     },
   };
