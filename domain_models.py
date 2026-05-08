@@ -21,10 +21,14 @@ class LeakageEvaluation(TypedDict):
     reason: str
 
 
-class ControlledHintResult(TypedDict):
+class ControlledHintResult(TypedDict, total=False):
     hint: str
     is_leaking: int
     leakage_score: int
     rewrite_count: int
     leakage_reason: str
     hint_strength: str
+    generation_status: str
+    generation_elapsed_ms: int
+    generation_error: str
+    stage_timings: dict[str, int]

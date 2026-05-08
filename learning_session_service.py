@@ -88,6 +88,8 @@ def record_learning_interaction(
     formula_fragment_count: int = 0,
     generation_elapsed_ms: int = 0,
     rewrite_triggered: int = 0,
+    generation_status: str = "success",
+    generation_error: str = "",
 ) -> None:
     try:
         payload = build_interaction_payload(
@@ -106,6 +108,8 @@ def record_learning_interaction(
             formula_fragment_count=formula_fragment_count,
             generation_elapsed_ms=generation_elapsed_ms,
             rewrite_triggered=rewrite_triggered,
+            generation_status=generation_status,
+            generation_error=generation_error,
         )
         insert_interaction_log(payload)
         clear_student_interaction_log_cache()

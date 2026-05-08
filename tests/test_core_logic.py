@@ -1,5 +1,6 @@
 import pandas as pd
 
+import controlled_generation_service as controlled_generation
 from admin_content_repository import (
     build_course_name_list,
     make_question_delete_label,
@@ -125,6 +126,85 @@ def test_heuristic_leakage_check_allows_non_answer_hint():
     result = heuristic_leakage_check("A", "先判断函数在分段点两侧的极限。")
     assert result["is_leaking"] is False
     assert result["score"] == 0
+
+
+def test_generate_controlled_hint_keeps_request_plan_and_system_prompt_order(monkeypatch):
+    observed = {}
+
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+
+    def fake_generate_student_hint(
+        question_data,
+        student_answer,
+        is_correct,
+        student_request,
+        hint_plan,
+        system_prompt,
+        hint_strength="中提示",
+    ):
+        observed.update(
+            {
+                "student_request": student_request,
+                "hint_plan": hint_plan,
+                "system_prompt": system_prompt,
+                "hint_strength": hint_strength,
+            }
+        )
+        return "先回到定义。"
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fake_generate_student_hint)
+    monkeypatch.setattr(
+        controlled_generation,
+        "evaluate_hint_leakage",
+        lambda *args, **kwargs: {"is_leaking": False, "score": 0, "reason": "未发现泄露"},
+    )
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "A", "solution": "解析"},
+        "B",
+        False,
+        "请提示下一步",
+        hint_strength="中提示",
+    )
+
+    assert observed == {
+        "student_request": "请提示下一步",
+        "hint_plan": "private-plan",
+        "system_prompt": "system-prompt",
+        "hint_strength": "中提示",
+    }
+    assert result["generation_status"] == "success"
+
+
+def test_generate_controlled_hint_returns_safe_fallback_on_generation_error(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+
+    def raise_generation_error(*args, **kwargs):
+        raise RuntimeError("model unavailable")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", raise_generation_error)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "A", "solution": "解析"},
+        "B",
+        False,
+        "请提示下一步",
+    )
+
+    assert result["generation_status"] == "failed"
+    assert result["generation_error"] == "RuntimeError"
+    assert result["is_leaking"] == 0
+    assert "保底启发式提示" in result["leakage_reason"]
 
 
 def test_experiment_summary_and_export_are_stable():
@@ -266,9 +346,10 @@ def test_llm_call_metadata_counts_messages_and_prompt_chars():
 def test_leakage_observability_ddl_is_centralized():
     ddl = iter_leakage_observability_ddl()
 
-    assert len(ddl) == 12
+    assert len(ddl) == 14
     assert any("leakage_score" in statement for statement in ddl)
     assert any("generation_elapsed_ms" in statement for statement in ddl)
+    assert any("generation_status" in statement for statement in ddl)
     assert any("idx_interaction_hint_strength" in statement for statement in ddl)
 
 
@@ -441,6 +522,8 @@ def test_interaction_payload_truncates_observability_fields():
         formula_fragment_count=2,
         generation_elapsed_ms=1234,
         rewrite_triggered=1,
+        generation_status="timeout",
+        generation_error="OpenAIError" * 40,
     )
 
     assert payload["qid"] == 1001
@@ -453,6 +536,8 @@ def test_interaction_payload_truncates_observability_fields():
     assert payload["formula_count"] == 2
     assert payload["elapsed_ms"] == 1234
     assert payload["rewrite_flag"] == 1
+    assert payload["generation_status"] == "timeout"
+    assert len(payload["generation_error"]) == 255
 
 
 def test_dynamic_session_key_builders_are_stable():

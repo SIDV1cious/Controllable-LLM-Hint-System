@@ -39,14 +39,25 @@ def build_llm_call_metadata(messages: list, temperature: float, model: str | Non
     }
 
 
-def chat_completion_text(messages: list, temperature: float = 0.2) -> str:
+def chat_completion_text(
+    messages: list,
+    temperature: float = 0.2,
+    timeout_seconds: float | None = None,
+    max_retries: int | None = None,
+) -> str:
     if not AppConfig.LLM_API_KEY:
         raise RuntimeError("未配置 LLM_API_KEY，无法调用大模型。")
 
     metadata = build_llm_call_metadata(messages, temperature)
     started_at = time.perf_counter()
     try:
-        resp = client.chat.completions.create(
+        request_options = {}
+        if timeout_seconds is not None:
+            request_options["timeout"] = timeout_seconds
+        if max_retries is not None:
+            request_options["max_retries"] = max_retries
+        request_client = client.with_options(**request_options) if request_options else client
+        resp = request_client.chat.completions.create(
             model=metadata["model"],
             messages=messages,
             temperature=temperature,

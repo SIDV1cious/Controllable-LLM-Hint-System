@@ -176,7 +176,8 @@ def fetch_recent_interaction_logs(conn, limit: int = 50) -> pd.DataFrame:
                 "user_query AS '学生提问', ai_response AS '系统反馈', is_leaking_answer AS '是否泄露', "
                 "leakage_score AS '泄露评分', rewrite_count AS '重写次数', rewrite_triggered AS '是否触发重写', "
                 "request_char_count AS '输入长度', formula_fragment_count AS '公式数量', "
-                "generation_elapsed_ms AS '生成耗时(ms)', leakage_reason AS '检测原因', "
+                "generation_elapsed_ms AS '生成耗时(ms)', generation_status AS '生成状态', "
+                "generation_error AS '生成异常', leakage_reason AS '检测原因', "
                 "created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT :limit"
             ),
             conn,

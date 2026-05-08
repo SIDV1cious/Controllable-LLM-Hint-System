@@ -30,6 +30,8 @@ def build_interaction_payload(
     formula_fragment_count: int = 0,
     generation_elapsed_ms: int = 0,
     rewrite_triggered: int = 0,
+    generation_status: str = "success",
+    generation_error: str = "",
 ) -> dict:
     rewrite_total = _safe_non_negative_int(rewrite_count)
     return {
@@ -48,6 +50,8 @@ def build_interaction_payload(
         "formula_count": _safe_non_negative_int(formula_fragment_count),
         "elapsed_ms": _safe_non_negative_int(generation_elapsed_ms),
         "rewrite_flag": int(bool(_safe_non_negative_int(rewrite_triggered) or rewrite_total)),
+        "generation_status": (generation_status or "success")[:32],
+        "generation_error": (generation_error or "")[:255],
         "time": now_shanghai(),
     }
 
@@ -63,9 +67,11 @@ def insert_interaction_log(payload: dict) -> None:
                     "(question_id, student_id, user_query, ai_response, is_leaking_answer, "
                     "leakage_score, rewrite_count, leakage_reason, hint_strength, "
                     "pedagogical_intent, hint_safety_status, request_char_count, "
-                    "formula_fragment_count, generation_elapsed_ms, rewrite_triggered, created_at) "
+                    "formula_fragment_count, generation_elapsed_ms, rewrite_triggered, "
+                    "generation_status, generation_error, created_at) "
                     "VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, "
-                    ":strength, :intent, :status, :request_chars, :formula_count, :elapsed_ms, :rewrite_flag, :time)"
+                    ":strength, :intent, :status, :request_chars, :formula_count, :elapsed_ms, "
+                    ":rewrite_flag, :generation_status, :generation_error, :time)"
                 ),
                 payload,
             )

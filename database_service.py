@@ -17,6 +17,8 @@ LEAKAGE_OBSERVABILITY_COLUMN_DDL = [
     "ALTER TABLE interaction_logs ADD COLUMN formula_fragment_count INT DEFAULT 0",
     "ALTER TABLE interaction_logs ADD COLUMN generation_elapsed_ms INT DEFAULT 0",
     "ALTER TABLE interaction_logs ADD COLUMN rewrite_triggered TINYINT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN generation_status VARCHAR(32) DEFAULT 'success'",
+    "ALTER TABLE interaction_logs ADD COLUMN generation_error VARCHAR(255)",
 ]
 
 LEAKAGE_OBSERVABILITY_INDEX_DDL = [

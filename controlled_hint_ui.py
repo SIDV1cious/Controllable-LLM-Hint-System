@@ -517,6 +517,31 @@ def _build_safety_status(controlled: dict, pedagogical_intent: str) -> dict:
     leakage_score = int(controlled.get("leakage_score", 0))
     reason = controlled.get("leakage_reason", "未返回检测原因")
     hint_strength = controlled.get("hint_strength", "中提示")
+    generation_status = controlled.get("generation_status", "success")
+
+    if generation_status == "timeout":
+        return {
+            "label": "生成超时保护",
+            "badge_class": "safety-badge-safe",
+            "hint_strength": hint_strength,
+            "pedagogical_intent": pedagogical_intent,
+            "leakage_score": "未生成",
+            "rewrite_count": rewrite_count,
+            "reason": reason,
+            "detail": f"提示强度：{hint_strength}；生成链路超时，已返回保底启发式提示。",
+        }
+
+    if generation_status == "failed":
+        return {
+            "label": "生成异常保护",
+            "badge_class": "safety-badge-safe",
+            "hint_strength": hint_strength,
+            "pedagogical_intent": pedagogical_intent,
+            "leakage_score": "未生成",
+            "rewrite_count": rewrite_count,
+            "reason": reason,
+            "detail": f"提示强度：{hint_strength}；模型生成异常，已返回保底启发式提示。",
+        }
 
     if rewrite_count > 0:
         return {
@@ -725,11 +750,11 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
         with st.chat_message("assistant"):
             last_query = history[-1]["content"]
             pedagogical_intent = st.session_state.get(pending_intent_key, DEFAULT_PEDAGOGICAL_INTENT)
+            generation_started_at = time.perf_counter()
             try:
                 _render_message_header(ChatRole.ASSISTANT, "生成中", "提示生成 · 泄露检测 · 自动重写")
                 _render_generation_status()
                 with st.spinner(TUTORING_SPINNER):
-                    generation_started_at = time.perf_counter()
                     controlled = generate_controlled_hint(
                         data["question_data"],
                         data["user_answer"],
@@ -737,7 +762,14 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                         last_query,
                         hint_strength=selected_strength,
                     )
-                generation_elapsed_ms = round((time.perf_counter() - generation_started_at) * 1000)
+                generation_elapsed_ms = int(
+                    controlled.get(
+                        "generation_elapsed_ms",
+                        round((time.perf_counter() - generation_started_at) * 1000),
+                    )
+                )
+                generation_status = controlled.get("generation_status", "success")
+                generation_error = controlled.get("generation_error", "")
                 final = controlled["hint"]
                 st.markdown(format_math(final))
                 status = _build_safety_status(controlled, pedagogical_intent)
@@ -757,6 +789,8 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                     hint_strength=selected_strength,
                     pedagogical_intent=pedagogical_intent,
                     hint_safety_status=status["label"],
+                    generation_status=generation_status,
+                    generation_error=generation_error,
                     **build_hint_request_observability(
                         last_query,
                         generation_elapsed_ms,
@@ -764,6 +798,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                     ),
                 )
             except Exception as exc:
+                generation_elapsed_ms = round((time.perf_counter() - generation_started_at) * 1000)
                 log_exception("Controlled hint generation error", exc)
                 fallback = TUTORING_FALLBACK_HINT
                 st.markdown(fallback)
@@ -788,4 +823,7 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                     hint_strength=selected_strength,
                     pedagogical_intent=pedagogical_intent,
                     hint_safety_status=fallback_status["label"],
+                    generation_status="failed",
+                    generation_error=type(exc).__name__,
+                    **build_hint_request_observability(last_query, generation_elapsed_ms, 0),
                 )

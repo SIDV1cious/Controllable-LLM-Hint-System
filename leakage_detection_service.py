@@ -29,7 +29,12 @@ def heuristic_leakage_check(reference_answer: str, candidate_hint: str) -> Leaka
     return {"is_leaking": False, "score": 0, "reason": "未命中本地泄露规则"}
 
 
-def evaluate_hint_leakage(question_data: QuestionData, candidate_hint: str) -> LeakageEvaluation:
+def evaluate_hint_leakage(
+    question_data: QuestionData,
+    candidate_hint: str,
+    timeout_seconds: float | None = None,
+    max_retries: int | None = None,
+) -> LeakageEvaluation:
     std_ans = question_data.get("answer", "")
     std_sol = question_data.get("solution", "")
     if not (std_ans or std_sol):
@@ -52,6 +57,8 @@ def evaluate_hint_leakage(question_data: QuestionData, candidate_hint: str) -> L
         raw = chat_completion_text(
             [{"role": "system", "content": LEAKAGE_CHECK_PROMPT_SYSTEM}, {"role": "user", "content": prompt}],
             temperature=0,
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
         )
         parsed = parse_json_object(raw)
         if parsed:
