@@ -39,6 +39,20 @@ const REPORT_PATH =
   `${process.env.TEMP || "/tmp"}/tutoring_composer_e2e_report.json`;
 
 const SCREENSHOT_DIR = path.dirname(SCREENSHOT_PATH);
+const INPUT_SMOKE_SCENARIO_IDS = new Set([
+  "empty_send_warning",
+  "plain_chinese_english_emoji",
+  "rapid_chinese_continuous_input",
+  "rapid_enter_retention",
+  "rapid_backspace_delete_retype",
+  "middle_caret_insert_order",
+  "rich_html_paste_sanitized",
+  "text_formula_text_mix",
+  "formula_immediate_after_insert",
+  "matrix_2x2_immediate",
+  "cases_function_5_segments",
+  "select_across_formula_delete_then_type",
+]);
 
 function scenarioMatchesFilter(scenario) {
   if (SCENARIO_FILTER.length === 0) return true;
@@ -46,6 +60,7 @@ function scenarioMatchesFilter(scenario) {
     (token) =>
       token === "*" ||
       token === "all" ||
+      (token === "input_smoke" && INPUT_SMOKE_SCENARIO_IDS.has(scenario.id)) ||
       token === scenario.id ||
       token === scenario.type ||
       (token === "real_send_smoke" && scenario.id === "real_send_plain_immediate")

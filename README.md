@@ -144,13 +144,23 @@ streamlit run app.py
 $env:E2E_APP_URL="http://localhost:8517"
 $env:E2E_STUDENT_USERNAME="3021244094"
 $env:E2E_STUDENT_PASSWORD="3021244094"
-$env:E2E_SCENARIO_FILTER="plain_chinese_english_emoji,multiple_formulas,matrix_1x1"
+$env:E2E_SCENARIO_FILTER="input_smoke"
 $env:E2E_RUN_REAL_SEND="0"
 node scripts/e2e_tutoring_composer.js
 ```
 
+也可以使用封装好的本地 smoke 脚本：
+
+```powershell
+$env:E2E_STUDENT_USERNAME="3021244094"
+$env:E2E_STUDENT_PASSWORD="3021244094"
+.\scripts\run_tutoring_composer_smoke.ps1 -AppUrl "http://localhost:8517"
+```
+
 常用环境变量：
 
-- `E2E_SCENARIO_FILTER`：按场景 ID 或类型筛选测试，留空表示跑全部非真实发送场景。
+- `E2E_SCENARIO_FILTER`：按场景 ID 或类型筛选测试；`input_smoke` 表示运行中文输入、回车、删除、粘贴、公式、矩阵、分段函数等输入框防回归场景；留空表示跑全部非真实发送场景。
 - `E2E_RUN_REAL_SEND=1`：额外执行一次真实发送 smoke，请谨慎用于线上环境。
 - `E2E_REPORT_PATH` / `E2E_SCREENSHOT_PATH`：指定 JSON 报告和截图输出位置。
+
+GitHub Actions 中的 `Tutoring Composer E2E` 工作流为手动触发，默认 `E2E_RUN_REAL_SEND=0`，只做线上输入框防回归 smoke，不触发真实 LLM 生成。运行前需要在仓库 Secrets 中配置 `E2E_STUDENT_USERNAME` 和 `E2E_STUDENT_PASSWORD`。
