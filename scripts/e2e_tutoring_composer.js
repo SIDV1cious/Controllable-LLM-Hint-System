@@ -782,6 +782,108 @@ async function setCaretByTextOffset(componentFrame, offset) {
   await componentFrame.page().waitForTimeout(120);
 }
 
+async function selectTextRange(componentFrame, startOffset, endOffset) {
+  const editor = await getEditor(componentFrame);
+  await editor.evaluate(
+    (element, offsets) => {
+      const zeroWidthSpace = "\u200B";
+      const selection = window.getSelection();
+      const range = document.createRange();
+
+      const resolveOffset = (targetOffset) => {
+        let remaining = targetOffset;
+        let resolvedNode = null;
+        let resolvedOffset = 0;
+
+        const visit = (node) => {
+          if (resolvedNode) return;
+
+          if (node.nodeType === Node.TEXT_NODE) {
+            const rawText = node.textContent || "";
+            const normalizedText = rawText.replaceAll(zeroWidthSpace, "");
+            if (remaining <= normalizedText.length) {
+              let rawOffset = 0;
+              let normalizedOffset = 0;
+              while (rawOffset < rawText.length && normalizedOffset < remaining) {
+                if (rawText[rawOffset] !== zeroWidthSpace) normalizedOffset += 1;
+                rawOffset += 1;
+              }
+              resolvedNode = node;
+              resolvedOffset = rawOffset;
+              return;
+            }
+            remaining -= normalizedText.length;
+            return;
+          }
+
+          if (!(node instanceof HTMLElement)) return;
+          if (node.classList.contains("inline-formula-chip")) return;
+          node.childNodes.forEach(visit);
+        };
+
+        element.childNodes.forEach(visit);
+        if (resolvedNode) return { node: resolvedNode, offset: resolvedOffset };
+        return { node: element, offset: element.childNodes.length };
+      };
+
+      const start = resolveOffset(offsets.start);
+      const end = resolveOffset(offsets.end);
+      element.focus({ preventScroll: true });
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    },
+    { start: startOffset, end: endOffset }
+  );
+  await componentFrame.page().waitForTimeout(120);
+}
+
+async function setCaretAroundFormula(componentFrame, index, position) {
+  const editor = await getEditor(componentFrame);
+  await editor.evaluate(
+    (element, options) => {
+      const chips = Array.from(element.querySelectorAll(".inline-formula-chip"));
+      const chip = chips[options.index];
+      if (!chip) throw new Error(`Formula chip ${options.index} was not found.`);
+
+      element.focus({ preventScroll: true });
+      const range = document.createRange();
+      if (options.position === "before") {
+        range.setStartBefore(chip);
+      } else {
+        const next = chip.nextSibling;
+        if (next?.nodeType === Node.TEXT_NODE) {
+          range.setStart(next, next.textContent?.length || 0);
+        } else {
+          range.setStartAfter(chip);
+        }
+      }
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    },
+    { index, position }
+  );
+  await componentFrame.page().waitForTimeout(120);
+}
+
+async function dispatchCompositionEnter(componentFrame) {
+  const editor = await getEditor(componentFrame);
+  await editor.evaluate((element) => {
+    element.focus();
+    const keydown = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(keydown, "isComposing", { get: () => true });
+    element.dispatchEvent(keydown);
+  });
+  await componentFrame.page().waitForTimeout(120);
+}
+
 async function typeInComposer(componentFrame, text, delay = 0) {
   const editor = await getEditor(componentFrame);
   await editor.click();
@@ -1070,6 +1172,72 @@ const scenarios = [
     },
   },
   {
+    id: "partial_selection_replace",
+    type: "caret-selection",
+    caretCase: "partial-selection-replace",
+    expectedOrder: "A中E",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "ABCDE", 0);
+      await selectTextRange(componentFrame, 1, 4);
+      await componentFrame.page().keyboard.type("中", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "A中E", "Partial range replacement was not stable");
+      if (state.serializedText.includes("BCD")) {
+        throw new Error(`Replaced selection reappeared: ${state.serializedText}`);
+      }
+    },
+  },
+  {
+    id: "undo_then_continue_typing",
+    type: "caret-undo",
+    caretCase: "undo-then-continue",
+    expectedOrder: "撤销后继续输入",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "会被撤销", 0);
+      await componentFrame.page().keyboard.press("Control+Z");
+      await componentFrame.page().keyboard.type("撤销后继续输入", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "撤销后继续输入", "Typing after undo was not stable");
+      if (state.serializedText.includes("会被撤销")) {
+        throw new Error(`Undone content reappeared: ${state.serializedText}`);
+      }
+    },
+  },
+  {
+    id: "home_end_navigation_insert",
+    type: "caret-navigation",
+    caretCase: "home-end-insert",
+    expectedOrder: "开头原文结尾",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "原文", 0);
+      await componentFrame.page().keyboard.press("Home");
+      await componentFrame.page().keyboard.type("开头", { delay: 0 });
+      await componentFrame.page().keyboard.press("End");
+      await componentFrame.page().keyboard.type("结尾", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "开头原文结尾", "Home/End caret navigation was not stable");
+    },
+  },
+  {
+    id: "composition_enter_does_not_insert_linebreak",
+    type: "ime-composition",
+    caretCase: "composition-enter",
+    expectedOrder: "组合完成",
+    run: async (_page, componentFrame) => {
+      await dispatchCompositionEnter(componentFrame);
+      await componentFrame.page().keyboard.type("组合完成", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "组合完成", "Composition follow-up text was not retained");
+      if (state.serializedText.startsWith("\n")) {
+        throw new Error(`IME Enter inserted an unexpected leading line break: ${JSON.stringify(state.serializedText)}`);
+      }
+    },
+  },
+  {
     id: "middle_caret_insert_order",
     type: "caret-middle",
     caretCase: "middle-insert",
@@ -1094,6 +1262,23 @@ const scenarios = [
       assertIncludes(state.text, "第一行：请提示下一步", "Pasted first line was not retained");
       assertIncludes(state.text, "第二行：保留换行与空格", "Pasted second line was not retained");
       assertIncludes(state.text, "第三行：x -> 0", "Pasted third line was not retained");
+    },
+  },
+  {
+    id: "select_cut_then_type",
+    type: "clipboard-edit",
+    caretCase: "cut-selection",
+    expectedOrder: "首尾",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "首中间尾", 0);
+      await selectTextRange(componentFrame, 1, 3);
+      await componentFrame.page().keyboard.press("Control+X");
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "首尾", "Cut selection did not leave expected text order");
+      if (state.serializedText.includes("中间")) {
+        throw new Error(`Cut content reappeared: ${state.serializedText}`);
+      }
     },
   },
   {
@@ -1125,6 +1310,23 @@ const scenarios = [
       assertIncludes(state.text, "先看这个公式", "Text before formula was not retained");
       assertIncludes(state.text, "再判断下一步", "Text after formula was not retained");
       assertLatexIncludes(state.latexValues, "x+1", "Formula latex was not retained");
+    },
+  },
+  {
+    id: "toolbar_insert_preserves_middle_caret",
+    type: "toolbar-caret",
+    caretCase: "toolbar-focus-preserve",
+    expectedOrder: "前$formula$后",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "前后", 0);
+      await setCaretByTextOffset(componentFrame, 1);
+      await openToolbarGroup(componentFrame, "根式");
+      await componentFrame.getByRole("button", { name: "平方根", exact: true }).click();
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "前", "Text before toolbar formula was lost");
+      assertIncludes(state.serializedText, "后", "Text after toolbar formula was lost");
+      assertLatexIncludes(state.latexValues, "\\sqrt", "Toolbar formula was not inserted into saved caret position");
     },
   },
   {
@@ -1236,6 +1438,69 @@ const scenarios = [
     assert: async (state) => {
       if (state.latexValues.length !== 0) {
         throw new Error(`Formula was not deleted: ${JSON.stringify(state.latexValues)}`);
+      }
+    },
+  },
+  {
+    id: "backspace_after_formula_keeps_caret_position",
+    type: "formula-boundary-delete",
+    caretCase: "backspace-after-formula",
+    expectedOrder: "前中后",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "前", 0);
+      await insertFormula(componentFrame, "x+2");
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("后", { delay: 0 });
+      await setCaretAroundFormula(componentFrame, 0, "after");
+      await componentFrame.page().keyboard.press("Backspace");
+      await componentFrame.page().keyboard.type("中", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "前中后", "Caret jumped after formula Backspace deletion");
+      if (state.latexValues.length !== 0) {
+        throw new Error(`Deleted formula remained after Backspace: ${JSON.stringify(state.latexValues)}`);
+      }
+    },
+  },
+  {
+    id: "delete_before_formula_keeps_caret_position",
+    type: "formula-boundary-delete",
+    caretCase: "delete-before-formula",
+    expectedOrder: "前中后",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "前", 0);
+      await insertFormula(componentFrame, "x+2");
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("后", { delay: 0 });
+      await setCaretAroundFormula(componentFrame, 0, "before");
+      await componentFrame.page().keyboard.press("Delete");
+      await componentFrame.page().keyboard.type("中", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "前中后", "Caret jumped after formula Delete deletion");
+      if (state.latexValues.length !== 0) {
+        throw new Error(`Deleted formula remained after Delete: ${JSON.stringify(state.latexValues)}`);
+      }
+    },
+  },
+  {
+    id: "ctrl_a_delete_mixed_content",
+    type: "mixed-delete",
+    caretCase: "ctrl-a-delete-mixed",
+    expectedOrder: "清空后重输",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "旧文字", 0);
+      await insertFormula(componentFrame, "x^2");
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("旧尾巴", { delay: 0 });
+      await componentFrame.page().keyboard.press("Control+A");
+      await componentFrame.page().keyboard.press("Backspace");
+      await componentFrame.page().keyboard.type("清空后重输", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "清空后重输", "Mixed content was not rewritten after Ctrl+A deletion");
+      if (state.serializedText.includes("旧") || state.latexValues.length > 0) {
+        throw new Error(`Old mixed content remained after Ctrl+A deletion: ${state.serializedText}`);
       }
     },
   },

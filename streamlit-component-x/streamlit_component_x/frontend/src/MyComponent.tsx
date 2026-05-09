@@ -453,26 +453,41 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   const removeFormula = (chip: HTMLElement) => {
+    const editor = editorRef.current;
     const next = chip.nextSibling;
     const previous = chip.previousSibling;
+    const caretBefore = isZeroWidthText(previous)
+      ? previous.previousSibling
+      : previous;
+    const caretAfter = isZeroWidthText(next) ? next.nextSibling : next;
 
     if (isZeroWidthText(next)) next.remove();
     if (isZeroWidthText(previous)) previous.remove();
 
     chip.remove();
-    syncValue(true);
 
-    const editor = editorRef.current;
     if (!editor) return;
 
     editor.focus();
     const range = document.createRange();
-    range.selectNodeContents(editor);
-    range.collapse(false);
+    if (caretBefore?.parentNode === editor) {
+      if (caretBefore.nodeType === Node.TEXT_NODE) {
+        range.setStart(caretBefore, caretBefore.textContent?.length || 0);
+      } else {
+        range.setStartAfter(caretBefore);
+      }
+    } else if (caretAfter?.parentNode === editor) {
+      range.setStartBefore(caretAfter);
+    } else {
+      range.selectNodeContents(editor);
+      range.collapse(false);
+    }
+    range.collapse(true);
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
     savedRangeRef.current = range.cloneRange();
+    syncValue();
   };
 
   const createFormulaElement = (latex = "") => {
@@ -585,6 +600,8 @@ const MyComponent = ({ args }: ComponentProps) => {
     range.insertNode(chip);
     setCaretAfter(spacer);
     setActiveFormula(id);
+    configureMathField(mathField);
+    mathField.focus();
     syncValue();
 
     window.setTimeout(() => {
@@ -682,6 +699,10 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isComposingRef.current || event.nativeEvent.isComposing) {
+      return;
+    }
+
     if (event.key === "Enter") {
       event.preventDefault();
       insertLineBreak();
@@ -771,6 +792,28 @@ const MyComponent = ({ args }: ComponentProps) => {
       renderValue(lastValueRef.current, true);
     }
   }, [mathRuntimeReady]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const handleCompositionStart = () => {
+      isComposingRef.current = true;
+    };
+    const handleCompositionEnd = () => {
+      isComposingRef.current = false;
+      saveSelection();
+      syncValue();
+    };
+
+    editor.addEventListener("compositionstart", handleCompositionStart);
+    editor.addEventListener("compositionend", handleCompositionEnd);
+
+    return () => {
+      editor.removeEventListener("compositionstart", handleCompositionStart);
+      editor.removeEventListener("compositionend", handleCompositionEnd);
+    };
+  }, []);
 
   useEffect(() => {
     refreshFrameHeight();
