@@ -398,6 +398,46 @@ const MyComponent = ({ args }: ComponentProps) => {
     savedRangeRef.current = range.cloneRange();
   };
 
+  const setCaretFromPoint = (clientX: number, clientY: number) => {
+    if (!clientX && !clientY) return false;
+
+    const documentWithCaretRange = document as Document & {
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    };
+    const documentWithCaretPosition = document as Document & {
+      caretPositionFromPoint?: (
+        x: number,
+        y: number
+      ) => { offsetNode: Node; offset: number } | null;
+    };
+
+    let range = documentWithCaretRange.caretRangeFromPoint?.(clientX, clientY) ?? null;
+    if (!range) {
+      const position = documentWithCaretPosition.caretPositionFromPoint?.(clientX, clientY);
+      if (position) {
+        range = document.createRange();
+        range.setStart(position.offsetNode, position.offset);
+        range.collapse(true);
+      }
+    }
+
+    if (!range || !isInsideEditor(range.commonAncestorContainer)) return false;
+
+    const formulaChip = closestFormulaChipFromNode(range.commonAncestorContainer);
+    if (formulaChip) {
+      range = document.createRange();
+      range.setStartAfter(formulaChip);
+      range.collapse(true);
+    }
+
+    const selection = window.getSelection();
+    if (!selection) return false;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+    return true;
+  };
+
   const clearSyncTimer = () => {
     if (syncTimerRef.current) {
       window.clearTimeout(syncTimerRef.current);
@@ -727,6 +767,25 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     event.preventDefault();
     insertPlainText(text);
+  };
+
+  const syncAfterNativeEdit = () => {
+    window.setTimeout(() => {
+      saveSelection();
+      syncValue(true);
+    }, 0);
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    const text =
+      event.dataTransfer.getData("text/plain") ||
+      plainTextFromClipboardHtml(event.dataTransfer.getData("text/html"));
+    if (!text) return;
+
+    event.preventDefault();
+    setCaretFromPoint(event.clientX, event.clientY);
+    insertPlainText(text);
+    syncValue(true);
   };
 
   const renderValue = (value: string, allowFormulaRendering = true) => {
@@ -1164,6 +1223,9 @@ const MyComponent = ({ args }: ComponentProps) => {
         onBlur={() => syncValue(true)}
         onKeyDown={handleEditorKeyDown}
         onPaste={handlePaste}
+        onCut={syncAfterNativeEdit}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
         style={editorStyle}
       />
     </div>

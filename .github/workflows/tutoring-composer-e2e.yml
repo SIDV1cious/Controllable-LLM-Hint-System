@@ -8,7 +8,7 @@ on:
         required: true
         default: "https://controllable-llm-hint-system-zzt.streamlit.app/"
       scenario_filter:
-        description: "Comma-separated scenario ids or types"
+        description: "Comma-separated scenario ids or types, e.g. input_smoke or input_stress"
         required: false
         default: "input_smoke"
       run_real_send:

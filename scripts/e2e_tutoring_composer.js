@@ -54,6 +54,44 @@ const INPUT_SMOKE_SCENARIO_IDS = new Set([
   "select_across_formula_delete_then_type",
 ]);
 
+const INPUT_STRESS_SCENARIO_IDS = new Set([
+  ...INPUT_SMOKE_SCENARIO_IDS,
+  "shift_enter_retention",
+  "rapid_backspace_delete_retype",
+  "ctrl_a_replace",
+  "partial_selection_replace",
+  "undo_then_continue_typing",
+  "redo_then_continue_typing",
+  "home_end_navigation_insert",
+  "arrow_left_middle_insert",
+  "composition_enter_does_not_insert_linebreak",
+  "caret_end_after_fast_typing",
+  "tab_blur_flush_retention",
+  "fullwidth_punctuation_and_spaces",
+  "cut_then_immediate_type",
+  "drop_plain_text_sanitized",
+  "large_paste_middle_edit",
+  "latex_like_plain_paste_stays_text",
+  "select_cut_then_type",
+  "delete_and_backspace",
+  "toolbar_insert_preserves_middle_caret",
+  "toolbar_symbol_without_active_formula",
+  "active_formula_symbol_insertion",
+  "formula_edit_then_text_tail",
+  "matrix_insert_middle_preserves_text",
+  "multiple_formulas",
+  "matrix_1x1",
+  "matrix_10x10",
+  "cases_function",
+  "formula_delete",
+  "formula_remove_button_then_immediate_type",
+  "backspace_after_formula_keeps_caret_position",
+  "delete_before_formula_keeps_caret_position",
+  "ctrl_a_delete_mixed_content",
+  "refocus_retention",
+  "switch_question_retention",
+]);
+
 function scenarioMatchesFilter(scenario) {
   if (SCENARIO_FILTER.length === 0) return true;
   return SCENARIO_FILTER.some(
@@ -61,6 +99,7 @@ function scenarioMatchesFilter(scenario) {
       token === "*" ||
       token === "all" ||
       (token === "input_smoke" && INPUT_SMOKE_SCENARIO_IDS.has(scenario.id)) ||
+      (token === "input_stress" && INPUT_STRESS_SCENARIO_IDS.has(scenario.id)) ||
       token === scenario.id ||
       token === scenario.type ||
       (token === "real_send_smoke" && scenario.id === "real_send_plain_immediate")
@@ -767,6 +806,27 @@ async function pasteRichHtml(componentFrame, html, plainText = "") {
   await componentFrame.page().waitForTimeout(450);
 }
 
+async function dropPlainText(componentFrame, text) {
+  const editor = await getEditor(componentFrame);
+  await editor.click();
+  await editor.evaluate((element, value) => {
+    element.focus({ preventScroll: true });
+    const box = element.getBoundingClientRect();
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData("text/plain", value);
+    element.dispatchEvent(
+      new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        clientX: box.left + 24,
+        clientY: box.top + 24,
+        dataTransfer,
+      })
+    );
+  }, text);
+  await componentFrame.page().waitForTimeout(450);
+}
+
 async function setCaretByTextOffset(componentFrame, offset) {
   const editor = await getEditor(componentFrame);
   await editor.evaluate((element, targetOffset) => {
@@ -981,6 +1041,15 @@ async function typeInComposer(componentFrame, text, delay = 0) {
   await componentFrame.page().keyboard.type(text, { delay });
 }
 
+async function typeInActiveMathField(componentFrame, text, delay = 0) {
+  const mathField = componentFrame.locator("math-field").last();
+  if ((await mathField.count()) === 0) throw new Error("Active math field was not found.");
+  await mathField.click();
+  await componentFrame.page().keyboard.press("End");
+  await componentFrame.page().keyboard.type(text, { delay });
+  await componentFrame.page().waitForTimeout(160);
+}
+
 async function focusComposerEnd(componentFrame) {
   const editor = await getEditor(componentFrame);
   await editor.evaluate((element) => {
@@ -1084,6 +1153,15 @@ function assertIncludes(value, expected, message) {
 function assertLatexIncludes(values, expected, message) {
   if (!values.some((value) => String(value).includes(expected))) {
     throw new Error(`${message}: expected ${expected}, got ${JSON.stringify(values)}`);
+  }
+}
+
+function assertCaretOffset(state, expectedOffset, message) {
+  const actualOffset = state.caretInfo?.textOffset;
+  if (actualOffset !== expectedOffset) {
+    throw new Error(
+      `${message}: expected caret offset ${expectedOffset}, got ${JSON.stringify(state.caretInfo)}`
+    );
   }
 }
 
@@ -1315,6 +1393,21 @@ const scenarios = [
     },
   },
   {
+    id: "redo_then_continue_typing",
+    type: "caret-redo",
+    caretCase: "redo-then-continue",
+    expectedOrder: "可恢复内容恢复后",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "可恢复内容", 0);
+      await componentFrame.page().keyboard.press("Control+Z");
+      await componentFrame.page().keyboard.press("Control+Y");
+      await componentFrame.page().keyboard.type("恢复后", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "可恢复内容恢复后", "Typing after redo was not stable");
+    },
+  },
+  {
     id: "home_end_navigation_insert",
     type: "caret-navigation",
     caretCase: "home-end-insert",
@@ -1362,6 +1455,52 @@ const scenarios = [
     },
   },
   {
+    id: "caret_end_after_fast_typing",
+    type: "caret-position",
+    caretCase: "caret-stays-at-end",
+    expectedOrder: "光标末尾稳定",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "光标", 0);
+      await componentFrame.page().keyboard.type("末尾", { delay: 0 });
+      await componentFrame.page().keyboard.type("稳定", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "光标末尾稳定", "Fast typing text was not retained");
+      assertCaretOffset(state, "光标末尾稳定".length, "Caret jumped away from the end after fast typing");
+    },
+  },
+  {
+    id: "tab_blur_flush_retention",
+    type: "focus-flush",
+    caretCase: "tab-blur-flush",
+    expectedOrder: "按Tab后内容仍保留",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "按Tab后内容仍保留", 0);
+      await componentFrame.page().keyboard.press("Tab");
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "按Tab后内容仍保留", "Tab blur did not flush the latest text");
+    },
+  },
+  {
+    id: "fullwidth_punctuation_and_spaces",
+    type: "plain-text",
+    caretCase: "spaces-and-fullwidth-punctuation",
+    expectedOrder: "  全角，半角, 空格  ",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "  全角，半角, 空格  ", 0);
+    },
+    assert: async (state) => {
+      if (!state.serializedText.startsWith("  全角")) {
+        throw new Error(`Leading spaces were not retained: ${JSON.stringify(state.serializedText)}`);
+      }
+      if (!state.serializedText.endsWith("  ")) {
+        throw new Error(`Trailing spaces were not retained: ${JSON.stringify(state.serializedText)}`);
+      }
+      assertIncludes(state.serializedText, "全角，半角,", "Full-width/half-width punctuation was not retained");
+    },
+  },
+  {
     id: "middle_caret_insert_order",
     type: "caret-middle",
     caretCase: "middle-insert",
@@ -1404,6 +1543,56 @@ const scenarios = [
       if (state.html.includes("<script") || state.html.includes("<b>") || state.html.includes("<span")) {
         throw new Error(`Rich HTML markup leaked into editor: ${state.html}`);
       }
+    },
+  },
+  {
+    id: "cut_then_immediate_type",
+    type: "clipboard-edit",
+    caretCase: "cut-then-immediate-type",
+    expectedOrder: "首换尾",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "首中间尾", 0);
+      await selectTextRange(componentFrame, 1, 3);
+      await componentFrame.page().keyboard.press("Control+X");
+      await componentFrame.page().keyboard.type("换", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "首换尾", "Immediate typing after cut did not keep caret position");
+      if (state.serializedText.includes("中间")) {
+        throw new Error(`Cut content reappeared after immediate typing: ${state.serializedText}`);
+      }
+    },
+  },
+  {
+    id: "drop_plain_text_sanitized",
+    type: "drop-text",
+    caretCase: "drop-plain-text",
+    expectedOrder: "拖拽文本",
+    run: async (_page, componentFrame) => {
+      await dropPlainText(componentFrame, "拖拽文本");
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "拖拽文本", "Dropped plain text was not retained");
+      if (state.html.includes("<script") || state.html.includes("<img")) {
+        throw new Error(`Unsafe dropped markup leaked into editor: ${state.html}`);
+      }
+    },
+  },
+  {
+    id: "large_paste_middle_edit",
+    type: "paste-large-edit",
+    caretCase: "large-paste-middle-edit",
+    expectedOrder: "长文本前缀中插标记",
+    run: async (_page, componentFrame) => {
+      const longText = `长文本前缀${"稳定输入".repeat(80)}长文本后缀`;
+      await pastePlainText(componentFrame, longText);
+      await setCaretByTextOffset(componentFrame, 5);
+      await componentFrame.page().keyboard.type("中插标记", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "长文本前缀", "Large pasted text prefix was lost");
+      assertIncludes(state.serializedText, "中插标记", "Middle edit after large paste was not retained");
+      assertIncludes(state.serializedText, "长文本后缀", "Large pasted text suffix was lost");
     },
   },
   {
@@ -1484,6 +1673,77 @@ const scenarios = [
       assertIncludes(state.serializedText, "前", "Text before toolbar formula was lost");
       assertIncludes(state.serializedText, "后", "Text after toolbar formula was lost");
       assertLatexIncludes(state.latexValues, "\\sqrt", "Toolbar formula was not inserted into saved caret position");
+    },
+  },
+  {
+    id: "toolbar_symbol_without_active_formula",
+    type: "toolbar-symbol",
+    caretCase: "symbol-creates-formula",
+    expectedOrder: "$\\alpha$",
+    run: async (_page, componentFrame) => {
+      await openToolbarGroup(componentFrame, "符号");
+      await componentFrame.getByRole("button", { name: "α", exact: true }).click();
+    },
+    assert: async (state) => {
+      assertLatexIncludes(state.latexValues, "\\alpha", "Symbol toolbar did not create a formula when no formula was active");
+    },
+  },
+  {
+    id: "active_formula_symbol_insertion",
+    type: "formula-symbol",
+    caretCase: "symbol-into-active-formula",
+    expectedOrder: "$x\\beta$",
+    run: async (_page, componentFrame) => {
+      await insertFormula(componentFrame, "x", {
+        afterInsertWait: 120,
+        typeDelay: 0,
+        finalWait: 120,
+      });
+      await openToolbarGroup(componentFrame, "符号");
+      await componentFrame.getByRole("button", { name: "β", exact: true }).click();
+    },
+    assert: async (state) => {
+      const latex = state.latexValues.join(" ");
+      assertLatexIncludes(state.latexValues, "\\beta", "Symbol was not inserted into active formula");
+      if (state.latexValues.length !== 1 || !latex.includes("x")) {
+        throw new Error(`Symbol insertion unexpectedly created or lost formula content: ${JSON.stringify(state.latexValues)}`);
+      }
+    },
+  },
+  {
+    id: "formula_edit_then_text_tail",
+    type: "formula-edit",
+    caretCase: "edit-formula-then-text",
+    expectedOrder: "$x+1$尾部文字",
+    run: async (_page, componentFrame) => {
+      await insertFormula(componentFrame, "x", {
+        afterInsertWait: 120,
+        typeDelay: 0,
+        finalWait: 120,
+      });
+      await typeInActiveMathField(componentFrame, "+1", 0);
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("尾部文字", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertLatexIncludes(state.latexValues, "x+1", "Edited formula value was not retained");
+      assertIncludes(state.serializedText, "尾部文字", "Text after editing formula was not retained");
+    },
+  },
+  {
+    id: "matrix_insert_middle_preserves_text",
+    type: "matrix-caret",
+    caretCase: "matrix-middle-insert",
+    expectedOrder: "前$matrix$后",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "前后", 0);
+      await setCaretByTextOffset(componentFrame, 1);
+      await insertMatrix(componentFrame, 1, 1);
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "前", "Text before matrix was lost");
+      assertIncludes(state.serializedText, "后", "Text after matrix was lost");
+      assertLatexIncludes(state.latexValues, "\\begin{pmatrix}", "Matrix was not inserted at saved caret position");
     },
   },
   {
