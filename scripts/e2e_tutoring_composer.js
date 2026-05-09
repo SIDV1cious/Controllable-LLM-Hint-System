@@ -74,6 +74,16 @@ const INPUT_STRESS_SCENARIO_IDS = new Set([
   "latex_like_plain_paste_stays_text",
   "select_cut_then_type",
   "delete_and_backspace",
+  "whitespace_only_send_warning",
+  "nbsp_and_ideographic_spaces_retained",
+  "select_all_after_multiline_delete_retype",
+  "toolbar_insert_replaces_text_selection",
+  "paste_over_selected_formula",
+  "long_formula_value_retention",
+  "matrix_then_tail_text",
+  "cases_then_tail_text",
+  "space_around_formula_retention",
+  "rapid_formula_text_alternation",
   "toolbar_insert_preserves_middle_caret",
   "toolbar_symbol_without_active_formula",
   "active_formula_symbol_insertion",
@@ -90,6 +100,21 @@ const INPUT_STRESS_SCENARIO_IDS = new Set([
   "ctrl_a_delete_mixed_content",
   "refocus_retention",
   "switch_question_retention",
+  "paste_crlf_tabs_retention",
+  "multiple_empty_lines_then_tail",
+  "delete_linebreak_then_type",
+  "backspace_linebreak_then_type",
+  "emoji_backspace_surrogate_pair",
+  "combining_mark_retention",
+  "plain_html_like_text_paste",
+  "word_table_html_paste_sanitized",
+  "drop_rich_html_sanitized",
+  "formula_internal_ctrl_a_replace",
+  "formula_click_outside_then_text_end",
+  "repeated_formula_insert_stability",
+  "rapid_toolbar_group_switch_preserves_text",
+  "matrix_size_change_without_insert_preserves_text",
+  "mixed_multiline_formula_ctrl_a_rewrite",
 ]);
 
 function scenarioMatchesFilter(scenario) {
@@ -784,6 +809,23 @@ async function pastePlainText(componentFrame, text) {
   await componentFrame.page().waitForTimeout(450);
 }
 
+async function pastePlainTextAtCurrentSelection(componentFrame, text) {
+  const editor = await getEditor(componentFrame);
+  await editor.evaluate((element, value) => {
+    element.focus({ preventScroll: true });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData("text/plain", value);
+    element.dispatchEvent(
+      new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: dataTransfer,
+      })
+    );
+  }, text);
+  await componentFrame.page().waitForTimeout(450);
+}
+
 async function pasteRichHtml(componentFrame, html, plainText = "") {
   const editor = await getEditor(componentFrame);
   await editor.click();
@@ -824,6 +866,31 @@ async function dropPlainText(componentFrame, text) {
       })
     );
   }, text);
+  await componentFrame.page().waitForTimeout(450);
+}
+
+async function dropRichHtml(componentFrame, html, plainText = "") {
+  const editor = await getEditor(componentFrame);
+  await editor.click();
+  await editor.evaluate(
+    (element, payload) => {
+      element.focus({ preventScroll: true });
+      const box = element.getBoundingClientRect();
+      const dataTransfer = new DataTransfer();
+      if (payload.plainText) dataTransfer.setData("text/plain", payload.plainText);
+      dataTransfer.setData("text/html", payload.html);
+      element.dispatchEvent(
+        new DragEvent("drop", {
+          bubbles: true,
+          cancelable: true,
+          clientX: box.left + 24,
+          clientY: box.top + 24,
+          dataTransfer,
+        })
+      );
+    },
+    { html, plainText }
+  );
   await componentFrame.page().waitForTimeout(450);
 }
 
@@ -878,6 +945,47 @@ async function setCaretByTextOffset(componentFrame, offset) {
     selection?.removeAllRanges();
     selection?.addRange(range);
   }, offset);
+  await componentFrame.page().waitForTimeout(120);
+}
+
+async function setCaretAtTextNodeContaining(componentFrame, needle, offsetInText = 0) {
+  const editor = await getEditor(componentFrame);
+  await editor.evaluate(
+    (element, options) => {
+      let targetNode = null;
+      let targetNodeOffset = 0;
+
+      const visit = (node) => {
+        if (targetNode) return;
+        if (node instanceof HTMLElement && node.classList.contains("inline-formula-chip")) {
+          return;
+        }
+        if (node.nodeType === Node.TEXT_NODE) {
+          const index = (node.textContent || "").indexOf(options.needle);
+          if (index >= 0) {
+            targetNode = node;
+            targetNodeOffset = index + options.offsetInText;
+          }
+          return;
+        }
+        node.childNodes?.forEach?.(visit);
+      };
+
+      visit(element);
+      if (!targetNode) {
+        throw new Error(`Text node containing ${options.needle} was not found.`);
+      }
+
+      element.focus({ preventScroll: true });
+      const range = document.createRange();
+      range.setStart(targetNode, targetNodeOffset);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    },
+    { needle, offsetInText }
+  );
   await componentFrame.page().waitForTimeout(120);
 }
 
@@ -1038,6 +1146,7 @@ async function dispatchCompositionEnter(componentFrame) {
 async function typeInComposer(componentFrame, text, delay = 0) {
   const editor = await getEditor(componentFrame);
   await editor.click();
+  await focusComposerEnd(componentFrame);
   await componentFrame.page().keyboard.type(text, { delay });
 }
 
@@ -1052,8 +1161,12 @@ async function typeInActiveMathField(componentFrame, text, delay = 0) {
 
 async function focusComposerEnd(componentFrame) {
   const editor = await getEditor(componentFrame);
+  await componentFrame
+    .locator("math-field")
+    .evaluateAll((fields) => fields.forEach((field) => field.blur?.()))
+    .catch(() => undefined);
   await editor.evaluate((element) => {
-    element.focus();
+    element.focus({ preventScroll: true });
     const range = document.createRange();
     range.selectNodeContents(element);
     range.collapse(false);
@@ -1061,6 +1174,7 @@ async function focusComposerEnd(componentFrame) {
     selection?.removeAllRanges();
     selection?.addRange(range);
   });
+  await componentFrame.page().waitForTimeout(180);
 }
 
 async function pressKeyRepeatedly(page, key, count, delay = 0) {
@@ -1307,6 +1421,24 @@ const scenarios = [
     },
   },
   {
+    id: "multiple_empty_lines_then_tail",
+    type: "caret-enter",
+    caretCase: "multiple-empty-lines",
+    expectedOrder: "第一行\n\n\n第四行",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "第一行", 0);
+      await pressKeyRepeatedly(componentFrame.page(), "Enter", 3, 0);
+      await componentFrame.page().keyboard.type("第四行", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "第一行", "First line was lost after multiple empty lines");
+      assertIncludes(state.serializedText, "第四行", "Tail line was lost after multiple empty lines");
+      if ((state.serializedText.match(/\n/g) || []).length < 3) {
+        throw new Error(`Multiple empty lines were not retained: ${JSON.stringify(state.serializedText)}`);
+      }
+    },
+  },
+  {
     id: "shift_enter_retention",
     type: "caret-enter",
     caretCase: "shift-enter",
@@ -1339,6 +1471,77 @@ const scenarios = [
       if (state.serializedText.includes("CDE")) {
         throw new Error(`Deleted content reappeared: ${state.serializedText}`);
       }
+    },
+  },
+  {
+    id: "delete_linebreak_then_type",
+    type: "caret-linebreak-delete",
+    caretCase: "delete-linebreak-then-type",
+    expectedOrder: "甲中乙",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "甲", 0);
+      await componentFrame.page().keyboard.press("Enter");
+      await componentFrame.page().keyboard.type("乙", { delay: 0 });
+      await setCaretByTextOffset(componentFrame, 1);
+      await componentFrame.page().keyboard.press("Delete");
+      await componentFrame.page().keyboard.type("中", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "甲中乙", "Delete at line break did not preserve caret order");
+      if (state.serializedText.includes("\n")) {
+        throw new Error(`Line break was not deleted before typing: ${JSON.stringify(state.serializedText)}`);
+      }
+    },
+  },
+  {
+    id: "backspace_linebreak_then_type",
+    type: "caret-linebreak-delete",
+    caretCase: "backspace-linebreak-then-type",
+    expectedOrder: "甲中乙",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "甲", 0);
+      await componentFrame.page().keyboard.press("Enter");
+      await componentFrame.page().keyboard.type("乙", { delay: 0 });
+      await setCaretAtTextNodeContaining(componentFrame, "乙", 0);
+      await componentFrame.page().keyboard.press("Backspace");
+      await componentFrame.page().keyboard.type("中", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "甲中乙", "Backspace at line start did not preserve caret order");
+      if (state.serializedText.includes("\n")) {
+        throw new Error(`Line break was not deleted by Backspace: ${JSON.stringify(state.serializedText)}`);
+      }
+    },
+  },
+  {
+    id: "emoji_backspace_surrogate_pair",
+    type: "caret-delete",
+    caretCase: "emoji-surrogate-backspace",
+    expectedOrder: "AC",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "A🙂B", 0);
+      await pressKeyRepeatedly(componentFrame.page(), "Backspace", 2, 0);
+      await componentFrame.page().keyboard.type("C", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "AC", "Emoji/backspace sequence did not keep expected order");
+      if (state.serializedText.includes("🙂") || state.serializedText.includes("\uFFFD")) {
+        throw new Error(`Emoji deletion left stale or broken surrogate text: ${JSON.stringify(state.serializedText)}`);
+      }
+    },
+  },
+  {
+    id: "combining_mark_retention",
+    type: "unicode-combining",
+    caretCase: "combining-mark-retention",
+    expectedOrder: "á + é + 中文",
+    run: async (_page, componentFrame) => {
+      await pastePlainText(componentFrame, "a\u0301 + e\u0301 + 中文");
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "a\u0301", "Combining acute accent on a was not retained");
+      assertIncludes(state.serializedText, "e\u0301", "Combining acute accent on e was not retained");
+      assertIncludes(state.serializedText, "中文", "Chinese text after combining marks was not retained");
     },
   },
   {
@@ -1546,6 +1749,72 @@ const scenarios = [
     },
   },
   {
+    id: "paste_crlf_tabs_retention",
+    type: "paste-line-ending",
+    caretCase: "paste-crlf-tabs",
+    expectedOrder: "第一列\t第二列\n下一行",
+    run: async (_page, componentFrame) => {
+      await pastePlainText(componentFrame, "第一列\t第二列\r\n下一行");
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "第一列", "CRLF paste prefix was not retained");
+      assertIncludes(state.serializedText, "第二列", "Tab-separated text was not retained");
+      assertIncludes(state.serializedText, "下一行", "CRLF paste next line was not retained");
+      if (!state.serializedText.includes("\t") || !state.serializedText.includes("\n")) {
+        throw new Error(`CRLF/tab paste was normalized incorrectly: ${JSON.stringify(state.serializedText)}`);
+      }
+    },
+  },
+  {
+    id: "plain_html_like_text_paste",
+    type: "paste-plain-html-like",
+    caretCase: "plain-html-like-text",
+    expectedOrder: "<script>alert(1)</script><b>x</b>",
+    run: async (_page, componentFrame) => {
+      await pastePlainText(componentFrame, "<script>alert(1)</script><b>x</b>");
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "<script>alert(1)</script><b>x</b>", "HTML-like plain text was not retained literally");
+      if (state.html.includes("<script") || state.html.includes("<b>x</b>")) {
+        throw new Error(`HTML-like plain text was interpreted as markup: ${state.html}`);
+      }
+    },
+  },
+  {
+    id: "word_table_html_paste_sanitized",
+    type: "paste-word-table-html",
+    caretCase: "word-table-html",
+    expectedOrder: "单元格A单元格B",
+    run: async (_page, componentFrame) => {
+      await pasteRichHtml(
+        componentFrame,
+        '<table><tr><td>单元格A</td><td>单元格B</td></tr></table><style>.bad{}</style><script>window.bad=1</script>'
+      );
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "单元格A", "Word/table HTML first cell was not converted to text");
+      assertIncludes(state.serializedText, "单元格B", "Word/table HTML second cell was not converted to text");
+      if (state.html.includes("<table") || state.html.includes("<script") || state.html.includes("<style")) {
+        throw new Error(`Word/table HTML markup leaked into editor: ${state.html}`);
+      }
+    },
+  },
+  {
+    id: "drop_rich_html_sanitized",
+    type: "drop-rich-html",
+    caretCase: "drop-rich-html",
+    expectedOrder: "拖拽富文本",
+    run: async (_page, componentFrame) => {
+      await dropRichHtml(componentFrame, '<b>拖拽富文本</b><img src=x onerror="alert(1)"><script>bad()</script>');
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "拖拽富文本", "Dropped rich HTML was not converted to plain text");
+      if (state.html.includes("<img") || state.html.includes("<script") || state.html.includes("<b>")) {
+        throw new Error(`Dropped rich HTML markup leaked into editor: ${state.html}`);
+      }
+    },
+  },
+  {
     id: "cut_then_immediate_type",
     type: "clipboard-edit",
     caretCase: "cut-then-immediate-type",
@@ -1642,6 +1911,207 @@ const scenarios = [
     },
   },
   {
+    id: "whitespace_only_send_warning",
+    type: "empty-send",
+    caretCase: "whitespace-only-send",
+    expectedOrder: "whitespace should not submit",
+    run: async (page, componentFrame) => {
+      await typeInComposer(componentFrame, "   \t \n  ", 0);
+      const clicked = await clickVisibleButtonContaining(page, "发送");
+      if (!clicked) throw new Error("Send button was not found for whitespace-only input.");
+      await waitUntil(page, (text) => text.includes("请输入辅导问题后再发送"), 15000);
+    },
+    assert: async (_state, page) => {
+      assertIncludes(await bodyText(page), "请输入辅导问题后再发送", "Whitespace-only warning did not appear");
+    },
+  },
+  {
+    id: "nbsp_and_ideographic_spaces_retained",
+    type: "unicode-space",
+    caretCase: "nbsp-ideographic-space",
+    expectedOrder: "\\u00a0\\u3000space boundary\\u3000\\u00a0",
+    run: async (_page, componentFrame) => {
+      await pastePlainText(componentFrame, "\u00a0\u3000space boundary\u3000\u00a0");
+    },
+    assert: async (state) => {
+      if (!state.serializedText.startsWith("\u00a0\u3000")) {
+        throw new Error(`Leading unicode spaces were lost: ${JSON.stringify(state.serializedText)}`);
+      }
+      if (!state.serializedText.endsWith("\u3000\u00a0")) {
+        throw new Error(`Trailing unicode spaces were lost: ${JSON.stringify(state.serializedText)}`);
+      }
+      assertIncludes(state.serializedText, "space boundary", "Unicode-space text body was not retained");
+    },
+  },
+  {
+    id: "select_all_after_multiline_delete_retype",
+    type: "multiline-selection",
+    caretCase: "ctrl-a-delete-after-multiline",
+    expectedOrder: "rewrite-after-multiline-clear",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "line-one", 0);
+      await componentFrame.page().keyboard.press("Enter");
+      await componentFrame.page().keyboard.type("line-two", { delay: 0 });
+      await componentFrame.page().keyboard.press("Enter");
+      await componentFrame.page().keyboard.type("line-three", { delay: 0 });
+      await componentFrame.page().keyboard.press("Control+A");
+      await componentFrame.page().keyboard.press("Backspace");
+      await componentFrame.page().keyboard.type("rewrite-after-multiline-clear", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "rewrite-after-multiline-clear", "Retyped content was not retained");
+      for (const oldText of ["line-one", "line-two", "line-three"]) {
+        if (state.serializedText.includes(oldText)) {
+          throw new Error(`Old multiline content reappeared after Ctrl+A delete: ${state.serializedText}`);
+        }
+      }
+    },
+  },
+  {
+    id: "toolbar_insert_replaces_text_selection",
+    type: "toolbar-selection",
+    caretCase: "toolbar-replace-selection",
+    expectedOrder: "prefix$formula$suffix",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "prefix-REPLACE-suffix", 0);
+      await selectTextRange(componentFrame, 7, 14);
+      await openToolbarGroup(componentFrame, "根式");
+      await componentFrame.getByRole("button", { name: "平方根", exact: true }).click();
+      await componentFrame.page().waitForTimeout(450);
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "prefix-", "Text before toolbar replacement was lost");
+      assertIncludes(state.serializedText, "-suffix", "Text after toolbar replacement was lost");
+      if (state.serializedText.includes("REPLACE")) {
+        throw new Error(`Selected text was not replaced by toolbar formula: ${state.serializedText}`);
+      }
+      assertLatexIncludes(state.latexValues, "\\sqrt", "Toolbar formula did not replace selected text");
+    },
+  },
+  {
+    id: "paste_over_selected_formula",
+    type: "mixed-selection-paste",
+    caretCase: "paste-over-selected-formula",
+    expectedOrder: "prefix-PASTED-suffix",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "prefix-", 0);
+      await insertFormula(componentFrame, "x+1", {
+        afterInsertWait: 120,
+        typeDelay: 0,
+        finalWait: 120,
+      });
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("-suffix", { delay: 0 });
+      await selectFromTextOffsetToAfterFormula(componentFrame, 7, 0);
+      await pastePlainTextAtCurrentSelection(componentFrame, "PASTED");
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "prefix-PASTED-suffix", "Paste-over-formula order was not stable");
+      if (state.latexValues.length !== 0) {
+        throw new Error(`Selected formula survived paste replacement: ${JSON.stringify(state.latexValues)}`);
+      }
+    },
+  },
+  {
+    id: "long_formula_value_retention",
+    type: "formula-long",
+    caretCase: "long-latex-retention",
+    expectedOrder: "$long-formula$",
+    run: async (_page, componentFrame) => {
+      await insertFormula(
+        componentFrame,
+        "\\sum_{n=1}^{100}\\frac{1}{n^2}+\\int_0^1x^2dx+\\lim_{x\\to0}\\frac{\\sin x}{x}",
+        {
+          afterInsertWait: 120,
+          typeDelay: 0,
+          finalWait: 220,
+        }
+      );
+    },
+    assert: async (state) => {
+      assertLatexIncludes(state.latexValues, "\\sum", "Long formula lost summation");
+      assertLatexIncludes(state.latexValues, "\\int", "Long formula lost integral");
+      assertLatexIncludes(state.latexValues, "\\lim", "Long formula lost limit");
+    },
+  },
+  {
+    id: "matrix_then_tail_text",
+    type: "matrix-tail",
+    caretCase: "matrix-then-text-tail",
+    expectedOrder: "$matrix$tail-after-matrix",
+    run: async (_page, componentFrame) => {
+      await insertMatrix(componentFrame, 3, 3);
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("tail-after-matrix", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "tail-after-matrix", "Tail text after matrix was lost");
+      assertLatexIncludes(state.latexValues, "matrix", "Matrix latex was not retained before tail text");
+    },
+  },
+  {
+    id: "cases_then_tail_text",
+    type: "cases-tail",
+    caretCase: "cases-then-text-tail",
+    expectedOrder: "$cases$tail-after-cases",
+    run: async (_page, componentFrame) => {
+      await insertCasesFunction(componentFrame, 4);
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("tail-after-cases", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "tail-after-cases", "Tail text after cases function was lost");
+      assertLatexIncludes(state.latexValues, "cases", "Cases latex was not retained before tail text");
+    },
+  },
+  {
+    id: "space_around_formula_retention",
+    type: "formula-space",
+    caretCase: "spaces-around-formula",
+    expectedOrder: "pre  $x$  post",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "pre  ", 0);
+      await insertFormula(componentFrame, "x", {
+        afterInsertWait: 120,
+        typeDelay: 0,
+        finalWait: 120,
+      });
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("  post", { delay: 0 });
+    },
+    assert: async (state) => {
+      if (!/pre\s+\$x\$\s+post/.test(state.serializedText)) {
+        throw new Error(`Spaces around formula were not retained: ${JSON.stringify(state.serializedText)}`);
+      }
+    },
+  },
+  {
+    id: "rapid_formula_text_alternation",
+    type: "formula-stress",
+    caretCase: "rapid-formula-text-alternation",
+    expectedOrder: "T0$formula0$...T7$formula7$",
+    run: async (_page, componentFrame) => {
+      for (let index = 0; index < 8; index += 1) {
+        await focusComposerEnd(componentFrame);
+        await componentFrame.page().keyboard.type(`T${index}`, { delay: 0 });
+        await insertFormula(componentFrame, `a_${index}`, {
+          afterInsertWait: 70,
+          typeDelay: 0,
+          finalWait: 80,
+        });
+      }
+    },
+    assert: async (state) => {
+      if (state.latexValues.length < 8) {
+        throw new Error(`Rapid formula alternation lost formula chips: ${JSON.stringify(state.latexValues)}`);
+      }
+      assertIncludes(state.serializedText, "T0", "First text marker was lost during formula alternation");
+      assertIncludes(state.serializedText, "T7", "Last text marker was lost during formula alternation");
+      assertLatexIncludes(state.latexValues, "a_0", "First rapid formula was lost");
+      assertLatexIncludes(state.latexValues, "a_7", "Last rapid formula was lost");
+    },
+  },
+  {
     id: "text_formula_text_mix",
     type: "formula-mix",
     run: async (_page, componentFrame) => {
@@ -1731,6 +2201,49 @@ const scenarios = [
     },
   },
   {
+    id: "formula_internal_ctrl_a_replace",
+    type: "formula-edit",
+    caretCase: "formula-internal-ctrl-a-replace",
+    expectedOrder: "$y^2$",
+    run: async (_page, componentFrame) => {
+      await insertFormula(componentFrame, "x+1", {
+        afterInsertWait: 120,
+        typeDelay: 0,
+        finalWait: 120,
+      });
+      const mathField = componentFrame.locator("math-field").last();
+      await mathField.click();
+      await componentFrame.page().keyboard.press("Control+A");
+      await componentFrame.page().keyboard.type("y^2", { delay: 0 });
+      await componentFrame.page().waitForTimeout(260);
+    },
+    assert: async (state) => {
+      assertLatexIncludes(state.latexValues, "y^2", "Formula internal Ctrl+A replacement was not retained");
+      if (state.latexValues.join(" ").includes("x+1")) {
+        throw new Error(`Old formula content remained after Ctrl+A replacement: ${JSON.stringify(state.latexValues)}`);
+      }
+    },
+  },
+  {
+    id: "formula_click_outside_then_text_end",
+    type: "formula-focus",
+    caretCase: "formula-click-outside-text-end",
+    expectedOrder: "$x$公式后文字",
+    run: async (_page, componentFrame) => {
+      await insertFormula(componentFrame, "x", {
+        afterInsertWait: 120,
+        typeDelay: 0,
+        finalWait: 120,
+      });
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("公式后文字", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertLatexIncludes(state.latexValues, "x", "Formula was lost after focusing back to composer");
+      assertIncludes(state.serializedText, "公式后文字", "Text after formula focus-out was not retained");
+    },
+  },
+  {
     id: "matrix_insert_middle_preserves_text",
     type: "matrix-caret",
     caretCase: "matrix-middle-insert",
@@ -1759,6 +2272,30 @@ const scenarios = [
     assert: async (state) => {
       assertLatexIncludes(state.latexValues, "x^2", "First formula was not retained");
       assertLatexIncludes(state.latexValues, "\\sqrt{x}", "Second formula was not retained");
+    },
+  },
+  {
+    id: "repeated_formula_insert_stability",
+    type: "multiple-formulas",
+    caretCase: "repeated-formula-insert",
+    expectedOrder: "$x_0$...$x_5$",
+    run: async (_page, componentFrame) => {
+      for (let index = 0; index < 6; index += 1) {
+        await focusComposerEnd(componentFrame);
+        await componentFrame.page().keyboard.type(`项${index}`, { delay: 0 });
+        await insertFormula(componentFrame, `x_${index}`, {
+          afterInsertWait: 90,
+          typeDelay: 0,
+          finalWait: 90,
+        });
+      }
+    },
+    assert: async (state) => {
+      if (state.latexValues.length < 6) {
+        throw new Error(`Repeated formulas were truncated: ${JSON.stringify(state.latexValues)}`);
+      }
+      assertLatexIncludes(state.latexValues, "x_0", "First repeated formula was not retained");
+      assertLatexIncludes(state.latexValues, "x_5", "Last repeated formula was not retained");
     },
   },
   {
@@ -1816,6 +2353,45 @@ const scenarios = [
       const matrixLatex = state.latexValues.find((value) => String(value).includes("\\begin{pmatrix}")) || "";
       if ((matrixLatex.match(/\\\\/g) || []).length < 8) {
         throw new Error(`10x10 matrix appears truncated: ${matrixLatex}`);
+      }
+    },
+  },
+  {
+    id: "matrix_size_change_without_insert_preserves_text",
+    type: "matrix-size-only",
+    caretCase: "matrix-size-change-no-insert",
+    expectedOrder: "矩阵尺寸切换保留继续",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "矩阵尺寸切换保留", 0);
+      await setMatrixSize(componentFrame, 10, 10);
+      await setMatrixSize(componentFrame, 1, 1);
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("继续", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "矩阵尺寸切换保留继续", "Changing matrix size without insert disturbed text");
+      if (state.latexValues.length !== 0) {
+        throw new Error(`Changing matrix size unexpectedly inserted formula: ${JSON.stringify(state.latexValues)}`);
+      }
+    },
+  },
+  {
+    id: "rapid_toolbar_group_switch_preserves_text",
+    type: "toolbar-navigation",
+    caretCase: "rapid-toolbar-group-switch",
+    expectedOrder: "工具栏切换前切换后",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "工具栏切换前", 0);
+      for (const group of ["根式", "积分", "运算", "符号", "标注", "函数", "导数"]) {
+        await openToolbarGroup(componentFrame, group);
+      }
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("切换后", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "工具栏切换前切换后", "Rapid toolbar switching disturbed composer text");
+      if (state.latexValues.length !== 0) {
+        throw new Error(`Toolbar group switching unexpectedly inserted formula: ${JSON.stringify(state.latexValues)}`);
       }
     },
   },
@@ -1939,6 +2515,27 @@ const scenarios = [
       assertIncludes(state.serializedText, "清空后重输", "Mixed content was not rewritten after Ctrl+A deletion");
       if (state.serializedText.includes("旧") || state.latexValues.length > 0) {
         throw new Error(`Old mixed content remained after Ctrl+A deletion: ${state.serializedText}`);
+      }
+    },
+  },
+  {
+    id: "mixed_multiline_formula_ctrl_a_rewrite",
+    type: "mixed-rewrite",
+    caretCase: "multiline-formula-ctrl-a-rewrite",
+    expectedOrder: "完全重写",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "第一行", 0);
+      await componentFrame.page().keyboard.press("Enter");
+      await insertFormula(componentFrame, "x^2");
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("尾部", { delay: 0 });
+      await componentFrame.page().keyboard.press("Control+A");
+      await componentFrame.page().keyboard.type("完全重写", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "完全重写", "Mixed multiline formula content was not rewritten");
+      if (state.serializedText.includes("第一行") || state.serializedText.includes("尾部") || state.latexValues.length > 0) {
+        throw new Error(`Old mixed multiline/formula content remained: ${state.serializedText}`);
       }
     },
   },

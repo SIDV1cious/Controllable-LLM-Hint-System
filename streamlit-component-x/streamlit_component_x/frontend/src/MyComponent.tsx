@@ -32,7 +32,7 @@ const EXPANDED_FRAME_HEIGHT = 520;
 const COMPACT_CONTAINER_HEIGHT = "385px";
 const EXPANDED_CONTAINER_HEIGHT = "485px";
 const MAX_MATRIX_SIZE = 10;
-const VALUE_SYNC_DEBOUNCE_MS = 80;
+const VALUE_SYNC_DEBOUNCE_MS = 180;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
@@ -492,6 +492,12 @@ const MyComponent = ({ args }: ComponentProps) => {
     syncValue(true);
   };
 
+  const handleContainerBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    window.setTimeout(flushCurrentComposerValue, 0);
+  };
+
   const removeFormula = (chip: HTMLElement) => {
     const editor = editorRef.current;
     const next = chip.nextSibling;
@@ -527,7 +533,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     selection?.removeAllRanges();
     selection?.addRange(range);
     savedRangeRef.current = range.cloneRange();
-    syncValue();
+    syncValue(true);
   };
 
   const createFormulaElement = (latex = "") => {
@@ -568,10 +574,26 @@ const MyComponent = ({ args }: ComponentProps) => {
       setActiveFormula(id);
     });
 
-    mathField.addEventListener("blur", () => {
+    mathField.addEventListener("blur", (event: FocusEvent) => {
       normalizeFilledPrompts(mathField);
       chip.dataset.latex = getMathFieldLatex(mathField, "latex");
-      syncValue(true);
+      const nextTarget = event.relatedTarget as Node | null;
+      const editor = editorRef.current;
+      const focusStaysInEditor = !!editor && !!nextTarget && editor.contains(nextTarget);
+
+      if (focusStaysInEditor) {
+        syncValue();
+        return;
+      }
+
+      window.setTimeout(() => {
+        const activeElement = document.activeElement;
+        const focusReturnedToEditor =
+          !!editorRef.current &&
+          !!activeElement &&
+          editorRef.current.contains(activeElement);
+        syncValue(!focusReturnedToEditor);
+      }, 60);
     });
 
     mathField.addEventListener("keydown", (event: KeyboardEvent) => {
@@ -601,7 +623,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     return { id, chip, mathField };
   };
 
-  const insertPlainText = (text: string) => {
+  const insertPlainText = (text: string, immediateSync = false) => {
     const range = getEditorRange();
     if (!range) return;
 
@@ -609,20 +631,23 @@ const MyComponent = ({ args }: ComponentProps) => {
     const textNode = document.createTextNode(text);
     range.insertNode(textNode);
     setCaretAfter(textNode);
-    syncValue();
+    syncValue(immediateSync);
   };
 
   const insertLineBreak = () => {
+    const editor = editorRef.current;
     const range = getEditorRange();
     if (!range) return;
 
+    editor?.focus({ preventScroll: true });
     range.deleteContents();
     const lineBreak = document.createElement("br");
     const spacer = document.createTextNode(ZERO_WIDTH_SPACE);
     range.insertNode(lineBreak);
     lineBreak.after(spacer);
     setCaretAfter(spacer);
-    syncValue();
+    editor?.focus({ preventScroll: true });
+    syncValue(true);
   };
 
   const insertFormulaBox = (initialLatex = "") => {
@@ -738,6 +763,39 @@ const MyComponent = ({ args }: ComponentProps) => {
     return true;
   };
 
+  const removeLineBreakBeforeCaret = () => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0) return false;
+
+    const range = selection.getRangeAt(0);
+    if (!range.collapsed || !isInsideEditor(range.commonAncestorContainer)) {
+      return false;
+    }
+    if (range.startContainer.nodeType !== Node.TEXT_NODE) return false;
+
+    const textNode = range.startContainer;
+    const text = textNode.textContent || "";
+    const beforeCaret = text.slice(0, range.startOffset);
+    if (beforeCaret.replaceAll(ZERO_WIDTH_SPACE, "") !== "") return false;
+
+    let previous = textNode.previousSibling;
+    if (isZeroWidthText(previous)) previous = previous.previousSibling;
+    if (!(previous instanceof HTMLBRElement)) return false;
+
+    previous.remove();
+    textNode.textContent = text.replaceAll(ZERO_WIDTH_SPACE, "");
+
+    const nextRange = document.createRange();
+    nextRange.setStart(textNode, 0);
+    nextRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(nextRange);
+    savedRangeRef.current = nextRange.cloneRange();
+    syncValue(true);
+    return true;
+  };
+
   const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (isComposingRef.current || event.nativeEvent.isComposing) {
       return;
@@ -746,6 +804,11 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (event.key === "Enter") {
       event.preventDefault();
       insertLineBreak();
+      return;
+    }
+
+    if (event.key === "Backspace" && removeLineBreakBeforeCaret()) {
+      event.preventDefault();
       return;
     }
 
@@ -766,7 +829,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (!text) return;
 
     event.preventDefault();
-    insertPlainText(text);
+    insertPlainText(text, true);
   };
 
   const syncAfterNativeEdit = () => {
@@ -784,8 +847,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     event.preventDefault();
     setCaretFromPoint(event.clientX, event.clientY);
-    insertPlainText(text);
-    syncValue(true);
+    insertPlainText(text, true);
   };
 
   const renderValue = (value: string, allowFormulaRendering = true) => {
@@ -1020,7 +1082,7 @@ const MyComponent = ({ args }: ComponentProps) => {
         ...containerStyle,
         height: openToolbarGroup ? EXPANDED_CONTAINER_HEIGHT : COMPACT_CONTAINER_HEIGHT,
       }}
-      onBlurCapture={() => window.setTimeout(flushCurrentComposerValue, 0)}
+      onBlurCapture={handleContainerBlur}
       onMouseLeave={flushCurrentComposerValue}
       onPointerLeave={flushCurrentComposerValue}
     >
