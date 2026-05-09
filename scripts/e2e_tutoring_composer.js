@@ -714,7 +714,9 @@ async function insertMatrix(componentFrame, rows, cols) {
 
 async function pastePlainText(componentFrame, text) {
   const editor = await getEditor(componentFrame);
+  await editor.click();
   await editor.evaluate((element, value) => {
+    element.focus({ preventScroll: true });
     const dataTransfer = new DataTransfer();
     dataTransfer.setData("text/plain", value);
     element.dispatchEvent(
@@ -725,6 +727,28 @@ async function pastePlainText(componentFrame, text) {
       })
     );
   }, text);
+  await componentFrame.page().waitForTimeout(450);
+}
+
+async function pasteRichHtml(componentFrame, html, plainText = "") {
+  const editor = await getEditor(componentFrame);
+  await editor.click();
+  await editor.evaluate(
+    (element, payload) => {
+      element.focus({ preventScroll: true });
+      const dataTransfer = new DataTransfer();
+      if (payload.plainText) dataTransfer.setData("text/plain", payload.plainText);
+      dataTransfer.setData("text/html", payload.html);
+      element.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: dataTransfer,
+        })
+      );
+    },
+    { html, plainText }
+  );
   await componentFrame.page().waitForTimeout(450);
 }
 
@@ -779,6 +803,58 @@ async function setCaretByTextOffset(componentFrame, offset) {
     selection?.removeAllRanges();
     selection?.addRange(range);
   }, offset);
+  await componentFrame.page().waitForTimeout(120);
+}
+
+async function selectFromTextOffsetToAfterFormula(componentFrame, startOffset, formulaIndex) {
+  const editor = await getEditor(componentFrame);
+  await editor.evaluate(
+    (element, options) => {
+      const zeroWidthSpace = "\u200B";
+      const chips = Array.from(element.querySelectorAll(".inline-formula-chip"));
+      const chip = chips[options.formulaIndex];
+      if (!chip) throw new Error(`Formula chip ${options.formulaIndex} was not found.`);
+
+      let remaining = options.startOffset;
+      let startNode = element;
+      let startNodeOffset = 0;
+
+      const visit = (node) => {
+        if (startNode !== element || startNodeOffset !== 0) return;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const rawText = node.textContent || "";
+          const normalizedText = rawText.replaceAll(zeroWidthSpace, "");
+          if (remaining <= normalizedText.length) {
+            let rawOffset = 0;
+            let normalizedOffset = 0;
+            while (rawOffset < rawText.length && normalizedOffset < remaining) {
+              if (rawText[rawOffset] !== zeroWidthSpace) normalizedOffset += 1;
+              rawOffset += 1;
+            }
+            startNode = node;
+            startNodeOffset = rawOffset;
+            return;
+          }
+          remaining -= normalizedText.length;
+          return;
+        }
+
+        if (!(node instanceof HTMLElement)) return;
+        if (node.classList.contains("inline-formula-chip")) return;
+        node.childNodes.forEach(visit);
+      };
+
+      element.childNodes.forEach(visit);
+      element.focus({ preventScroll: true });
+      const range = document.createRange();
+      range.setStart(startNode, startNodeOffset);
+      range.setEndAfter(chip);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    },
+    { startOffset, formulaIndex }
+  );
   await componentFrame.page().waitForTimeout(120);
 }
 
@@ -1138,6 +1214,24 @@ const scenarios = [
     },
   },
   {
+    id: "shift_enter_retention",
+    type: "caret-enter",
+    caretCase: "shift-enter",
+    expectedOrder: "上行\n下行",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "上行", 0);
+      await componentFrame.page().keyboard.press("Shift+Enter");
+      await componentFrame.page().keyboard.type("下行", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "上行", "Shift+Enter first line was lost");
+      assertIncludes(state.serializedText, "下行", "Shift+Enter second line was lost");
+      if (!state.serializedText.includes("\n")) {
+        throw new Error(`Shift+Enter did not preserve a line break: ${state.serializedText}`);
+      }
+    },
+  },
+  {
     id: "rapid_backspace_delete_retype",
     type: "caret-delete",
     caretCase: "fast-backspace-delete",
@@ -1222,6 +1316,21 @@ const scenarios = [
     },
   },
   {
+    id: "arrow_left_middle_insert",
+    type: "caret-navigation",
+    caretCase: "arrow-left-middle-insert",
+    expectedOrder: "AB中CD",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "ABCD", 0);
+      await componentFrame.page().keyboard.press("ArrowLeft");
+      await componentFrame.page().keyboard.press("ArrowLeft");
+      await componentFrame.page().keyboard.type("中", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "AB中CD", "Arrow-left caret insertion order was not stable");
+    },
+  },
+  {
     id: "composition_enter_does_not_insert_linebreak",
     type: "ime-composition",
     caretCase: "composition-enter",
@@ -1262,6 +1371,39 @@ const scenarios = [
       assertIncludes(state.text, "第一行：请提示下一步", "Pasted first line was not retained");
       assertIncludes(state.text, "第二行：保留换行与空格", "Pasted second line was not retained");
       assertIncludes(state.text, "第三行：x -> 0", "Pasted third line was not retained");
+    },
+  },
+  {
+    id: "rich_html_paste_sanitized",
+    type: "paste-rich-html",
+    caretCase: "rich-html-no-plain-text",
+    expectedOrder: "富文本粘贴",
+    run: async (_page, componentFrame) => {
+      await pasteRichHtml(
+        componentFrame,
+        "<div><b>富文本</b><span>&nbsp;粘贴</span><script>window.__badPaste = true</script></div>"
+      );
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "富文本 粘贴", "Rich HTML paste was not converted to plain text");
+      if (state.html.includes("<script") || state.html.includes("<b>") || state.html.includes("<span")) {
+        throw new Error(`Rich HTML markup leaked into editor: ${state.html}`);
+      }
+    },
+  },
+  {
+    id: "latex_like_plain_paste_stays_text",
+    type: "paste-latex-like-text",
+    caretCase: "latex-like-plain-paste",
+    expectedOrder: "请看 $x^2+1$ 不要丢",
+    run: async (_page, componentFrame) => {
+      await pastePlainText(componentFrame, "请看 $x^2+1$ 不要丢");
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "请看 $x^2+1$ 不要丢", "LaTeX-like pasted text was not retained");
+      if (state.latexValues.length !== 0) {
+        throw new Error(`Plain pasted LaTeX unexpectedly became a formula chip: ${JSON.stringify(state.latexValues)}`);
+      }
     },
   },
   {
@@ -1442,6 +1584,27 @@ const scenarios = [
     },
   },
   {
+    id: "formula_remove_button_then_immediate_type",
+    type: "formula-delete",
+    caretCase: "remove-button-immediate-type",
+    expectedOrder: "前中后",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "前", 0);
+      await insertFormula(componentFrame, "x+2");
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("后", { delay: 0 });
+      const removeButton = componentFrame.locator(".inline-formula-remove").last();
+      await removeButton.click();
+      await componentFrame.page().keyboard.type("中", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "前中后", "Immediate typing after remove button did not keep caret position");
+      if (state.latexValues.length !== 0) {
+        throw new Error(`Formula remained after remove button: ${JSON.stringify(state.latexValues)}`);
+      }
+    },
+  },
+  {
     id: "backspace_after_formula_keeps_caret_position",
     type: "formula-boundary-delete",
     caretCase: "backspace-after-formula",
@@ -1501,6 +1664,26 @@ const scenarios = [
       assertIncludes(state.serializedText, "清空后重输", "Mixed content was not rewritten after Ctrl+A deletion");
       if (state.serializedText.includes("旧") || state.latexValues.length > 0) {
         throw new Error(`Old mixed content remained after Ctrl+A deletion: ${state.serializedText}`);
+      }
+    },
+  },
+  {
+    id: "select_across_formula_delete_then_type",
+    type: "mixed-selection-delete",
+    caretCase: "select-text-and-formula-delete",
+    expectedOrder: "新后",
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "前", 0);
+      await insertFormula(componentFrame, "x+1");
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("后", { delay: 0 });
+      await selectFromTextOffsetToAfterFormula(componentFrame, 0, 0);
+      await componentFrame.page().keyboard.type("新", { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "新后", "Selection spanning text and formula was not replaced correctly");
+      if (state.serializedText.includes("前") || state.latexValues.length > 0) {
+        throw new Error(`Old text/formula remained after cross-formula selection delete: ${state.serializedText}`);
       }
     },
   },

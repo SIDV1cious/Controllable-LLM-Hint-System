@@ -720,7 +720,9 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
-    const text = event.clipboardData.getData("text/plain");
+    const text =
+      event.clipboardData.getData("text/plain") ||
+      plainTextFromClipboardHtml(event.clipboardData.getData("text/html"));
     if (!text) return;
 
     event.preventDefault();
@@ -1166,6 +1168,15 @@ const MyComponent = ({ args }: ComponentProps) => {
       />
     </div>
   );
+};
+
+const plainTextFromClipboardHtml = (html: string) => {
+  if (!html) return "";
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  container.querySelectorAll("script, style").forEach((node) => node.remove());
+  return (container.textContent || "").replaceAll("\u00a0", " ").trim();
 };
 
 const serializeEditor = (root: HTMLElement) => {
