@@ -39,6 +39,10 @@ const REPORT_PATH =
   `${process.env.TEMP || "/tmp"}/tutoring_composer_e2e_report.json`;
 
 const SCREENSHOT_DIR = path.dirname(SCREENSHOT_PATH);
+const INPUT_FULL_FILTERS = new Set(["input_full", "full"]);
+const REAL_SEND_LOCAL_FILTERS = new Set(["real_send", "local_real_send"]);
+const REAL_SEND_ALL_FILTERS = new Set(["real_send_all", "send_all"]);
+const ONLINE_SMOKE_FILTERS = new Set(["online_smoke", "real_send_online_smoke"]);
 const INPUT_SMOKE_SCENARIO_IDS = new Set([
   "empty_send_warning",
   "plain_chinese_english_emoji",
@@ -119,14 +123,32 @@ const INPUT_STRESS_SCENARIO_IDS = new Set([
 
 function scenarioMatchesFilter(scenario) {
   if (SCENARIO_FILTER.length === 0) return true;
+  const isRealSend = scenario.realSend || scenario.type === "send";
+  const runLevels = scenario.runLevels || [scenario.runLevel].filter(Boolean);
+  const tags = scenario.tags || [];
+
   return SCENARIO_FILTER.some(
     (token) =>
       token === "*" ||
       token === "all" ||
       (token === "input_smoke" && INPUT_SMOKE_SCENARIO_IDS.has(scenario.id)) ||
       (token === "input_stress" && INPUT_STRESS_SCENARIO_IDS.has(scenario.id)) ||
+      (INPUT_FULL_FILTERS.has(token) && !isRealSend) ||
+      (REAL_SEND_LOCAL_FILTERS.has(token) &&
+        isRealSend &&
+        scenario.realSendScope !== "online_smoke") ||
+      (REAL_SEND_ALL_FILTERS.has(token) && isRealSend) ||
+      (ONLINE_SMOKE_FILTERS.has(token) &&
+        isRealSend &&
+        scenario.realSendScope === "online_smoke") ||
       token === scenario.id ||
       token === scenario.type ||
+      token === scenario.category ||
+      token === scenario.priority ||
+      runLevels.includes(token) ||
+      tags.includes(token) ||
+      token === `category:${scenario.category}` ||
+      token === `priority:${scenario.priority}` ||
       (token === "real_send_smoke" && scenario.id === "real_send_plain_immediate")
   );
 }
@@ -615,8 +637,27 @@ async function getEditor(componentFrame) {
   return editor;
 }
 
+async function dismissMathLivePopover(componentFrame) {
+  const page = componentFrame.page();
+  await page.keyboard.press("Escape").catch(() => undefined);
+
+  const hidePopover = () => {
+    document.querySelectorAll("#mathlive-suggestion-popover").forEach((popover) => {
+      popover.setAttribute("aria-hidden", "true");
+      popover.classList.remove("is-visible");
+      popover.style.setProperty("pointer-events", "none", "important");
+      popover.style.setProperty("visibility", "hidden", "important");
+    });
+  };
+
+  await componentFrame.evaluate(hidePopover).catch(() => undefined);
+  await page.evaluate(hidePopover).catch(() => undefined);
+  await page.waitForTimeout(60);
+}
+
 async function clearComposer(componentFrame) {
   const editor = await getEditor(componentFrame);
+  await dismissMathLivePopover(componentFrame);
   await editor.click();
   await componentFrame.page().keyboard.press("Control+A");
   await componentFrame.page().keyboard.press("Backspace");
@@ -632,6 +673,7 @@ async function clearComposer(componentFrame) {
     }
     element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" }));
   });
+  await dismissMathLivePopover(componentFrame);
   await editor.click();
   // Clearing a large MathLive payload can trigger a Streamlit component remount.
   // Give that empty-state sync one short beat before the next scenario writes.
@@ -738,6 +780,29 @@ async function readComposerState(componentFrame) {
   return { text, visibleText, serializedText, html, caretInfo, latexValues };
 }
 
+async function ensureEditorSelectionFocused(componentFrame) {
+  const editor = await getEditor(componentFrame);
+  const focused = await editor.evaluate((element) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+    const range = selection.getRangeAt(0).cloneRange();
+    if (!element.contains(range.commonAncestorContainer)) return false;
+    element.focus({ preventScroll: true });
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const activeElement = document.activeElement;
+    return activeElement === element || element.contains(activeElement);
+  });
+  if (!focused) {
+    throw new Error("Editor selection was not focused before keyboard action.");
+  }
+}
+
+function countOccurrences(haystack, needle) {
+  if (!needle) return 0;
+  return String(haystack || "").split(needle).length - 1;
+}
+
 async function forceComposerFlush(page, componentFrame) {
   await componentFrame.locator("body").evaluate((body) => {
     body.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
@@ -748,6 +813,7 @@ async function forceComposerFlush(page, componentFrame) {
 }
 
 async function openToolbarGroup(componentFrame, name) {
+  await dismissMathLivePopover(componentFrame);
   const group = componentFrame.getByRole("button", { name, exact: true });
   const isActive = await group
     .evaluate((button) => button.classList.contains("is-active"))
@@ -763,6 +829,7 @@ async function insertCasesFunction(componentFrame, segmentCount) {
   const casesSelect = componentFrame.locator('select[aria-label="插入分段函数"]');
   if ((await casesSelect.count()) === 0) throw new Error("Cases selector was not found.");
 
+  await dismissMathLivePopover(componentFrame);
   await casesSelect.selectOption(String(segmentCount));
   await componentFrame.page().waitForTimeout(700);
 
@@ -777,6 +844,7 @@ async function insertCasesFunction(componentFrame, segmentCount) {
 }
 
 async function setMatrixSize(componentFrame, rows, cols) {
+  await dismissMathLivePopover(componentFrame);
   const selects = componentFrame.locator("select");
   if ((await selects.count()) < 2) {
     throw new Error("Matrix row/column selectors were not found.");
@@ -787,12 +855,14 @@ async function setMatrixSize(componentFrame, rows, cols) {
 
 async function insertMatrix(componentFrame, rows, cols) {
   await setMatrixSize(componentFrame, rows, cols);
+  await dismissMathLivePopover(componentFrame);
   await componentFrame.getByRole("button", { name: /插入矩阵/ }).click();
   await componentFrame.page().waitForTimeout(700);
 }
 
 async function pastePlainText(componentFrame, text) {
   const editor = await getEditor(componentFrame);
+  await dismissMathLivePopover(componentFrame);
   await editor.click();
   await editor.evaluate((element, value) => {
     element.focus({ preventScroll: true });
@@ -811,6 +881,7 @@ async function pastePlainText(componentFrame, text) {
 
 async function pastePlainTextAtCurrentSelection(componentFrame, text) {
   const editor = await getEditor(componentFrame);
+  await dismissMathLivePopover(componentFrame);
   await editor.evaluate((element, value) => {
     element.focus({ preventScroll: true });
     const dataTransfer = new DataTransfer();
@@ -828,6 +899,7 @@ async function pastePlainTextAtCurrentSelection(componentFrame, text) {
 
 async function pasteRichHtml(componentFrame, html, plainText = "") {
   const editor = await getEditor(componentFrame);
+  await dismissMathLivePopover(componentFrame);
   await editor.click();
   await editor.evaluate(
     (element, payload) => {
@@ -850,6 +922,7 @@ async function pasteRichHtml(componentFrame, html, plainText = "") {
 
 async function dropPlainText(componentFrame, text) {
   const editor = await getEditor(componentFrame);
+  await dismissMathLivePopover(componentFrame);
   await editor.click();
   await editor.evaluate((element, value) => {
     element.focus({ preventScroll: true });
@@ -871,6 +944,7 @@ async function dropPlainText(componentFrame, text) {
 
 async function dropRichHtml(componentFrame, html, plainText = "") {
   const editor = await getEditor(componentFrame);
+  await dismissMathLivePopover(componentFrame);
   await editor.click();
   await editor.evaluate(
     (element, payload) => {
@@ -896,97 +970,156 @@ async function dropRichHtml(componentFrame, html, plainText = "") {
 
 async function setCaretByTextOffset(componentFrame, offset) {
   const editor = await getEditor(componentFrame);
-  await editor.evaluate((element, targetOffset) => {
-    const zeroWidthSpace = "\u200B";
-    const selection = window.getSelection();
-    const range = document.createRange();
-    let remaining = targetOffset;
-    let targetNode = null;
-    let targetNodeOffset = 0;
-
-    const visit = (node) => {
-      if (targetNode) return;
-
-      if (node.nodeType === Node.TEXT_NODE) {
-        const rawText = node.textContent || "";
-        const normalizedText = rawText.replaceAll(zeroWidthSpace, "");
-        if (remaining <= normalizedText.length) {
-          let rawOffset = 0;
-          let normalizedOffset = 0;
-          while (rawOffset < rawText.length && normalizedOffset < remaining) {
-            if (rawText[rawOffset] !== zeroWidthSpace) normalizedOffset += 1;
-            rawOffset += 1;
-          }
-          targetNode = node;
-          targetNodeOffset = rawOffset;
-          return;
-        }
-        remaining -= normalizedText.length;
-        return;
-      }
-
-      if (!(node instanceof HTMLElement)) return;
-      if (node.classList.contains("inline-formula-chip")) return;
-      node.childNodes.forEach(visit);
-    };
-
-    element.childNodes.forEach(visit);
-
-    element.focus({ preventScroll: true });
-
-    if (targetNode) {
-      range.setStart(targetNode, targetNodeOffset);
-    } else {
-      range.selectNodeContents(element);
-      range.collapse(false);
-    }
-
-    range.collapse(true);
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  }, offset);
-  await componentFrame.page().waitForTimeout(120);
-}
-
-async function setCaretAtTextNodeContaining(componentFrame, needle, offsetInText = 0) {
-  const editor = await getEditor(componentFrame);
-  await editor.evaluate(
-    (element, options) => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const selectionStable = await editor.evaluate((element, targetOffset) => {
+      const zeroWidthSpace = "\u200B";
+      const selection = window.getSelection();
+      const range = document.createRange();
+      let remaining = targetOffset;
       let targetNode = null;
       let targetNodeOffset = 0;
 
       const visit = (node) => {
         if (targetNode) return;
-        if (node instanceof HTMLElement && node.classList.contains("inline-formula-chip")) {
-          return;
-        }
+
         if (node.nodeType === Node.TEXT_NODE) {
-          const index = (node.textContent || "").indexOf(options.needle);
-          if (index >= 0) {
+          const rawText = node.textContent || "";
+          const normalizedText = rawText.replaceAll(zeroWidthSpace, "");
+          if (remaining <= normalizedText.length) {
+            let rawOffset = 0;
+            let normalizedOffset = 0;
+            while (rawOffset < rawText.length && normalizedOffset < remaining) {
+              if (rawText[rawOffset] !== zeroWidthSpace) normalizedOffset += 1;
+              rawOffset += 1;
+            }
             targetNode = node;
-            targetNodeOffset = index + options.offsetInText;
+            targetNodeOffset = rawOffset;
+            return;
           }
+          remaining -= normalizedText.length;
           return;
         }
-        node.childNodes?.forEach?.(visit);
+
+        if (!(node instanceof HTMLElement)) return;
+        if (node.tagName === "BR") {
+          if (remaining <= 1) {
+            const parent = node.parentNode || element;
+            targetNode = parent;
+            targetNodeOffset = Array.prototype.indexOf.call(parent.childNodes, node) + 1;
+            return;
+          }
+          remaining -= 1;
+          return;
+        }
+        if (node.classList.contains("inline-formula-chip")) return;
+        node.childNodes.forEach(visit);
       };
 
-      visit(element);
-      if (!targetNode) {
-        throw new Error(`Text node containing ${options.needle} was not found.`);
-      }
+      element.childNodes.forEach(visit);
 
       element.focus({ preventScroll: true });
-      const range = document.createRange();
-      range.setStart(targetNode, targetNodeOffset);
+
+      if (targetNode) {
+        range.setStart(targetNode, targetNodeOffset);
+      } else {
+        range.selectNodeContents(element);
+        range.collapse(false);
+      }
+
       range.collapse(true);
-      const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-    },
-    { needle, offsetInText }
-  );
-  await componentFrame.page().waitForTimeout(120);
+      const activeElement = document.activeElement;
+      return Boolean(
+        selection &&
+          selection.rangeCount > 0 &&
+          selection.getRangeAt(0).collapsed &&
+          element.contains(selection.getRangeAt(0).commonAncestorContainer) &&
+          (activeElement === element || element.contains(activeElement))
+      );
+    }, offset);
+    await componentFrame.page().waitForTimeout(140);
+    const stillStable = await editor.evaluate((element) => {
+      const selection = window.getSelection();
+      const activeElement = document.activeElement;
+      if (!selection || selection.rangeCount === 0) return false;
+      const range = selection.getRangeAt(0);
+      return Boolean(
+        range.collapsed &&
+          element.contains(range.commonAncestorContainer) &&
+          (activeElement === element || element.contains(activeElement))
+      );
+    });
+    if (selectionStable && stillStable) {
+      await ensureEditorSelectionFocused(componentFrame);
+      return;
+    }
+  }
+  throw new Error(`Caret did not stay inside editor at text offset ${offset}.`);
+}
+
+async function setCaretAtTextNodeContaining(componentFrame, needle, offsetInText = 0) {
+  const editor = await getEditor(componentFrame);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const selectionStable = await editor.evaluate(
+      (element, options) => {
+        let targetNode = null;
+        let targetNodeOffset = 0;
+
+        const visit = (node) => {
+          if (targetNode) return;
+          if (node instanceof HTMLElement && node.classList.contains("inline-formula-chip")) {
+            return;
+          }
+          if (node.nodeType === Node.TEXT_NODE) {
+            const index = (node.textContent || "").indexOf(options.needle);
+            if (index >= 0) {
+              targetNode = node;
+              targetNodeOffset = index + options.offsetInText;
+            }
+            return;
+          }
+          node.childNodes?.forEach?.(visit);
+        };
+
+        visit(element);
+        if (!targetNode) {
+          throw new Error(`Text node containing ${options.needle} was not found.`);
+        }
+
+        element.focus({ preventScroll: true });
+        const range = document.createRange();
+        range.setStart(targetNode, targetNodeOffset);
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return Boolean(
+          selection &&
+            selection.rangeCount > 0 &&
+            element.contains(selection.getRangeAt(0).commonAncestorContainer)
+        );
+      },
+      { needle, offsetInText }
+    );
+    await componentFrame.page().waitForTimeout(120);
+    const selectionStillStable = await editor.evaluate((element) => {
+      const selection = window.getSelection();
+      const activeElement = document.activeElement;
+      if (!selection || selection.rangeCount === 0) return false;
+      const range = selection.getRangeAt(0);
+      return Boolean(
+        range.collapsed &&
+          element.contains(range.commonAncestorContainer) &&
+          (activeElement === element || element.contains(activeElement))
+      );
+    });
+    if (selectionStable && selectionStillStable) {
+      await ensureEditorSelectionFocused(componentFrame);
+      return;
+    }
+  }
+  throw new Error(`Caret did not stay inside editor for text node containing ${needle}.`);
 }
 
 async function selectFromTextOffsetToAfterFormula(componentFrame, startOffset, formulaIndex) {
@@ -1043,11 +1176,12 @@ async function selectFromTextOffsetToAfterFormula(componentFrame, startOffset, f
 
 async function selectTextRange(componentFrame, startOffset, endOffset) {
   const editor = await getEditor(componentFrame);
-  await editor.evaluate(
-    (element, offsets) => {
-      const zeroWidthSpace = "\u200B";
-      const selection = window.getSelection();
-      const range = document.createRange();
+  const establishSelection = async () =>
+    editor.evaluate(
+      (element, offsets) => {
+        const zeroWidthSpace = "\u200B";
+        const selection = window.getSelection();
+        const range = document.createRange();
 
       const resolveOffset = (targetOffset) => {
         let remaining = targetOffset;
@@ -1076,6 +1210,17 @@ async function selectTextRange(componentFrame, startOffset, endOffset) {
           }
 
           if (!(node instanceof HTMLElement)) return;
+          if (node.tagName === "BR") {
+            const parent = node.parentNode || element;
+            const brOffset = Array.prototype.indexOf.call(parent.childNodes, node);
+            if (remaining <= 1) {
+              resolvedNode = parent;
+              resolvedOffset = brOffset + 1;
+              return;
+            }
+            remaining -= 1;
+            return;
+          }
           if (node.classList.contains("inline-formula-chip")) return;
           node.childNodes.forEach(visit);
         };
@@ -1085,17 +1230,97 @@ async function selectTextRange(componentFrame, startOffset, endOffset) {
         return { node: element, offset: element.childNodes.length };
       };
 
-      const start = resolveOffset(offsets.start);
-      const end = resolveOffset(offsets.end);
-      element.focus({ preventScroll: true });
-      range.setStart(start.node, start.offset);
-      range.setEnd(end.node, end.offset);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    },
-    { start: startOffset, end: endOffset }
+        const start = resolveOffset(offsets.start);
+        const end = resolveOffset(offsets.end);
+        element.focus({ preventScroll: true });
+        range.setStart(start.node, start.offset);
+        range.setEnd(end.node, end.offset);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return selection?.toString() || "";
+      },
+      { start: startOffset, end: endOffset }
+    );
+
+  const verifySelection = async () =>
+    editor.evaluate((element) => {
+      const selection = window.getSelection();
+      const activeElement = document.activeElement;
+      if (!selection || selection.rangeCount === 0) {
+        return { selectedText: "", insideEditor: false, focused: false };
+      }
+
+      const range = selection.getRangeAt(0);
+      return {
+        selectedText: selection.toString() || "",
+        insideEditor: element.contains(range.commonAncestorContainer),
+        focused: activeElement === element || element.contains(activeElement),
+      };
+    });
+
+  let selectedText = "";
+  let stableSelection = false;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    selectedText = await establishSelection();
+    await componentFrame.page().waitForTimeout(220);
+    const snapshot = await verifySelection();
+    stableSelection =
+      Boolean(snapshot.selectedText) &&
+      snapshot.insideEditor &&
+      snapshot.focused;
+    if (endOffset <= startOffset || stableSelection) {
+      await ensureEditorSelectionFocused(componentFrame);
+      break;
+    }
+  }
+
+  if (endOffset > startOffset && !stableSelection) {
+    const snapshot = await verifySelection();
+    throw new Error(
+      `Unable to establish stable text selection from ${startOffset} to ${endOffset}. ` +
+        `selected=${JSON.stringify(snapshot.selectedText)}, focused=${snapshot.focused}`
+    );
+  }
+}
+
+async function replaceSelectedText(componentFrame, text) {
+  const beforeState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  const selectedText = await getEditor(componentFrame).then((editor) =>
+    editor.evaluate((element) => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return "";
+      const range = selection.getRangeAt(0);
+      if (!element.contains(range.commonAncestorContainer) || range.collapsed) return "";
+      return selection.toString() || "";
+    })
   );
-  await componentFrame.page().waitForTimeout(120);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await ensureEditorSelectionFocused(componentFrame);
+    if (selectedText) {
+      await componentFrame.page().keyboard.press("Backspace");
+      await componentFrame.page().waitForTimeout(80);
+      await ensureEditorSelectionFocused(componentFrame);
+    }
+    await componentFrame.page().keyboard.insertText(text);
+    await componentFrame.page().waitForTimeout(120);
+    const afterState = await readComposerState(componentFrame).catch(() => ({
+      serializedText: "",
+    }));
+    if (afterState.serializedText !== beforeState.serializedText) return;
+    await componentFrame.page().waitForTimeout(120);
+  }
+
+  const finalState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  throw new Error(
+    `Selected text replacement did not change composer value: ${JSON.stringify(
+      finalState.serializedText || ""
+    )}`
+  );
 }
 
 async function setCaretAroundFormula(componentFrame, index, position) {
@@ -1143,11 +1368,105 @@ async function dispatchCompositionEnter(componentFrame) {
   await componentFrame.page().waitForTimeout(120);
 }
 
+function countOccurrences(value, needle) {
+  if (!needle) return 0;
+  return String(value).split(needle).length - 1;
+}
+
+function isWhitespaceOnly(value) {
+  return String(value || "").trim() === "";
+}
+
 async function typeInComposer(componentFrame, text, delay = 0) {
+  if (!text) return;
   const editor = await getEditor(componentFrame);
-  await editor.click();
-  await focusComposerEnd(componentFrame);
-  await componentFrame.page().keyboard.type(text, { delay });
+  const beforeState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  const beforeCount = countOccurrences(beforeState.serializedText || "", text);
+  const beforeLength = (beforeState.serializedText || "").length;
+  const nonEmptySegments = text.split("\n").filter((segment) => segment.length > 0);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await dismissMathLivePopover(componentFrame);
+    await editor.click();
+    await focusComposerEnd(componentFrame);
+    if (text.includes("\n")) {
+      const segments = text.split("\n");
+      for (let index = 0; index < segments.length; index += 1) {
+        if (segments[index]) {
+          if (delay > 0) {
+            await componentFrame.page().keyboard.type(segments[index], { delay });
+          } else {
+            await componentFrame.page().keyboard.insertText(segments[index]);
+          }
+        }
+        if (index < segments.length - 1) {
+          await componentFrame.page().keyboard.press("Enter");
+        }
+      }
+    } else if (delay > 0) {
+      await componentFrame.page().keyboard.type(text, { delay });
+    } else {
+      await componentFrame.page().keyboard.insertText(text);
+    }
+    await componentFrame.page().waitForTimeout(90);
+
+    const afterState = await readComposerState(componentFrame).catch(() => ({
+      serializedText: "",
+    }));
+    const currentText = afterState.serializedText || "";
+    if (countOccurrences(currentText, text) > beforeCount) {
+      return;
+    }
+    if (
+      text.includes("\n") &&
+      currentText.length > beforeLength &&
+      nonEmptySegments.every((segment) => currentText.includes(segment))
+    ) {
+      return;
+    }
+    if (isWhitespaceOnly(text) && currentText.length > beforeLength) {
+      return;
+    }
+  }
+
+  const finalState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  throw new Error(
+    `Text was not inserted into composer after retries: ${JSON.stringify(text)}, current=${JSON.stringify(
+      finalState.serializedText || ""
+    )}`
+  );
+}
+
+async function insertTextAtCurrentSelection(componentFrame, text) {
+  const beforeState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  const beforeCount = countOccurrences(beforeState.serializedText || "", text);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await componentFrame.page().keyboard.insertText(text);
+    await componentFrame.page().waitForTimeout(120);
+    const afterState = await readComposerState(componentFrame).catch(() => ({
+      serializedText: "",
+    }));
+    if (countOccurrences(afterState.serializedText || "", text) > beforeCount) {
+      return;
+    }
+    await componentFrame.page().waitForTimeout(120);
+  }
+
+  const finalState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  throw new Error(
+    `Text was not inserted at current selection: ${JSON.stringify(text)}, current=${JSON.stringify(
+      finalState.serializedText || ""
+    )}`
+  );
 }
 
 async function typeInActiveMathField(componentFrame, text, delay = 0) {
@@ -1157,24 +1476,50 @@ async function typeInActiveMathField(componentFrame, text, delay = 0) {
   await componentFrame.page().keyboard.press("End");
   await componentFrame.page().keyboard.type(text, { delay });
   await componentFrame.page().waitForTimeout(160);
+  await dismissMathLivePopover(componentFrame);
 }
 
 async function focusComposerEnd(componentFrame) {
   const editor = await getEditor(componentFrame);
+  await dismissMathLivePopover(componentFrame);
   await componentFrame
     .locator("math-field")
     .evaluateAll((fields) => fields.forEach((field) => field.blur?.()))
     .catch(() => undefined);
-  await editor.evaluate((element) => {
-    element.focus({ preventScroll: true });
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    range.collapse(false);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  });
-  await componentFrame.page().waitForTimeout(180);
+  await componentFrame.page().waitForTimeout(120);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const stable = await editor.evaluate((element) => {
+      element.focus({ preventScroll: true });
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      const activeElement = document.activeElement;
+      return Boolean(
+        selection &&
+          selection.rangeCount > 0 &&
+          selection.getRangeAt(0).collapsed &&
+          element.contains(selection.getRangeAt(0).commonAncestorContainer) &&
+          (activeElement === element || element.contains(activeElement))
+      );
+    });
+    await componentFrame.page().waitForTimeout(180);
+    const stillStable = await editor.evaluate((element) => {
+      const selection = window.getSelection();
+      const activeElement = document.activeElement;
+      if (!selection || selection.rangeCount === 0) return false;
+      const range = selection.getRangeAt(0);
+      return Boolean(
+        range.collapsed &&
+          element.contains(range.commonAncestorContainer) &&
+          (activeElement === element || element.contains(activeElement))
+      );
+    });
+    if (stable && stillStable) return;
+  }
+  throw new Error("Composer end caret did not stay focused inside the editor.");
 }
 
 async function pressKeyRepeatedly(page, key, count, delay = 0) {
@@ -1185,16 +1530,82 @@ async function pressKeyRepeatedly(page, key, count, delay = 0) {
 }
 
 async function insertFormula(componentFrame, latex, options = {}) {
-  await componentFrame.getByRole("button", { name: /插入公式框/ }).click();
-  await componentFrame.page().waitForTimeout(options.afterInsertWait ?? 500);
-  const mathField = componentFrame.locator("math-field").last();
-  await mathField.click();
-  if (latex) {
-    await componentFrame.page().keyboard.type(latex, {
-      delay: options.typeDelay ?? 12,
-    });
+  const page = componentFrame.page();
+  try {
+    await dismissMathLivePopover(componentFrame);
+    const beforeCount = await componentFrame.locator("math-field").count();
+    await componentFrame.locator("button").first().click();
+    await page.waitForTimeout(options.afterInsertWait ?? 500);
+    let afterCount = await componentFrame.locator("math-field").count();
+    for (let attempt = 0; attempt < 2 && afterCount <= beforeCount; attempt += 1) {
+      await dismissMathLivePopover(componentFrame);
+      await page.waitForTimeout(120);
+      await componentFrame.locator("button").first().click();
+      await page.waitForTimeout(options.afterInsertWait ?? 500);
+      afterCount = await componentFrame.locator("math-field").count();
+    }
+    if (afterCount <= beforeCount) {
+      throw new Error("Formula insert button did not create a new math-field.");
+    }
+
+    const mathField = componentFrame.locator("math-field").nth(beforeCount);
+    await mathField.click();
+    if (latex) {
+      let latexInserted = false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt > 0) {
+          await mathField.click();
+          await page.keyboard.press("Control+A");
+          await page.keyboard.press("Backspace");
+        }
+        await mathField.evaluate((element, value) => {
+          element.focus?.();
+          if (typeof element.setValue === "function") {
+            element.setValue("");
+          } else {
+            element.value = "";
+          }
+          if (typeof element.insert === "function") {
+            element.insert(value, {
+              mode: "math",
+              format: "latex",
+              selectionMode: "placeholder",
+              focus: true,
+            });
+          } else if (typeof element.setValue === "function") {
+            element.setValue(value);
+          } else {
+            element.value = value;
+          }
+          element.dispatchEvent(new Event("input", { bubbles: true }));
+        }, latex);
+        await page.waitForTimeout(options.typeDelay ? Math.max(options.typeDelay * latex.length, 160) : 160);
+        const fieldValue = await mathField.evaluate((element) => {
+          if (typeof element.getValue === "function") return element.getValue("latex") || "";
+          return element.value || element.textContent || "";
+        });
+        if (String(fieldValue).trim()) {
+          latexInserted = true;
+          break;
+        }
+      }
+      if (!latexInserted) {
+        throw new Error(`Formula latex was not inserted into the new math-field: ${latex}`);
+      }
+    }
+    await page.waitForTimeout(options.finalWait ?? 550);
+    await dismissMathLivePopover(componentFrame);
+  } catch (error) {
+    if (isTransientFrameError(error) && !options.__transientRetry) {
+      await page.waitForTimeout(650);
+      const freshFrame = await getComponentFrame(page);
+      return insertFormula(freshFrame, latex, {
+        ...options,
+        __transientRetry: true,
+      });
+    }
+    throw error;
   }
-  await componentFrame.page().waitForTimeout(options.finalWait ?? 550);
 }
 
 async function sendPromptAndWait(page, options = {}) {
@@ -1279,6 +1690,16 @@ function assertCaretOffset(state, expectedOffset, message) {
   }
 }
 
+function isTransientFrameError(error) {
+  const message = String(error?.message || "");
+  return (
+    message.includes("Frame was detached") ||
+    message.includes("Cannot find context with specified id") ||
+    message.includes("Execution context was destroyed") ||
+    message.includes("Target page, context or browser has been closed")
+  );
+}
+
 async function runScenario(page, scenario, results) {
   const screenshot = scenarioScreenshotPath(scenario.id);
   const startedAt = Date.now();
@@ -1303,6 +1724,12 @@ async function runScenario(page, scenario, results) {
     results.push({
       scenario_id: scenario.id,
       input_type: scenario.type,
+      category: scenario.category || null,
+      priority: scenario.priority || null,
+      run_level: scenario.runLevel || null,
+      run_levels: scenario.runLevels || [],
+      real_send: Boolean(scenario.realSend || scenario.type === "send"),
+      risk: scenario.risk || null,
       caret_case: scenario.caretCase || meta.caret_case || null,
       expected_order: scenario.expectedOrder || meta.expected_order || null,
       passed: true,
@@ -1318,10 +1745,7 @@ async function runScenario(page, scenario, results) {
       screenshot,
     });
   } catch (error) {
-    if (
-      String(error.message || "").includes("Frame was detached") &&
-      !scenario.__frame_retry
-    ) {
+    if (isTransientFrameError(error) && !scenario.__frame_retry) {
       await page.waitForTimeout(1000);
       return await runScenario(page, { ...scenario, __frame_retry: true }, results);
     }
@@ -1336,6 +1760,12 @@ async function runScenario(page, scenario, results) {
     results.push({
       scenario_id: scenario.id,
       input_type: scenario.type,
+      category: scenario.category || null,
+      priority: scenario.priority || null,
+      run_level: scenario.runLevel || null,
+      run_levels: scenario.runLevels || [],
+      real_send: Boolean(scenario.realSend || scenario.type === "send"),
+      risk: scenario.risk || null,
       caret_case: scenario.caretCase || null,
       expected_order: scenario.expectedOrder || null,
       passed: false,
@@ -1551,6 +1981,7 @@ const scenarios = [
     expectedOrder: "替换后的新内容",
     run: async (_page, componentFrame) => {
       await typeInComposer(componentFrame, "旧内容不应该保留", 0);
+      await ensureEditorSelectionFocused(componentFrame);
       await componentFrame.page().keyboard.press("Control+A");
       await componentFrame.page().keyboard.type("替换后的新内容", { delay: 0 });
     },
@@ -1569,7 +2000,7 @@ const scenarios = [
     run: async (_page, componentFrame) => {
       await typeInComposer(componentFrame, "ABCDE", 0);
       await selectTextRange(componentFrame, 1, 4);
-      await componentFrame.page().keyboard.type("中", { delay: 0 });
+      await replaceSelectedText(componentFrame, "中");
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "A中E", "Partial range replacement was not stable");
@@ -1901,6 +2332,7 @@ const scenarios = [
     type: "editing",
     run: async (_page, componentFrame) => {
       const editor = await getEditor(componentFrame);
+      await dismissMathLivePopover(componentFrame);
       await editor.click();
       await componentFrame.page().keyboard.type("需要删除X", { delay: 15 });
       await componentFrame.page().keyboard.press("Backspace");
@@ -2001,7 +2433,7 @@ const scenarios = [
         finalWait: 120,
       });
       await focusComposerEnd(componentFrame);
-      await componentFrame.page().keyboard.type("-suffix", { delay: 0 });
+      await insertTextAtCurrentSelection(componentFrame, "-suffix");
       await selectFromTextOffsetToAfterFormula(componentFrame, 7, 0);
       await pastePlainTextAtCurrentSelection(componentFrame, "PASTED");
     },
@@ -2090,14 +2522,14 @@ const scenarios = [
     type: "formula-stress",
     caretCase: "rapid-formula-text-alternation",
     expectedOrder: "T0$formula0$...T7$formula7$",
-    run: async (_page, componentFrame) => {
+    run: async (page, componentFrame) => {
       for (let index = 0; index < 8; index += 1) {
-        await focusComposerEnd(componentFrame);
-        await componentFrame.page().keyboard.type(`T${index}`, { delay: 0 });
+        componentFrame = await getComponentFrame(page);
+        await typeInComposer(componentFrame, `T${index}`, 0);
         await insertFormula(componentFrame, `a_${index}`, {
-          afterInsertWait: 70,
+          afterInsertWait: 160,
           typeDelay: 0,
-          finalWait: 80,
+          finalWait: 180,
         });
       }
     },
@@ -2105,10 +2537,18 @@ const scenarios = [
       if (state.latexValues.length < 8) {
         throw new Error(`Rapid formula alternation lost formula chips: ${JSON.stringify(state.latexValues)}`);
       }
-      assertIncludes(state.serializedText, "T0", "First text marker was lost during formula alternation");
-      assertIncludes(state.serializedText, "T7", "Last text marker was lost during formula alternation");
-      assertLatexIncludes(state.latexValues, "a_0", "First rapid formula was lost");
-      assertLatexIncludes(state.latexValues, "a_7", "Last rapid formula was lost");
+      for (let index = 0; index < 8; index += 1) {
+        assertIncludes(
+          state.serializedText,
+          `T${index}`,
+          `Text marker T${index} was lost during formula alternation`
+        );
+        assertLatexIncludes(
+          state.latexValues,
+          `a_${index}`,
+          `Rapid formula a_${index} was lost`
+        );
+      }
     },
   },
   {
@@ -2119,6 +2559,7 @@ const scenarios = [
       await editor.click();
       await componentFrame.page().keyboard.type("先看这个公式：", { delay: 15 });
       await insertFormula(componentFrame, "x+1");
+      await dismissMathLivePopover(componentFrame);
       await editor.click();
       await componentFrame.page().keyboard.type("，再判断下一步。", { delay: 15 });
     },
@@ -2279,14 +2720,14 @@ const scenarios = [
     type: "multiple-formulas",
     caretCase: "repeated-formula-insert",
     expectedOrder: "$x_0$...$x_5$",
-    run: async (_page, componentFrame) => {
+    run: async (page, componentFrame) => {
       for (let index = 0; index < 6; index += 1) {
-        await focusComposerEnd(componentFrame);
-        await componentFrame.page().keyboard.type(`项${index}`, { delay: 0 });
+        componentFrame = await getComponentFrame(page);
+        await typeInComposer(componentFrame, `项${index}`, 0);
         await insertFormula(componentFrame, `x_${index}`, {
-          afterInsertWait: 90,
+          afterInsertWait: 160,
           typeDelay: 0,
-          finalWait: 90,
+          finalWait: 180,
         });
       }
     },
@@ -2294,8 +2735,18 @@ const scenarios = [
       if (state.latexValues.length < 6) {
         throw new Error(`Repeated formulas were truncated: ${JSON.stringify(state.latexValues)}`);
       }
-      assertLatexIncludes(state.latexValues, "x_0", "First repeated formula was not retained");
-      assertLatexIncludes(state.latexValues, "x_5", "Last repeated formula was not retained");
+      for (let index = 0; index < 6; index += 1) {
+        assertIncludes(
+          state.serializedText,
+          `项${index}`,
+          `Text marker 项${index} was lost during repeated formula insertion`
+        );
+        assertLatexIncludes(
+          state.latexValues,
+          `x_${index}`,
+          `Repeated formula x_${index} was not retained`
+        );
+      }
     },
   },
   {
@@ -2424,8 +2875,9 @@ const scenarios = [
     type: "formula-delete",
     run: async (_page, componentFrame) => {
       await insertFormula(componentFrame, "x+2");
+      await dismissMathLivePopover(componentFrame);
       const removeButton = componentFrame.locator(".inline-formula-remove").last();
-      await removeButton.click();
+      await removeButton.click({ force: true });
       await componentFrame.page().waitForTimeout(500);
     },
     assert: async (state) => {
@@ -2507,6 +2959,7 @@ const scenarios = [
       await insertFormula(componentFrame, "x^2");
       await focusComposerEnd(componentFrame);
       await componentFrame.page().keyboard.type("旧尾巴", { delay: 0 });
+      await ensureEditorSelectionFocused(componentFrame);
       await componentFrame.page().keyboard.press("Control+A");
       await componentFrame.page().keyboard.press("Backspace");
       await componentFrame.page().keyboard.type("清空后重输", { delay: 0 });
@@ -2564,6 +3017,7 @@ const scenarios = [
     type: "focus",
     run: async (page, componentFrame) => {
       const editor = await getEditor(componentFrame);
+      await dismissMathLivePopover(componentFrame);
       await editor.click();
       await componentFrame.page().keyboard.type("点击外部后仍应保留", { delay: 15 });
       await forceComposerFlush(page, componentFrame);
@@ -2599,6 +3053,352 @@ const scenarios = [
     },
   },
 ];
+
+function makeGeneratedScenario(base) {
+  return {
+    category: "input-generated",
+    priority: "p1",
+    runLevel: "input_full",
+    realSend: false,
+    ...base,
+  };
+}
+
+function makePlainTextScenario({ id, category, text, expected = text, mode = "type", delay = 0, risk }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-text",
+    category,
+    risk: risk || "text-retention",
+    expectedOrder: expected,
+    run: async (_page, componentFrame) => {
+      if (mode === "paste") {
+        await pastePlainText(componentFrame, text);
+      } else {
+        await typeInComposer(componentFrame, text, delay);
+      }
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, expected, `${id} text was not retained`);
+    },
+  });
+}
+
+function makeCaretInsertScenario({ id, base, offset, insert, expected, risk, needle, needleOffset = 0 }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-caret",
+    category: "text-caret",
+    risk: risk || "caret-jump",
+    caretCase: id,
+    expectedOrder: expected,
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, base, 0);
+      if (needle) {
+        await setCaretAtTextNodeContaining(componentFrame, needle, needleOffset);
+      } else {
+        await setCaretByTextOffset(componentFrame, offset);
+      }
+      await insertTextAtCurrentSelection(componentFrame, insert);
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, expected, `${id} insertion order was not stable`);
+    },
+  });
+}
+
+function makeSelectionReplaceScenario({ id, base, start, end, replacement, expected, risk }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-selection",
+    category: "delete-selection",
+    risk: risk || "selection-replace",
+    caretCase: id,
+    expectedOrder: expected,
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, base, 0);
+      await selectTextRange(componentFrame, start, end);
+      if (replacement === "") {
+        await ensureEditorSelectionFocused(componentFrame);
+        await componentFrame.page().keyboard.press("Backspace");
+      } else {
+        await replaceSelectedText(componentFrame, replacement);
+      }
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, expected, `${id} selection replacement was not stable`);
+    },
+  });
+}
+
+function makeBackspaceRetypeScenario({ id, base, count, tail, expected, risk }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-delete",
+    category: "delete-selection",
+    risk: risk || "deleted-content-revival",
+    caretCase: id,
+    expectedOrder: expected,
+    run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, base, 0);
+      await pressKeyRepeatedly(componentFrame.page(), "Backspace", count, 0);
+      await componentFrame.page().keyboard.type(tail, { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, expected, `${id} backspace/retype order was not stable`);
+    },
+  });
+}
+
+function makeCompositionScenario({ id, text, expected = text, enterCount = 1, risk }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-ime",
+    category: "ime-composition",
+    risk: risk || "ime-enter-caret",
+    caretCase: id,
+    expectedOrder: expected,
+    run: async (_page, componentFrame) => {
+      for (let index = 0; index < enterCount; index += 1) {
+        await dispatchCompositionEnter(componentFrame);
+      }
+      await componentFrame.page().keyboard.type(text, { delay: 0 });
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, expected, `${id} IME-like text was not retained`);
+      if (state.serializedText.startsWith("\n\n")) {
+        throw new Error(`${id} inserted unexpected leading line breaks: ${JSON.stringify(state.serializedText)}`);
+      }
+    },
+  });
+}
+
+function makePasteDropScenario({ id, category = "paste-drop", action, expected, risk }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-paste-drop",
+    category,
+    risk: risk || "paste-sanitization",
+    expectedOrder: expected,
+    run: async (_page, componentFrame) => {
+      await action(componentFrame);
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, expected, `${id} paste/drop content was not retained`);
+    },
+  });
+}
+
+function makeFormulaScenario({ id, latex, latexNeedle = latex, prefix = "", tail = "", category = "formula", risk }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-formula",
+    category,
+    risk: risk || "formula-sync",
+    expectedOrder: `${prefix}${tail}`,
+    run: async (_page, componentFrame) => {
+      if (prefix) await typeInComposer(componentFrame, prefix, 0);
+      await insertFormula(componentFrame, latex, {
+        afterInsertWait: 60,
+        typeDelay: 0,
+        finalWait: 40,
+      });
+      if (tail) {
+        await focusComposerEnd(componentFrame);
+        await componentFrame.page().keyboard.type(tail, { delay: 0 });
+      }
+    },
+    assert: async (state) => {
+      if (prefix) assertIncludes(state.serializedText, prefix, `${id} prefix was not retained`);
+      if (tail) assertIncludes(state.serializedText, tail, `${id} tail was not retained`);
+      assertLatexIncludes(state.latexValues, latexNeedle, `${id} formula latex was not retained`);
+    },
+  });
+}
+
+function makeMatrixScenario({ id, rows, cols, tail = "", risk }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-matrix",
+    category: "matrix-cases",
+    risk: risk || "matrix-sync",
+    expectedOrder: tail,
+    run: async (_page, componentFrame) => {
+      await insertMatrix(componentFrame, rows, cols);
+      if (tail) {
+        await focusComposerEnd(componentFrame);
+        await componentFrame.page().keyboard.type(tail, { delay: 0 });
+      }
+    },
+    assert: async (state) => {
+      assertLatexIncludes(state.latexValues, "\\begin{pmatrix}", `${id} matrix was not retained`);
+      if (tail) assertIncludes(state.serializedText, tail, `${id} tail after matrix was not retained`);
+    },
+  });
+}
+
+function makeCasesScenario({ id, segmentCount, tail = "", risk }) {
+  return makeGeneratedScenario({
+    id,
+    type: "generated-cases",
+    category: "matrix-cases",
+    risk: risk || "cases-sync",
+    expectedOrder: tail,
+    run: async (_page, componentFrame) => {
+      await insertCasesFunction(componentFrame, segmentCount);
+      if (tail) {
+        await focusComposerEnd(componentFrame);
+        await componentFrame.page().keyboard.type(tail, { delay: 0 });
+      }
+    },
+    assert: async (state) => {
+      assertLatexIncludes(state.latexValues, "\\begin{cases}", `${id} cases function was not retained`);
+      if (tail) assertIncludes(state.serializedText, tail, `${id} tail after cases was not retained`);
+    },
+  });
+}
+
+const generatedTextScenarios = [
+  makePlainTextScenario({ id: "text_dense_chinese_punctuation", category: "text-caret", text: "中文标点：，。！？；：“”‘’（）《》" }),
+  makePlainTextScenario({ id: "text_math_words_mixed", category: "text-caret", text: "先判断极限，再比较无穷小阶数，最后说明理由。" }),
+  makePlainTextScenario({ id: "text_ascii_symbols", category: "text-caret", text: "ASCII !@#$%^&*()_+-=[]{}|;:',.<>/?`~" }),
+  makePlainTextScenario({ id: "text_leading_trailing_spaces", category: "text-caret", text: "   前后都有空格   ", expected: "前后都有空格" }),
+  makePlainTextScenario({ id: "text_fullwidth_spaces", category: "text-caret", text: "行首　全角空格　行尾", expected: "全角空格" }),
+  makePlainTextScenario({ id: "text_numeric_dense", category: "text-caret", text: "0123456789 3.1415926 -0.001 1e-5" }),
+  makePlainTextScenario({ id: "text_emoji_sequence", category: "text-caret", text: "🙂🙃🧠📚✅❌ 输入后继续稳定" }),
+  makePlainTextScenario({ id: "text_long_chinese_400", category: "text-caret", text: `长文本稳定性：${"请只给提示不要泄露答案。".repeat(28)}`, expected: "请只给提示不要泄露答案。" }),
+  makePlainTextScenario({ id: "text_paste_multiline_poem", category: "text-caret", mode: "paste", text: "第一行\n第二行\n第三行\n第四行", expected: "第四行" }),
+  makePlainTextScenario({ id: "text_paste_latex_literal", category: "text-caret", mode: "paste", text: "请解释 \\lim_{x\\to0}\\frac{\\sin x}{x} 的思路", expected: "\\lim_{x\\to0}" }),
+  makePlainTextScenario({ id: "text_zero_width_joiner", category: "text-caret", mode: "paste", text: "A\u200dB\u200cC 零宽字符测试", expected: "零宽字符测试" }),
+  makePlainTextScenario({ id: "text_mixed_newline_spaces", category: "text-caret", text: "首行\n  缩进二行\n\n末行", expected: "末行" }),
+  makePlainTextScenario({ id: "text_chinese_parentheses_nested", category: "text-caret", text: "请提示（但不要说答案（包括选项字母））。" }),
+  makePlainTextScenario({ id: "text_url_like_content", category: "text-caret", text: "https://example.com?a=1&b=2 作为普通文本保留" }),
+  makePlainTextScenario({ id: "text_markdown_like_content", category: "text-caret", text: "**重点** `代码` # 标题 - 列表", expected: "`代码`" }),
+  makePlainTextScenario({ id: "text_quotes_and_backslashes", category: "text-caret", text: "\"双引号\" '单引号' \\\\ 反斜杠" }),
+  makePlainTextScenario({ id: "text_fast_typing_short_delay", category: "text-caret", text: "快速但带微小延迟输入不会跳光标", delay: 2 }),
+  makePlainTextScenario({ id: "text_symbols_operators_plain", category: "text-caret", text: "≤ ≥ ≠ ∞ α β θ π ∑ ∫ 作为纯文本保留" }),
+];
+
+const generatedCaretScenarios = [
+  makeCaretInsertScenario({ id: "caret_insert_start_chinese", base: "后半句", offset: 0, insert: "前半句", expected: "前半句后半句" }),
+  makeCaretInsertScenario({ id: "caret_insert_middle_chinese", base: "我需要提示", offset: 2, insert: "只", expected: "我需只要提示" }),
+  makeCaretInsertScenario({ id: "caret_insert_before_emoji", base: "A🙂B", offset: 1, insert: "中", expected: "A中🙂B" }),
+  makeCaretInsertScenario({ id: "caret_insert_after_emoji", base: "A🙂B", offset: 3, insert: "后", expected: "A🙂后B" }),
+  makeCaretInsertScenario({ id: "caret_insert_between_numbers", base: "123456", offset: 3, insert: "中", expected: "123中456" }),
+  makeCaretInsertScenario({ id: "caret_insert_after_newline_first", base: "甲\n乙", offset: 2, needle: "乙", insert: "中", expected: "甲\n中乙" }),
+  makeCaretInsertScenario({ id: "caret_insert_before_fullwidth_space", base: "甲　乙", offset: 1, insert: "中", expected: "甲中　乙" }),
+  makeCaretInsertScenario({ id: "caret_insert_markdown_middle", base: "前**后", offset: 1, insert: "中", expected: "前中**后" }),
+  makeCaretInsertScenario({ id: "caret_insert_latex_literal_middle", base: "\\frac{}{}后", offset: 6, insert: "中", expected: "\\frac{中}{}后" }),
+  makeCaretInsertScenario({ id: "caret_insert_at_end_after_refocus", base: "重新聚焦", offset: 4, insert: "成功", expected: "重新聚焦成功" }),
+  makeCaretInsertScenario({ id: "caret_insert_before_tab_text", base: "A\tB", offset: 1, insert: "中", expected: "A中\tB" }),
+  makeCaretInsertScenario({ id: "caret_insert_after_long_prefix", base: `${"前".repeat(40)}后`, offset: 40, insert: "中", expected: `${"前".repeat(40)}中后` }),
+];
+
+const generatedDeleteScenarios = [
+  makeBackspaceRetypeScenario({ id: "delete_tail_single_char_retype", base: "ABCDE", count: 1, tail: "Z", expected: "ABCDZ" }),
+  makeBackspaceRetypeScenario({ id: "delete_tail_chinese_retype", base: "甲乙丙丁", count: 2, tail: "中尾", expected: "甲乙中尾" }),
+  makeBackspaceRetypeScenario({ id: "delete_tail_after_emoji_retype", base: "A🙂B", count: 1, tail: "C", expected: "A🙂C" }),
+  makeBackspaceRetypeScenario({ id: "delete_tail_after_formula_literal", base: "\\sqrt{x}尾", count: 1, tail: "新尾", expected: "\\sqrt{x}新尾" }),
+  makeBackspaceRetypeScenario({ id: "delete_all_by_backspace_then_type", base: "全部删除", count: 4, tail: "重写", expected: "重写" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_chinese_middle", base: "甲乙丙丁", start: 1, end: 3, replacement: "中", expected: "甲中丁" }),
+  makeSelectionReplaceScenario({ id: "selection_delete_chinese_middle", base: "甲乙丙丁", start: 1, end: 3, replacement: "", expected: "甲丁" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_multiline_middle", base: "一\n二\n三", start: 2, end: 3, replacement: "中", expected: "一\n中\n三" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_from_start", base: "旧内容保留风险", start: 0, end: 2, replacement: "新", expected: "新容保留风险" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_to_end", base: "前半旧尾", start: 2, end: 4, replacement: "新尾", expected: "前半新尾" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_emoji_region", base: "A🙂B🙂C", start: 1, end: 4, replacement: "中", expected: "A中🙂C" }),
+  makeSelectionReplaceScenario({ id: "selection_delete_spaces", base: "甲   乙", start: 1, end: 4, replacement: "", expected: "甲乙" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_symbols", base: "a<=b>=c", start: 1, end: 5, replacement: "≠", expected: "a≠=c" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_long_text", base: `前${"旧".repeat(30)}后`, start: 1, end: 31, replacement: "新", expected: "前新后" }),
+  makeBackspaceRetypeScenario({ id: "delete_rapid_many_then_long_tail", base: "abcdefg", count: 5, tail: "XYZ", expected: "abXYZ" }),
+  makeBackspaceRetypeScenario({ id: "delete_after_newline_tail", base: "第一行\n尾巴", count: 2, tail: "新尾", expected: "第一行\n新尾" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_tab_region", base: "A\tB\tC", start: 1, end: 3, replacement: "中", expected: "A中\tC" }),
+  makeSelectionReplaceScenario({ id: "selection_replace_nbsp_region", base: "A\u00a0B\u00a0C", start: 1, end: 3, replacement: "中", expected: "A中\u00a0C" }),
+];
+
+const generatedImeScenarios = [
+  makeCompositionScenario({ id: "ime_enter_single_then_chinese", text: "拼音确认后输入稳定" }),
+  makeCompositionScenario({ id: "ime_enter_twice_then_chinese", text: "连续确认后输入稳定", enterCount: 2 }),
+  makeCompositionScenario({ id: "ime_enter_then_punctuation", text: "中文标点，。！？" }),
+  makeCompositionScenario({ id: "ime_enter_then_numbers", text: "候选词123混排" }),
+  makeCompositionScenario({ id: "ime_enter_then_emoji", text: "候选词🙂继续" }),
+  makeCompositionScenario({ id: "ime_enter_then_formula_literal", text: "输入法后粘贴\\alpha普通文本" }),
+  makeCompositionScenario({ id: "ime_enter_then_multiline", text: "输入法后\n换行继续", expected: "换行继续" }),
+  makeCompositionScenario({ id: "ime_enter_then_long_phrase", text: "这是一个很长的中文候选短语用来测试组合输入完成后的光标稳定性" }),
+  makeCompositionScenario({ id: "ime_enter_then_space_prefix", text: "  输入法后前置空格" }),
+  makeCompositionScenario({ id: "ime_enter_then_fullwidth", text: "ＡＢＣ１２３全角字符" }),
+  makeCompositionScenario({ id: "ime_enter_then_math_symbols", text: "αβθπ≤≥≠" }),
+  makeCompositionScenario({ id: "ime_enter_then_quotes", text: "“输入法引号”测试" }),
+  makeCompositionScenario({ id: "ime_enter_then_backslash", text: "反斜杠\\\\仍保留" }),
+  makeCompositionScenario({ id: "ime_enter_then_markdown", text: "**输入法后Markdown**" }),
+];
+
+const generatedPasteDropScenarios = [
+  makePasteDropScenario({ id: "paste_plain_over_empty", expected: "纯文本粘贴", action: async (frame) => pastePlainText(frame, "纯文本粘贴") }),
+  makePasteDropScenario({ id: "paste_plain_after_prefix", expected: "前缀粘贴尾", action: async (frame) => { await typeInComposer(frame, "前缀", 0); await pastePlainText(frame, "粘贴尾"); } }),
+  makePasteDropScenario({ id: "paste_plain_middle", expected: "甲中乙", action: async (frame) => { await typeInComposer(frame, "甲乙", 0); await setCaretByTextOffset(frame, 1); await pastePlainTextAtCurrentSelection(frame, "中"); } }),
+  makePasteDropScenario({ id: "paste_html_bold_plain", expected: "加粗文本", action: async (frame) => pasteRichHtml(frame, "<b>加粗文本</b>", "加粗文本") }),
+  makePasteDropScenario({ id: "paste_html_list_plain", expected: "列表项二", action: async (frame) => pasteRichHtml(frame, "<ul><li>列表项一</li><li>列表项二</li></ul>", "列表项一\n列表项二") }),
+  makePasteDropScenario({ id: "paste_word_paragraphs", expected: "Word段落二", action: async (frame) => pasteRichHtml(frame, "<p class=MsoNormal>Word段落一</p><p>Word段落二</p>", "Word段落一\nWord段落二") }),
+  makePasteDropScenario({ id: "paste_table_plain", expected: "单元格22", action: async (frame) => pasteRichHtml(frame, "<table><tr><td>单元格11</td><td>单元格12</td></tr><tr><td>单元格21</td><td>单元格22</td></tr></table>", "单元格11\t单元格12\n单元格21\t单元格22") }),
+  makePasteDropScenario({ id: "paste_crlf_large", expected: "第三行", action: async (frame) => pastePlainText(frame, "第一行\r\n第二行\r\n第三行") }),
+  makePasteDropScenario({ id: "paste_tabs_dense", expected: "A\tB\tC", action: async (frame) => pastePlainText(frame, "A\tB\tC") }),
+  makePasteDropScenario({ id: "paste_over_selection", expected: "甲粘贴丁", action: async (frame) => { await typeInComposer(frame, "甲乙丙丁", 0); await selectTextRange(frame, 1, 3); await pastePlainTextAtCurrentSelection(frame, "粘贴"); } }),
+  makePasteDropScenario({ id: "drop_plain_over_empty", expected: "拖放文本", action: async (frame) => dropPlainText(frame, "拖放文本") }),
+  makePasteDropScenario({ id: "drop_rich_html_plain", expected: "拖放HTML", action: async (frame) => dropRichHtml(frame, "<strong>拖放HTML</strong>", "拖放HTML") }),
+  makePasteDropScenario({ id: "paste_script_like_text_sanitized", expected: "脚本普通文本", action: async (frame) => pastePlainText(frame, "<script>alert(1)</script>脚本普通文本") }),
+  makePasteDropScenario({ id: "paste_latex_block_plain", expected: "\\begin{cases}", action: async (frame) => pastePlainText(frame, "\\begin{cases}x^2,&x>0\\\\0,&x\\le0\\end{cases}") }),
+];
+
+const generatedFormulaScenarios = [
+  makeFormulaScenario({ id: "formula_fraction_generated", latex: "\\frac{x+1}{x-1}", latexNeedle: "\\frac" }),
+  makeFormulaScenario({ id: "formula_sqrt_generated", latex: "\\sqrt{x^2+1}", latexNeedle: "\\sqrt" }),
+  makeFormulaScenario({ id: "formula_integral_generated", latex: "\\int_0^1 x^2\\,\\mathrm{d}x", latexNeedle: "\\int" }),
+  makeFormulaScenario({ id: "formula_sum_generated", latex: "\\sum_{n=1}^{\\infty}\\frac{1}{n^2}", latexNeedle: "\\sum" }),
+  makeFormulaScenario({ id: "formula_limit_generated", latex: "\\lim_{x\\to0}\\frac{\\sin x}{x}", latexNeedle: "\\lim" }),
+  makeFormulaScenario({ id: "formula_derivative_generated", latex: "\\frac{\\mathrm{d}}{\\mathrm{d}x}x^2", latexNeedle: "\\mathrm{d}" }),
+  makeFormulaScenario({ id: "formula_partial_generated", latex: "\\frac{\\partial z}{\\partial x}", latexNeedle: "\\partial" }),
+  makeFormulaScenario({ id: "formula_vector_generated", latex: "\\vec{x}", latexNeedle: "\\vec" }),
+  makeFormulaScenario({ id: "formula_hat_generated", latex: "\\hat{x}", latexNeedle: "\\hat" }),
+  makeFormulaScenario({ id: "formula_widehat_generated", latex: "\\widehat{AB}", latexNeedle: "\\widehat" }),
+  makeFormulaScenario({ id: "formula_tilde_generated", latex: "\\tilde{x}", latexNeedle: "\\tilde" }),
+  makeFormulaScenario({ id: "formula_widetilde_generated", latex: "\\widetilde{AB}", latexNeedle: "\\widetilde" }),
+  makeFormulaScenario({ id: "formula_dot_generated", latex: "\\dot{x}", latexNeedle: "\\dot" }),
+  makeFormulaScenario({ id: "formula_ddot_generated", latex: "\\ddot{x}", latexNeedle: "\\ddot" }),
+  makeFormulaScenario({ id: "formula_text_prefix_tail", prefix: "前置文字", latex: "x^2+y^2", latexNeedle: "x", tail: "后置文字" }),
+  makeFormulaScenario({ id: "formula_immediate_tail_fast", prefix: "快速", latex: "\\sqrt{x}", latexNeedle: "\\sqrt", tail: "马上继续" }),
+  makeFormulaScenario({ id: "formula_multiple_symbols", latex: "\\alpha+\\beta\\le\\gamma", latexNeedle: "\\alpha" }),
+  makeFormulaScenario({ id: "formula_log_exp", latex: "\\ln x+e^x", latexNeedle: "\\ln" }),
+  makeFormulaScenario({ id: "formula_norm_abs", latex: "\\left\\|x\\right\\|+\\left|y\\right|", latexNeedle: "\\left" }),
+  makeFormulaScenario({ id: "formula_binom", latex: "\\binom{n}{k}", latexNeedle: "\\binom" }),
+  makeFormulaScenario({ id: "formula_complex_re_im", latex: "\\Re(z)+\\Im(z)", latexNeedle: "\\Re" }),
+];
+
+const generatedMatrixCasesScenarios = [
+  makeMatrixScenario({ id: "matrix_1x2_generated", rows: 1, cols: 2 }),
+  makeMatrixScenario({ id: "matrix_2x1_generated", rows: 2, cols: 1 }),
+  makeMatrixScenario({ id: "matrix_3x3_generated", rows: 3, cols: 3 }),
+  makeMatrixScenario({ id: "matrix_5x5_generated", rows: 5, cols: 5 }),
+  makeMatrixScenario({ id: "matrix_10x1_generated", rows: 10, cols: 1 }),
+  makeMatrixScenario({ id: "matrix_1x10_generated", rows: 1, cols: 10 }),
+  makeMatrixScenario({ id: "matrix_tail_after_insert_generated", rows: 2, cols: 3, tail: "矩阵后继续" }),
+  makeCasesScenario({ id: "cases_2_generated", segmentCount: 2 }),
+  makeCasesScenario({ id: "cases_3_generated", segmentCount: 3 }),
+  makeCasesScenario({ id: "cases_4_generated", segmentCount: 4 }),
+  makeCasesScenario({ id: "cases_5_generated", segmentCount: 5 }),
+  makeCasesScenario({ id: "cases_tail_after_insert_generated", segmentCount: 2, tail: "分段后继续" }),
+];
+
+const generatedInputScenarios = [
+  ...generatedTextScenarios,
+  ...generatedCaretScenarios,
+  ...generatedDeleteScenarios,
+  ...generatedImeScenarios,
+  ...generatedPasteDropScenarios,
+  ...generatedFormulaScenarios,
+  ...generatedMatrixCasesScenarios,
+];
+
+scenarios.push(...generatedInputScenarios);
 
 const realSendScenarios = [
   {
@@ -2682,6 +3482,7 @@ const realSendScenarios = [
       await openToolbarGroup(frame, "函数");
       const casesSelect = frame.locator('select[aria-label="插入分段函数"]');
       if ((await casesSelect.count()) === 0) throw new Error("Cases selector was not found.");
+      await dismissMathLivePopover(frame);
       await casesSelect.selectOption("2");
       await frame.page().waitForTimeout(100);
       return await sendPromptAndWait(page, { expectedPrompt: marker });
@@ -2751,6 +3552,288 @@ const realSendScenarios = [
     assert: async () => {},
   },
 ];
+
+function makeRealSendScenario({ id, markerPrefix, category, scope = "local", risk, action }) {
+  return {
+    id,
+    type: "send",
+    category: category || "send-pressure",
+    priority: scope === "online_smoke" ? "p0" : "p1",
+    runLevel: scope === "online_smoke" ? "online_smoke" : "real_send",
+    realSend: true,
+    realSendScope: scope,
+    risk: risk || "real-send-sync",
+    skipFinalComposerRead: true,
+    run: async (page, frame) => {
+      const marker = `${markerPrefix}_${Date.now()}`;
+      await action(page, frame, marker);
+      return await sendPromptAndWait(page, { expectedPrompt: marker });
+    },
+    assert: async () => {},
+  };
+}
+
+const generatedLocalRealSendScenarios = [
+  makeRealSendScenario({
+    id: "real_send_paste_plain_immediate",
+    markerPrefix: "E2E_PASTE",
+    category: "paste-drop",
+    action: async (_page, frame, marker) => pastePlainText(frame, `粘贴后马上发送 ${marker}`),
+  }),
+  makeRealSendScenario({
+    id: "real_send_ctrl_a_replace_immediate",
+    markerPrefix: "E2E_REPLACE",
+    category: "delete-selection",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, "旧内容不应发送", 0);
+      await frame.page().keyboard.press("Control+A");
+      await frame.page().keyboard.type(`替换后马上发送 ${marker}`, { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_formula_twice_immediate",
+    markerPrefix: "E2E_FORMULA2",
+    category: "formula",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `两个公式马上发送 ${marker} `, 0);
+      await insertFormula(frame, "x^2", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+      await focusComposerEnd(frame);
+      await frame.page().keyboard.type(" 中间 ", { delay: 0 });
+      await insertFormula(frame, "\\sqrt{x}", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_matrix_1x1_immediate",
+    markerPrefix: "E2E_MATRIX1",
+    category: "matrix-cases",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `1x1矩阵马上发送 ${marker} `, 0);
+      await insertMatrix(frame, 1, 1);
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_matrix_5x5_immediate",
+    markerPrefix: "E2E_MATRIX5",
+    category: "matrix-cases",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `5x5矩阵马上发送 ${marker} `, 0);
+      await insertMatrix(frame, 5, 5);
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_cases_5_immediate",
+    markerPrefix: "E2E_CASES5",
+    category: "matrix-cases",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `5段分段函数马上发送 ${marker} `, 0);
+      await insertCasesFunction(frame, 5);
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_quick_backspace_tail",
+    markerPrefix: "E2E_BS",
+    category: "delete-selection",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `${marker} 删除尾巴xxx`, 0);
+      await pressKeyRepeatedly(frame.page(), "Backspace", 3, 0);
+      await frame.page().keyboard.type("后发送", { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_multiline_long_immediate",
+    markerPrefix: "E2E_MULTI",
+    category: "text-caret",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `第一行 ${marker}`, 0);
+      await frame.page().keyboard.press("Enter");
+      await frame.page().keyboard.type("第二行继续请求提示", { delay: 0 });
+      await frame.page().keyboard.press("Enter");
+      await frame.page().keyboard.type("第三行马上发送", { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_middle_caret_immediate",
+    markerPrefix: "E2E_CARET",
+    category: "text-caret",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `前后 ${marker}`, 0);
+      await setCaretByTextOffset(frame, 1);
+      await frame.page().keyboard.type("中间插入", { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_rich_html_paste_immediate",
+    markerPrefix: "E2E_HTML",
+    category: "paste-drop",
+    action: async (_page, frame, marker) => pasteRichHtml(frame, `<p>富文本 ${marker}</p>`, `富文本 ${marker}`),
+  }),
+  makeRealSendScenario({
+    id: "real_send_formula_tail_immediate",
+    markerPrefix: "E2E_FTAIL",
+    category: "formula",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `公式后续输入 ${marker} `, 0);
+      await insertFormula(frame, "\\int_0^1 x\\,\\mathrm{d}x", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+      await focusComposerEnd(frame);
+      await frame.page().keyboard.type("尾部马上发送", { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "real_send_emoji_immediate",
+    markerPrefix: "E2E_EMOJI",
+    category: "text-caret",
+    action: async (_page, frame, marker) => typeInComposer(frame, `emoji🙂 输入稳定 ${marker}`, 0),
+  }),
+  makeRealSendScenario({
+    id: "real_send_whitespace_edges_immediate",
+    markerPrefix: "E2E_SPACE",
+    category: "text-caret",
+    action: async (_page, frame, marker) => typeInComposer(frame, `   前后空格 ${marker}   `, 0),
+  }),
+  makeRealSendScenario({
+    id: "real_send_formula_selection_replace",
+    markerPrefix: "E2E_FSEL",
+    category: "formula",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `旧公式 ${marker} `, 0);
+      await insertFormula(frame, "x+1", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+      await setCaretAroundFormula(frame, 0, "before");
+      await frame.page().keyboard.type("替换前缀", { delay: 0 });
+    },
+  }),
+];
+
+const generatedOnlineSmokeScenarios = [
+  makeRealSendScenario({
+    id: "online_smoke_chinese_immediate",
+    markerPrefix: "E2E_ONLINE_CN",
+    scope: "online_smoke",
+    category: "text-caret",
+    action: async (_page, frame, marker) => typeInComposer(frame, `线上中文输入马上发送 ${marker}`, 0),
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_enter_immediate",
+    markerPrefix: "E2E_ONLINE_ENTER",
+    scope: "online_smoke",
+    category: "text-caret",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `线上第一行 ${marker}`, 0);
+      await frame.page().keyboard.press("Enter");
+      await frame.page().keyboard.type("线上第二行", { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_delete_immediate",
+    markerPrefix: "E2E_ONLINE_DEL",
+    scope: "online_smoke",
+    category: "delete-selection",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `${marker} 删除xxx`, 0);
+      await pressKeyRepeatedly(frame.page(), "Backspace", 3, 0);
+      await frame.page().keyboard.type("后发送", { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_formula_immediate",
+    markerPrefix: "E2E_ONLINE_FORMULA",
+    scope: "online_smoke",
+    category: "formula",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `线上公式 ${marker} `, 0);
+      await insertFormula(frame, "x^2+1", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_matrix_immediate",
+    markerPrefix: "E2E_ONLINE_MATRIX",
+    scope: "online_smoke",
+    category: "matrix-cases",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `线上矩阵 ${marker} `, 0);
+      await insertMatrix(frame, 2, 2);
+    },
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_double_click",
+    markerPrefix: "E2E_ONLINE_DOUBLE",
+    scope: "online_smoke",
+    category: "send-pressure",
+    action: async (_page, frame, marker) => typeInComposer(frame, `线上双击发送 ${marker}`, 0),
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_paste_plain",
+    markerPrefix: "E2E_ONLINE_PASTE",
+    scope: "online_smoke",
+    category: "paste-drop",
+    action: async (_page, frame, marker) => pastePlainText(frame, `线上粘贴 ${marker}`),
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_cases_immediate",
+    markerPrefix: "E2E_ONLINE_CASES",
+    scope: "online_smoke",
+    category: "matrix-cases",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `线上分段 ${marker} `, 0);
+      await insertCasesFunction(frame, 2);
+    },
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_middle_insert",
+    markerPrefix: "E2E_ONLINE_MID",
+    scope: "online_smoke",
+    category: "text-caret",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `前后 ${marker}`, 0);
+      await setCaretByTextOffset(frame, 1);
+      await frame.page().keyboard.type("中", { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_long_text",
+    markerPrefix: "E2E_ONLINE_LONG",
+    scope: "online_smoke",
+    category: "text-caret",
+    action: async (_page, frame, marker) => typeInComposer(frame, `线上长文本 ${marker} ${"只给启发不要泄露答案。".repeat(10)}`, 0),
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_formula_mix",
+    markerPrefix: "E2E_ONLINE_MIX",
+    scope: "online_smoke",
+    category: "formula",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `线上混排 ${marker} `, 0);
+      await insertFormula(frame, "\\sqrt{x}", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+      await focusComposerEnd(frame);
+      await frame.page().keyboard.type(" 继续", { delay: 0 });
+    },
+  }),
+  makeRealSendScenario({
+    id: "online_smoke_empty_then_valid",
+    markerPrefix: "E2E_ONLINE_EMPTY_VALID",
+    scope: "online_smoke",
+    category: "send-pressure",
+    action: async (_page, frame, marker) => typeInComposer(frame, `空输入后有效发送 ${marker}`, 0),
+  }),
+];
+
+realSendScenarios.push(...generatedLocalRealSendScenarios, ...generatedOnlineSmokeScenarios);
+
+function assertScenarioInventory() {
+  const allIds = [...scenarios, ...realSendScenarios].map((scenario) => scenario.id);
+  const uniqueIds = new Set(allIds);
+  if (uniqueIds.size !== allIds.length) {
+    const duplicateIds = allIds.filter((id, index) => allIds.indexOf(id) !== index);
+    throw new Error(`Duplicate E2E scenario ids: ${JSON.stringify([...new Set(duplicateIds)])}`);
+  }
+  if (scenarios.length !== 180) {
+    throw new Error(`Expected 180 non-real input scenarios, got ${scenarios.length}.`);
+  }
+  if (realSendScenarios.length !== 36) {
+    throw new Error(`Expected 36 real-send scenarios, got ${realSendScenarios.length}.`);
+  }
+}
+
+assertScenarioInventory();
 
 function selectedRealSendScenarios() {
   if (!RUN_REAL_SEND) return [];

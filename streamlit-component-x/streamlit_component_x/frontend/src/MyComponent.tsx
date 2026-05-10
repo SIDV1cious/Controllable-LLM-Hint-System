@@ -309,6 +309,9 @@ const MyComponent = ({ args }: ComponentProps) => {
   const initialValueRef = useRef(initialValue);
   const syncTimerRef = useRef<number | null>(null);
   const isComposingRef = useRef(false);
+  const recentNativeTextInputRef = useRef<{ text: string; timestamp: number } | null>(
+    null
+  );
   const idCounterRef = useRef(0);
 
   const [matrixRows, setMatrixRows] = useState(1);
@@ -340,6 +343,36 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (closestFormulaChipFromNode(range.commonAncestorContainer)) return;
 
     savedRangeRef.current = range.cloneRange();
+  };
+
+  const rangesShareBoundaries = (left: Range, right: Range) =>
+    left.startContainer === right.startContainer &&
+    left.startOffset === right.startOffset &&
+    left.endContainer === right.endContainer &&
+    left.endOffset === right.endOffset;
+
+  const restoreSavedSelection = (expectedRange?: Range | null) => {
+    const editor = editorRef.current;
+    const savedRange = savedRangeRef.current;
+    const selection = window.getSelection();
+    if (!editor || !savedRange || !selection) return false;
+    if (!isInsideEditor(savedRange.commonAncestorContainer)) return false;
+    if (closestFormulaChipFromNode(savedRange.commonAncestorContainer)) return false;
+
+    if (expectedRange && selection.rangeCount > 0) {
+      const currentRange = selection.getRangeAt(0);
+      if (
+        isInsideEditor(currentRange.commonAncestorContainer) &&
+        !rangesShareBoundaries(currentRange, expectedRange)
+      ) {
+        return false;
+      }
+    }
+
+    editor.focus({ preventScroll: true });
+    selection.removeAllRanges();
+    selection.addRange(savedRange.cloneRange());
+    return true;
   };
 
   const setActiveFormula = (id: string | null) => {
@@ -386,10 +419,40 @@ const MyComponent = ({ args }: ComponentProps) => {
     return range;
   };
 
+  const rememberNativeTextInput = (event: InputEvent) => {
+    if (event.isComposing || !event.data) return;
+    if (!["insertText", "insertCompositionText"].includes(event.inputType)) return;
+
+    recentNativeTextInputRef.current = {
+      text: event.data,
+      timestamp: Date.now(),
+    };
+  };
+
+  const collapseRecentNativeInputSelection = (range: Range) => {
+    if (range.collapsed) return range;
+
+    const recentInput = recentNativeTextInputRef.current;
+    if (!recentInput || Date.now() - recentInput.timestamp > 700) return range;
+
+    const selectedText = range.toString().replaceAll(ZERO_WIDTH_SPACE, "");
+    if (selectedText !== recentInput.text) return range;
+
+    const collapsedRange = range.cloneRange();
+    collapsedRange.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(collapsedRange);
+    savedRangeRef.current = collapsedRange.cloneRange();
+    return collapsedRange;
+  };
+
   const setCaretAfter = (node: Node) => {
+    const editor = editorRef.current;
     const selection = window.getSelection();
     if (!selection) return;
 
+    editor?.focus({ preventScroll: true });
     const range = document.createRange();
     range.setStartAfter(node);
     range.collapse(true);
@@ -447,9 +510,34 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   const flushValueToStreamlit = () => {
     clearSyncTimer();
+    const editor = editorRef.current;
+    const activeElement = document.activeElement;
+    const activeNode = activeElement instanceof Node ? activeElement : null;
+    const shouldRestoreSelection =
+      !!editor &&
+      !!activeElement &&
+      (activeElement === editor || editor.contains(activeElement)) &&
+      !closestFormulaChipFromNode(activeNode);
+    if (shouldRestoreSelection) {
+      saveSelection();
+    }
+    if (editor) {
+      const currentValue = serializeEditor(editor);
+      lastValueRef.current = currentValue;
+      pendingValueRef.current = currentValue;
+      persistDraftValue(currentValue);
+    }
+
     if (pendingValueRef.current === committedValueRef.current) return;
     committedValueRef.current = pendingValueRef.current;
+    const selectionSnapshot = shouldRestoreSelection
+      ? savedRangeRef.current?.cloneRange() ?? null
+      : null;
     Streamlit.setComponentValue(pendingValueRef.current);
+    if (shouldRestoreSelection) {
+      window.setTimeout(() => restoreSavedSelection(selectionSnapshot), 0);
+      window.setTimeout(() => restoreSavedSelection(selectionSnapshot), 80);
+    }
   };
 
   const persistDraftValue = (value: string) => {
@@ -467,6 +555,7 @@ const MyComponent = ({ args }: ComponentProps) => {
   };
 
   const syncValue = (immediate = false) => {
+    saveSelection();
     const editor = editorRef.current;
     if (!editor) return;
 
@@ -487,7 +576,13 @@ const MyComponent = ({ args }: ComponentProps) => {
   const flushCurrentComposerValue = () => {
     Object.values(formulaRefs.current).forEach((mathField: any) => {
       const chip = mathField?.closest?.(".inline-formula-chip") as HTMLElement | null;
-      if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
+      if (chip) {
+        chip.dataset.latex = getMathFieldLatex(
+          mathField,
+          "latex",
+          chip.dataset.latex || ""
+        );
+      }
     });
     syncValue(true);
   };
@@ -533,7 +628,9 @@ const MyComponent = ({ args }: ComponentProps) => {
     selection?.removeAllRanges();
     selection?.addRange(range);
     savedRangeRef.current = range.cloneRange();
-    syncValue(true);
+    // Keep this debounced so immediate typing after deleting a formula does not
+    // race a Streamlit rerender and lose the restored caret position.
+    syncValue();
   };
 
   const createFormulaElement = (latex = "") => {
@@ -627,6 +724,13 @@ const MyComponent = ({ args }: ComponentProps) => {
     const range = getEditorRange();
     if (!range) return;
 
+    if (text) {
+      recentNativeTextInputRef.current = {
+        text,
+        timestamp: Date.now(),
+      };
+    }
+
     range.deleteContents();
     const textNode = document.createTextNode(text);
     range.insertNode(textNode);
@@ -653,29 +757,41 @@ const MyComponent = ({ args }: ComponentProps) => {
   const insertFormulaBox = (initialLatex = "") => {
     if (!mathRuntimeReady) return;
 
+    saveSelection();
     const editor = editorRef.current;
     const range = getEditorRange();
     if (!editor || !range) return;
 
-    const { id, chip, mathField } = createFormulaElement("");
+    const insertionRange = collapseRecentNativeInputSelection(range);
+    if (!initialLatex && !insertionRange.collapsed) {
+      insertionRange.collapse(false);
+    }
+    const { id, chip, mathField } = createFormulaElement(initialLatex);
     const spacer = document.createTextNode(ZERO_WIDTH_SPACE);
 
-    range.deleteContents();
-    range.insertNode(spacer);
-    range.insertNode(chip);
+    insertionRange.deleteContents();
+    insertionRange.insertNode(spacer);
+    insertionRange.insertNode(chip);
     setCaretAfter(spacer);
     setActiveFormula(id);
     configureMathField(mathField);
     mathField.focus();
+
+    if (initialLatex) {
+      setMathFieldLatex(mathField, initialLatex);
+      chip.dataset.latex = getMathFieldLatex(
+        mathField,
+        "latex",
+        initialLatex
+      );
+      syncValue(true);
+      return;
+    }
+
     syncValue();
 
     window.setTimeout(() => {
       mathField.focus();
-      if (initialLatex) {
-        insertIntoMathField(mathField, initialLatex);
-        chip.dataset.latex = getMathFieldLatex(mathField, "latex");
-        syncValue(true);
-      }
     }, 0);
   };
 
@@ -763,6 +879,49 @@ const MyComponent = ({ args }: ComponentProps) => {
     return true;
   };
 
+  const deleteSelectedEditorRange = () => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0) return false;
+
+    const range = selection.getRangeAt(0);
+    if (range.collapsed || !isInsideEditor(range.commonAncestorContainer)) {
+      return false;
+    }
+
+    const knownChips = Array.from(
+      editor.querySelectorAll<HTMLElement>(".inline-formula-chip")
+    );
+    editor.focus({ preventScroll: true });
+    range.deleteContents();
+    knownChips.forEach((chip) => {
+      if (!chip.isConnected) {
+        delete formulaRefs.current[chip.dataset.formulaId || ""];
+      }
+    });
+
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+    syncValue();
+    return true;
+  };
+
+  const selectAllEditorContents = () => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection) return false;
+
+    editor.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+    return true;
+  };
+
   const removeLineBreakBeforeCaret = () => {
     const editor = editorRef.current;
     const selection = window.getSelection();
@@ -783,6 +942,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     if (isZeroWidthText(previous)) previous = previous.previousSibling;
     if (!(previous instanceof HTMLBRElement)) return false;
 
+    editor.focus({ preventScroll: true });
     previous.remove();
     textNode.textContent = text.replaceAll(ZERO_WIDTH_SPACE, "");
 
@@ -791,8 +951,54 @@ const MyComponent = ({ args }: ComponentProps) => {
     nextRange.collapse(true);
     selection.removeAllRanges();
     selection.addRange(nextRange);
+    editor.focus({ preventScroll: true });
     savedRangeRef.current = nextRange.cloneRange();
-    syncValue(true);
+    // Backspace can be followed by another keystroke immediately. Debouncing the
+    // Streamlit sync here avoids a rerender racing with that next native input.
+    syncValue();
+    return true;
+  };
+
+  const removeLineBreakAfterCaret = () => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0) return false;
+
+    const range = selection.getRangeAt(0);
+    if (!range.collapsed || !isInsideEditor(range.commonAncestorContainer)) {
+      return false;
+    }
+    if (range.startContainer.nodeType !== Node.TEXT_NODE) return false;
+
+    const textNode = range.startContainer;
+    const text = textNode.textContent || "";
+    const afterCaret = text.slice(range.startOffset);
+    if (afterCaret.replaceAll(ZERO_WIDTH_SPACE, "") !== "") return false;
+
+    let next = textNode.nextSibling;
+    if (isZeroWidthText(next)) next = next.nextSibling;
+    if (!(next instanceof HTMLBRElement)) return false;
+
+    const following = next.nextSibling;
+    if (isZeroWidthText(following)) {
+      following.textContent = (following.textContent || "").replaceAll(
+        ZERO_WIDTH_SPACE,
+        ""
+      );
+    }
+
+    editor.focus({ preventScroll: true });
+    next.remove();
+    textNode.textContent = text.replaceAll(ZERO_WIDTH_SPACE, "");
+
+    const nextRange = document.createRange();
+    nextRange.setStart(textNode, textNode.textContent?.length || 0);
+    nextRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(nextRange);
+    editor.focus({ preventScroll: true });
+    savedRangeRef.current = nextRange.cloneRange();
+    syncValue();
     return true;
   };
 
@@ -807,7 +1013,37 @@ const MyComponent = ({ args }: ComponentProps) => {
       return;
     }
 
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+      if (selectAllEditorContents()) {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "x") {
+      const selectedText = window.getSelection()?.toString() || "";
+      if (selectedText && deleteSelectedEditorRange()) {
+        event.preventDefault();
+        void navigator.clipboard?.writeText(selectedText).catch(() => undefined);
+        syncValue(true);
+      }
+      return;
+    }
+
     if (event.key === "Backspace" && removeLineBreakBeforeCaret()) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "Delete" && removeLineBreakAfterCaret()) {
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      (event.key === "Backspace" || event.key === "Delete") &&
+      deleteSelectedEditorRange()
+    ) {
       event.preventDefault();
       return;
     }
@@ -822,6 +1058,59 @@ const MyComponent = ({ args }: ComponentProps) => {
     }
   };
 
+  const handleEditorBeforeInput = (event: React.FormEvent<HTMLDivElement>) => {
+    const nativeInputEvent = event.nativeEvent as InputEvent;
+    if (isComposingRef.current || nativeInputEvent.isComposing) {
+      return;
+    }
+
+    rememberNativeTextInput(nativeInputEvent);
+
+    if (nativeInputEvent.inputType === "insertText" && nativeInputEvent.data) {
+      event.preventDefault();
+      insertPlainText(nativeInputEvent.data);
+      return;
+    }
+
+    if (nativeInputEvent.inputType === "insertParagraph") {
+      event.preventDefault();
+      insertLineBreak();
+      return;
+    }
+
+    if (
+      (nativeInputEvent.inputType === "deleteContentBackward" ||
+        nativeInputEvent.inputType === "deleteContentForward") &&
+      deleteSelectedEditorRange()
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      nativeInputEvent.inputType === "deleteContentBackward" &&
+      removeLineBreakBeforeCaret()
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      nativeInputEvent.inputType === "deleteContentForward" &&
+      removeLineBreakAfterCaret()
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      nativeInputEvent.inputType === "deleteContentForward" &&
+      removeAdjacentFormula("forward")
+    ) {
+      event.preventDefault();
+    }
+  };
+
   const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
     const text =
       event.clipboardData.getData("text/plain") ||
@@ -830,6 +1119,21 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     event.preventDefault();
     insertPlainText(text, true);
+  };
+
+  const handleCut = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString() || "";
+    if (!selectedText) {
+      syncAfterNativeEdit();
+      return;
+    }
+
+    event.preventDefault();
+    event.clipboardData.setData("text/plain", selectedText);
+    if (deleteSelectedEditorRange()) {
+      syncValue(true);
+    }
   };
 
   const syncAfterNativeEdit = () => {
@@ -1058,6 +1362,12 @@ const MyComponent = ({ args }: ComponentProps) => {
       .inline-formula-remove:hover {
         color: #b91c1c;
       }
+
+      #mathlive-suggestion-popover[aria-hidden="true"],
+      #mathlive-suggestion-popover[aria-hidden="true"] * {
+        pointer-events: none !important;
+        visibility: hidden !important;
+      }
     `;
     document.head.appendChild(style);
     refreshFrameHeight();
@@ -1090,7 +1400,10 @@ const MyComponent = ({ args }: ComponentProps) => {
         <button
           type="button"
           disabled={!mathRuntimeReady}
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => {
+            saveSelection();
+            event.preventDefault();
+          }}
           onClick={() => insertFormulaBox()}
           style={{
             ...primaryButtonStyle,
@@ -1108,7 +1421,10 @@ const MyComponent = ({ args }: ComponentProps) => {
             }`}
             type="button"
             disabled={!mathRuntimeReady}
-            onMouseDown={(event) => event.preventDefault()}
+            onMouseDown={(event) => {
+              saveSelection();
+              event.preventDefault();
+            }}
             onClick={(event) => {
               event.currentTarget.blur();
               setOpenToolbarGroup((current) =>
@@ -1131,7 +1447,10 @@ const MyComponent = ({ args }: ComponentProps) => {
           }`}
           type="button"
           disabled={!mathRuntimeReady}
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => {
+            saveSelection();
+            event.preventDefault();
+          }}
           onClick={(event) => {
             event.currentTarget.blur();
             setOpenToolbarGroup((current) =>
@@ -1190,7 +1509,10 @@ const MyComponent = ({ args }: ComponentProps) => {
           <button
             type="button"
             disabled={!mathRuntimeReady}
-            onMouseDown={(event) => event.preventDefault()}
+            onMouseDown={(event) => {
+              saveSelection();
+              event.preventDefault();
+            }}
             onClick={insertMatrix}
             style={{
               ...toolButtonStyle,
@@ -1247,7 +1569,10 @@ const MyComponent = ({ args }: ComponentProps) => {
               <button
                 key={`${openToolbarGroup}-${item.label}-${item.latex}`}
                 type="button"
-                onMouseDown={(event) => event.preventDefault()}
+                onMouseDown={(event) => {
+                  saveSelection();
+                  event.preventDefault();
+                }}
                 onClick={() => item.latex && insertLatexIntoFormula(item.latex)}
                 style={symbolButtonStyle}
               >
@@ -1277,15 +1602,17 @@ const MyComponent = ({ args }: ComponentProps) => {
           saveSelection();
           syncValue();
         }}
-        onInput={() => {
+        onInput={(event) => {
           if (isComposingRef.current) return;
+          rememberNativeTextInput(event.nativeEvent as InputEvent);
           saveSelection();
           syncValue();
         }}
         onBlur={() => syncValue(true)}
         onKeyDown={handleEditorKeyDown}
+        onBeforeInput={handleEditorBeforeInput}
         onPaste={handlePaste}
-        onCut={syncAfterNativeEdit}
+        onCut={handleCut}
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleDrop}
         style={editorStyle}
@@ -1363,6 +1690,42 @@ const insertIntoMathField = (mathField: any, latex: string) => {
     format: "latex",
     selectionMode: "placeholder",
     focus: true,
+  });
+
+  if (latex.includes("\\placeholder[")) {
+    window.setTimeout(() => selectFirstPrompt(mathField), 0);
+  }
+};
+
+const setMathFieldLatex = (mathField: any, latex: string) => {
+  configureMathField(mathField);
+  mathField.focus();
+
+  const applyLatex = () => {
+    try {
+      mathField.value = latex;
+      if (typeof mathField.setValue === "function") {
+        mathField.setValue(latex);
+      }
+    } catch {
+      mathField.value = latex;
+    }
+    mathField.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  applyLatex();
+
+  if (!getMathFieldLatex(mathField, "latex").trim()) {
+    mathField.value = latex;
+    applyLatex();
+  }
+
+  [80, 220].forEach((delay) => {
+    window.setTimeout(() => {
+      if (!mathField.isConnected) return;
+      if (getMathFieldLatex(mathField, "latex").trim()) return;
+      applyLatex();
+    }, delay);
   });
 
   if (latex.includes("\\placeholder[")) {
