@@ -595,6 +595,7 @@ function textLooksLikeSendButton(text) {
   const value = String(text || "").trim().toLowerCase();
   return (
     value === "send" ||
+    value === "发送" ||
     value.includes("发送") ||
     value.includes("發送") ||
     value.includes("鍙戦") ||
@@ -785,29 +786,63 @@ async function completeQuizIfNeeded(page) {
 }
 
 async function selectReviewQuestion(page) {
-  if (
-    !(await bodyText(page)).includes("请先在左侧选择") &&
-    !(await bodyText(page)).includes("等待选择复盘题目")
-  ) {
+  if (await reviewComposerReady(page)) {
     return;
   }
 
-  const context = await appContext(page);
-  const clicked = await context.locator("button").evaluateAll((buttons) => {
-    const button =
-      buttons.find((item) => item.innerText.includes("错误")) ||
-      buttons.find((item) => item.innerText.includes("正确"));
-    if (!button) return false;
-    button.click();
-    return true;
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let questionNumber = 1; questionNumber <= 10; questionNumber += 1) {
+      await clickQuestionButton(page, questionNumber).catch(() => undefined);
+      await page.waitForTimeout(700);
+      if (await reviewComposerReady(page)) return;
+    }
 
-  if (!clicked) throw new Error("No review question button was found.");
-  await waitUntil(
-    page,
-    (text) => text.includes("请在下方输入智能辅导提示词"),
-    30000
-  );
+    const context = await appContext(page);
+    const clicked = await context.locator("button").evaluateAll((buttons) => {
+      const button = buttons.find((item) => {
+        const label = item.innerText || "";
+        const rect = item.getBoundingClientRect();
+        const isVisible = rect.width > 0 && rect.height > 0;
+        const isReviewButton =
+          label.includes("题") &&
+          label.includes("|") &&
+          (label.includes("错误") || label.includes("正确"));
+        return isVisible && isReviewButton;
+      });
+      if (!button) return false;
+      button.scrollIntoView({ block: "center", inline: "nearest" });
+      button.click();
+      return true;
+    });
+
+    if (clicked) {
+      await page.waitForTimeout(900);
+      if (await reviewComposerReady(page)) return;
+    }
+  }
+
+  const text = await bodyText(page);
+  throw new Error(`No review question could open the tutoring composer. Page text: ${text.slice(0, 500)}`);
+}
+
+async function reviewComposerReady(page) {
+  const text = await bodyText(page);
+  if (text.includes("请在下方输入智能辅导提示词")) return true;
+  if (text.includes("请求智能辅导") && !text.includes("等待选择复盘题目")) {
+    return true;
+  }
+
+  for (const frame of page.frames()) {
+    if (!frame.url().includes("/component/math_comp")) continue;
+    const ready = await frame
+      .locator(".mixed-editor")
+      .count()
+      .then((count) => count > 0)
+      .catch(() => false);
+    if (ready) return true;
+  }
+
+  return false;
 }
 
 function scenarioScreenshotPath(id) {
@@ -2104,27 +2139,27 @@ async function sendPromptAndWait(page, options = {}) {
     options.firstStateTimeout || 45000
   );
 
-  if (firstState.includes("请输入辅导问题后再发送")) {
+  const initialPromptVisible = options.expectedPrompt && firstState.includes(options.expectedPrompt);
+  const initialGenerationVisible =
+    firstState.includes("正在生成智能辅导") || firstState.includes("生成链路");
+
+  if (firstState.includes("请输入辅导问题后再发送") && !initialPromptVisible && !initialGenerationVisible) {
     throw withSendMeta(
       classifiedError("Prompt was treated as empty or stale during send.", "composer_sync"),
       sendMeta
     );
   }
-  if (
-    !firstState.includes("正在生成智能辅导") &&
-    !firstState.includes("生成链路")
-  ) {
-    const promptVisible = options.expectedPrompt && firstState.includes(options.expectedPrompt);
+  if (!initialGenerationVisible && !initialPromptVisible) {
     throw withSendMeta(
       classifiedError(
-        promptVisible
+        initialPromptVisible
           ? "Prompt was submitted but generation indicator was not detected."
           : "Generation did not start after clicking send.",
-        promptVisible ? "llm_timeout" : "render_missing"
+        initialPromptVisible ? "llm_timeout" : "render_missing"
       ),
       {
         ...sendMeta,
-        prompt_marker_occurrences: promptVisible ? 1 : 0,
+        prompt_marker_occurrences: initialPromptVisible ? 1 : 0,
       }
     );
   }
