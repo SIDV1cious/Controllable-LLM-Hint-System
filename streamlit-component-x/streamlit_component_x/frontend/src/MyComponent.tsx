@@ -375,6 +375,21 @@ const MyComponent = ({ args }: ComponentProps) => {
     return true;
   };
 
+  const focusEditorAtEnd = () => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection) return false;
+
+    editor.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+    return true;
+  };
+
   const setActiveFormula = (id: string | null) => {
     activeFormulaIdRef.current = id;
     const editor = editorRef.current;
@@ -535,8 +550,12 @@ const MyComponent = ({ args }: ComponentProps) => {
       : null;
     Streamlit.setComponentValue(pendingValueRef.current);
     if (shouldRestoreSelection) {
-      window.setTimeout(() => restoreSavedSelection(selectionSnapshot), 0);
-      window.setTimeout(() => restoreSavedSelection(selectionSnapshot), 80);
+      window.setTimeout(() => {
+        if (!restoreSavedSelection(selectionSnapshot)) focusEditorAtEnd();
+      }, 0);
+      window.setTimeout(() => {
+        if (!restoreSavedSelection(selectionSnapshot)) focusEditorAtEnd();
+      }, 80);
     }
   };
 
@@ -695,6 +714,23 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     mathField.addEventListener("keydown", (event: KeyboardEvent) => {
       event.stopPropagation();
+      const isSelectAll =
+        (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
+
+      if (isSelectAll) {
+        event.preventDefault();
+        configureMathField(mathField);
+        mathField.focus();
+        const selected =
+          mathField.executeCommand?.("selectAll") ||
+          mathField.executeCommand?.("select-all");
+        if (!selected && mathField.model?.lastOffset !== undefined) {
+          mathField.selection = {
+            ranges: [[0, mathField.model.lastOffset]],
+            direction: "forward",
+          };
+        }
+      }
     });
 
     mathField.addEventListener("input", (event: Event) => {
@@ -703,17 +739,16 @@ const MyComponent = ({ args }: ComponentProps) => {
       syncValue();
     });
 
-    removeButton.addEventListener("mousedown", (event) => {
+    const handleRemoveButton = (event: Event) => {
       event.preventDefault();
       event.stopPropagation();
-    });
-
-    removeButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+      if (!chip.isConnected) return;
       delete formulaRefs.current[id];
       removeFormula(chip);
-    });
+    };
+
+    removeButton.addEventListener("mousedown", handleRemoveButton);
+    removeButton.addEventListener("click", handleRemoveButton);
 
     window.setTimeout(() => configureMathField(mathField), 0);
 
@@ -751,7 +786,9 @@ const MyComponent = ({ args }: ComponentProps) => {
     lineBreak.after(spacer);
     setCaretAfter(spacer);
     editor?.focus({ preventScroll: true });
-    syncValue(true);
+    // Keep Enter debounced so rapid newline + typing is not interrupted by a
+    // Streamlit rerender stealing the caret between keystrokes.
+    syncValue();
   };
 
   const insertFormulaBox = (initialLatex = "") => {
@@ -847,8 +884,14 @@ const MyComponent = ({ args }: ComponentProps) => {
     insertIntoMathField(mathField, latex);
 
     const chip = mathField.closest(".inline-formula-chip") as HTMLElement | null;
-    if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
-    syncValue(true);
+    const syncActiveMathField = (immediate = false) => {
+      if (chip) chip.dataset.latex = getMathFieldLatex(mathField, "latex");
+      syncValue(immediate);
+    };
+
+    syncActiveMathField(true);
+    window.setTimeout(() => syncActiveMathField(), 50);
+    window.setTimeout(() => syncActiveMathField(true), 140);
   };
 
   const insertMatrix = () => {
@@ -1025,7 +1068,6 @@ const MyComponent = ({ args }: ComponentProps) => {
       if (selectedText && deleteSelectedEditorRange()) {
         event.preventDefault();
         void navigator.clipboard?.writeText(selectedText).catch(() => undefined);
-        syncValue(true);
       }
       return;
     }
@@ -1131,9 +1173,7 @@ const MyComponent = ({ args }: ComponentProps) => {
 
     event.preventDefault();
     event.clipboardData.setData("text/plain", selectedText);
-    if (deleteSelectedEditorRange()) {
-      syncValue(true);
-    }
+    deleteSelectedEditorRange();
   };
 
   const syncAfterNativeEdit = () => {
@@ -1216,7 +1256,34 @@ const MyComponent = ({ args }: ComponentProps) => {
 
   useEffect(() => {
     if (mathRuntimeReady) {
-      renderValue(lastValueRef.current, true);
+      const editor = editorRef.current;
+      const activeElement = document.activeElement;
+      const activeNode = activeElement instanceof Node ? activeElement : null;
+      const shouldRestoreCaret =
+        !!editor &&
+        !!activeElement &&
+        (activeElement === editor || editor.contains(activeElement)) &&
+        !closestFormulaChipFromNode(activeNode);
+      const currentValue = editor ? serializeEditor(editor) : lastValueRef.current;
+      const valueToRender = currentValue || lastValueRef.current;
+
+      lastValueRef.current = valueToRender;
+      pendingValueRef.current = valueToRender;
+      persistDraftValue(valueToRender);
+
+      if (shouldRestoreCaret) saveSelection();
+      const selectionSnapshot = shouldRestoreCaret
+        ? savedRangeRef.current?.cloneRange() ?? null
+        : null;
+
+      renderValue(valueToRender, true);
+
+      if (shouldRestoreCaret) {
+        window.setTimeout(() => {
+          if (!restoreSavedSelection(selectionSnapshot)) focusEditorAtEnd();
+          syncValue();
+        }, 0);
+      }
     }
   }, [mathRuntimeReady]);
 
@@ -1474,7 +1541,10 @@ const MyComponent = ({ args }: ComponentProps) => {
             value={matrixRows}
             disabled={!mathRuntimeReady}
             onChange={(event) => setMatrixRows(Number(event.target.value))}
-            onMouseDown={(event) => event.stopPropagation()}
+            onMouseDown={(event) => {
+              saveSelection();
+              event.stopPropagation();
+            }}
             style={{
               ...selectStyle,
               ...(!mathRuntimeReady ? disabledButtonStyle : {}),
@@ -1492,7 +1562,10 @@ const MyComponent = ({ args }: ComponentProps) => {
             value={matrixCols}
             disabled={!mathRuntimeReady}
             onChange={(event) => setMatrixCols(Number(event.target.value))}
-            onMouseDown={(event) => event.stopPropagation()}
+            onMouseDown={(event) => {
+              saveSelection();
+              event.stopPropagation();
+            }}
             style={{
               ...selectStyle,
               ...(!mathRuntimeReady ? disabledButtonStyle : {}),

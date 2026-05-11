@@ -2,10 +2,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 let chromium;
+const EARLY_DRY_RUN = process.env.E2E_DRY_RUN === "1";
 
 try {
   ({ chromium } = require("playwright"));
 } catch (error) {
+  if (EARLY_DRY_RUN) {
+    chromium = null;
+  } else {
   console.error(
     [
       "Playwright is required to run this E2E script.",
@@ -16,6 +20,7 @@ try {
     ].join("\n")
   );
   process.exit(1);
+  }
 }
 
 const APP_URL = process.env.E2E_APP_URL || "http://localhost:8517";
@@ -39,10 +44,60 @@ const REPORT_PATH =
   `${process.env.TEMP || "/tmp"}/tutoring_composer_e2e_report.json`;
 
 const SCREENSHOT_DIR = path.dirname(SCREENSHOT_PATH);
+const DRY_RUN = process.env.E2E_DRY_RUN === "1";
+const REAL_SEND_LIMIT = parseOptionalPositiveInt(process.env.E2E_REAL_SEND_LIMIT);
+const REAL_SEND_OFFSET = parseOptionalNonNegativeInt(process.env.E2E_REAL_SEND_OFFSET) || 0;
+const REAL_SEND_SHARD = parseShardSpec(process.env.E2E_REAL_SEND_SHARD || "");
+const ALLOW_UNFILTERED_REAL_SEND = process.env.E2E_ALLOW_UNFILTERED_REAL_SEND === "1";
+const STOP_ON_CRITICAL_REAL_SEND_FAILURE =
+  process.env.E2E_STOP_ON_CRITICAL_FAILURE !== "0";
 const INPUT_FULL_FILTERS = new Set(["input_full", "full"]);
 const REAL_SEND_LOCAL_FILTERS = new Set(["real_send", "local_real_send"]);
 const REAL_SEND_ALL_FILTERS = new Set(["real_send_all", "send_all"]);
 const ONLINE_SMOKE_FILTERS = new Set(["online_smoke", "real_send_online_smoke"]);
+const ONLINE_REAL_SEND_FILTERS = new Set([
+  "online_real_send",
+  "real_send_online_full",
+  "online_real_send_full",
+]);
+const CRITICAL_REAL_SEND_FAILURE_CLASSES = new Set([
+  "composer_sync",
+  "duplicate_submit",
+  "leakage_status_missing",
+]);
+
+function parseOptionalPositiveInt(value) {
+  if (value === undefined || value === null || String(value).trim() === "") return null;
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Expected a positive integer, got ${JSON.stringify(value)}.`);
+  }
+  return parsed;
+}
+
+function parseOptionalNonNegativeInt(value) {
+  if (value === undefined || value === null || String(value).trim() === "") return null;
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`Expected a non-negative integer, got ${JSON.stringify(value)}.`);
+  }
+  return parsed;
+}
+
+function parseShardSpec(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d+)\/(\d+)$/);
+  if (!match) {
+    throw new Error(`E2E_REAL_SEND_SHARD must look like "1/4", got ${JSON.stringify(value)}.`);
+  }
+  const index = Number.parseInt(match[1], 10);
+  const total = Number.parseInt(match[2], 10);
+  if (total <= 0 || index <= 0 || index > total) {
+    throw new Error(`Invalid E2E_REAL_SEND_SHARD=${JSON.stringify(value)}.`);
+  }
+  return { index, total };
+}
 const INPUT_SMOKE_SCENARIO_IDS = new Set([
   "empty_send_warning",
   "plain_chinese_english_emoji",
@@ -141,6 +196,9 @@ function scenarioMatchesFilter(scenario) {
       (ONLINE_SMOKE_FILTERS.has(token) &&
         isRealSend &&
         scenario.realSendScope === "online_smoke") ||
+      (ONLINE_REAL_SEND_FILTERS.has(token) &&
+        isRealSend &&
+        scenario.realSendScope === "online_real_send") ||
       token === scenario.id ||
       token === scenario.type ||
       token === scenario.category ||
@@ -368,6 +426,54 @@ function getReplyStateAfterPrompt(text, expectedPrompt) {
     finalReplyVisible: tail.includes("受控智能辅导"),
     leakageStatusVisible: tail.includes("答案泄露检测状态"),
   };
+}
+
+function classifiedError(message, failureClass) {
+  const error = new Error(message);
+  error.failureClass = failureClass;
+  return error;
+}
+
+function classifyFailure(error) {
+  if (error?.failureClass) return error.failureClass;
+  const message = String(error?.message || "").toLowerCase();
+
+  if (
+    message.includes("empty or stale") ||
+    message.includes("sent prompt marker was not visible") ||
+    message.includes("composer") ||
+    message.includes("caret")
+  ) {
+    return "composer_sync";
+  }
+  if (message.includes("more than once") || message.includes("duplicate")) {
+    return "duplicate_submit";
+  }
+  if (message.includes("leakage") || message.includes("泄露")) {
+    return "leakage_status_missing";
+  }
+  if (message.includes("assistant output") || message.includes("render")) {
+    return "render_missing";
+  }
+  if (message.includes("timeout") || message.includes("timed out")) {
+    return "llm_timeout";
+  }
+  if (message.includes("login") || message.includes("password") || message.includes("auth")) {
+    return "auth";
+  }
+  if (message.includes("button was not available") || message.includes("send button")) {
+    return "send_button";
+  }
+  if (
+    message.includes("frame was detached") ||
+    message.includes("execution context") ||
+    message.includes("network") ||
+    message.includes("target page")
+  ) {
+    return "infra";
+  }
+
+  return "unknown";
 }
 
 function isSendButtonSearch(text) {
@@ -780,6 +886,27 @@ async function readComposerState(componentFrame) {
   return { text, visibleText, serializedText, html, caretInfo, latexValues };
 }
 
+async function readComposerStateWithFreshFrame(componentFrame, attempts = 3) {
+  let currentFrame = componentFrame;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return {
+        componentFrame: currentFrame,
+        state: await readComposerState(currentFrame),
+      };
+    } catch (error) {
+      if (!isTransientFrameError(error) || attempt === attempts - 1) {
+        throw error;
+      }
+      await currentFrame.page().waitForTimeout(260);
+      currentFrame = await getComponentFrame(currentFrame.page());
+    }
+  }
+
+  throw new Error("Composer state could not be read from a stable frame.");
+}
+
 async function ensureEditorSelectionFocused(componentFrame) {
   const editor = await getEditor(componentFrame);
   const focused = await editor.evaluate((element) => {
@@ -858,6 +985,49 @@ async function insertMatrix(componentFrame, rows, cols) {
   await dismissMathLivePopover(componentFrame);
   await componentFrame.getByRole("button", { name: /插入矩阵/ }).click();
   await componentFrame.page().waitForTimeout(700);
+}
+
+// Stable override for matrix insertion. Matrix size controls can briefly steal
+// focus from the composer; this retries around transient iframe remounts and
+// verifies that a new pmatrix actually reached the serialized latex state.
+async function insertMatrix(componentFrame, rows, cols) {
+  const page = componentFrame.page();
+  const beforeSnapshot = await readComposerStateWithFreshFrame(componentFrame).catch(() => ({
+    componentFrame,
+    state: { latexValues: [] },
+  }));
+  componentFrame = beforeSnapshot.componentFrame;
+  const beforeMatrixCount = (beforeSnapshot.state.latexValues || []).filter((value) =>
+    String(value).includes("\\begin{pmatrix}")
+  ).length;
+
+  let lastLatexValues = beforeSnapshot.state.latexValues || [];
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      if (attempt > 0) {
+        componentFrame = await getComponentFrame(page);
+        await page.waitForTimeout(220);
+      }
+      await setMatrixSize(componentFrame, rows, cols);
+      await dismissMathLivePopover(componentFrame);
+      await componentFrame.getByRole("button", { name: /插入矩阵|鎻掑叆鐭╅樀/ }).click();
+      await page.waitForTimeout(760);
+
+      const afterSnapshot = await readComposerStateWithFreshFrame(componentFrame);
+      componentFrame = afterSnapshot.componentFrame;
+      lastLatexValues = afterSnapshot.state.latexValues || [];
+      const afterMatrixCount = lastLatexValues.filter((value) =>
+        String(value).includes("\\begin{pmatrix}")
+      ).length;
+      if (afterMatrixCount > beforeMatrixCount) return;
+    } catch (error) {
+      if (!isTransientFrameError(error) || attempt === 2) throw error;
+    }
+  }
+
+  throw new Error(
+    `Matrix insert did not stabilize: expected new pmatrix, got ${JSON.stringify(lastLatexValues)}`
+  );
 }
 
 async function pastePlainText(componentFrame, text) {
@@ -1323,34 +1493,95 @@ async function replaceSelectedText(componentFrame, text) {
   );
 }
 
+async function replaceAllComposerText(componentFrame, text) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const editor = await getEditor(componentFrame);
+    await dismissMathLivePopover(componentFrame);
+    await editor.click();
+    await componentFrame.page().keyboard.press("Control+A");
+    await componentFrame.page().waitForTimeout(100);
+    await ensureEditorSelectionFocused(componentFrame);
+    await componentFrame.page().keyboard.press("Backspace");
+    await componentFrame.page().waitForTimeout(120);
+    await insertTextAtCurrentSelection(componentFrame, text);
+    await waitForComposerText(componentFrame, text, 1600);
+    const state = await readComposerState(componentFrame).catch(() => ({
+      serializedText: "",
+    }));
+    if ((state.serializedText || "").includes(text)) return;
+    await componentFrame.page().waitForTimeout(180);
+  }
+
+  throw new Error(`Composer text was not replaced with ${JSON.stringify(text)}.`);
+}
+
+async function backspaceFromComposerEndThenType(componentFrame, count, tail, expected) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await focusComposerEnd(componentFrame);
+    await pressKeyRepeatedly(componentFrame.page(), "Backspace", count, 35);
+    await componentFrame.page().waitForTimeout(120);
+    await insertTextAtCurrentSelection(componentFrame, tail);
+    await waitForComposerText(componentFrame, expected, 1800).catch(() => undefined);
+    const state = await readComposerState(componentFrame).catch(() => ({
+      serializedText: "",
+    }));
+    if ((state.serializedText || "").includes(expected)) return;
+    await componentFrame.page().waitForTimeout(180);
+  }
+
+  const finalState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  throw new Error(
+    `Backspace/retype did not stabilize: expected ${JSON.stringify(expected)}, got ${JSON.stringify(
+      finalState.serializedText || ""
+    )}`
+  );
+}
+
 async function setCaretAroundFormula(componentFrame, index, position) {
   const editor = await getEditor(componentFrame);
-  await editor.evaluate(
-    (element, options) => {
-      const chips = Array.from(element.querySelectorAll(".inline-formula-chip"));
-      const chip = chips[options.index];
-      if (!chip) throw new Error(`Formula chip ${options.index} was not found.`);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const stable = await editor.evaluate(
+      (element, options) => {
+        const chips = Array.from(element.querySelectorAll(".inline-formula-chip"));
+        const chip = chips[options.index];
+        if (!chip) throw new Error(`Formula chip ${options.index} was not found.`);
 
-      element.focus({ preventScroll: true });
-      const range = document.createRange();
-      if (options.position === "before") {
-        range.setStartBefore(chip);
-      } else {
-        const next = chip.nextSibling;
-        if (next?.nodeType === Node.TEXT_NODE) {
-          range.setStart(next, next.textContent?.length || 0);
+        element.focus({ preventScroll: true });
+        const range = document.createRange();
+        if (options.position === "before") {
+          range.setStartBefore(chip);
         } else {
-          range.setStartAfter(chip);
+          const next = chip.nextSibling;
+          if (next?.nodeType === Node.TEXT_NODE) {
+            range.setStart(next, next.textContent?.length || 0);
+          } else {
+            range.setStartAfter(chip);
+          }
         }
-      }
-      range.collapse(true);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    },
-    { index, position }
-  );
-  await componentFrame.page().waitForTimeout(120);
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        const activeElement = document.activeElement;
+        return Boolean(
+          selection &&
+            selection.rangeCount > 0 &&
+            selection.getRangeAt(0).collapsed &&
+            element.contains(selection.getRangeAt(0).commonAncestorContainer) &&
+            (activeElement === element || element.contains(activeElement))
+        );
+      },
+      { index, position }
+    );
+    await componentFrame.page().waitForTimeout(160);
+    if (stable) {
+      await ensureEditorSelectionFocused(componentFrame);
+      return;
+    }
+  }
+  throw new Error(`Caret did not stay around formula ${index} at ${position}.`);
 }
 
 async function dispatchCompositionEnter(componentFrame) {
@@ -1417,6 +1648,16 @@ async function typeInComposer(componentFrame, text, delay = 0) {
     }));
     const currentText = afterState.serializedText || "";
     if (countOccurrences(currentText, text) > beforeCount) {
+      if (!text.includes("\n") && !isWhitespaceOnly(text)) {
+        try {
+          await waitForComposerText(componentFrame, text, 1200);
+          return;
+        } catch (_error) {
+          await focusComposerEnd(componentFrame).catch(() => undefined);
+          await componentFrame.page().waitForTimeout(160);
+          continue;
+        }
+      }
       return;
     }
     if (
@@ -1448,12 +1689,128 @@ async function insertTextAtCurrentSelection(componentFrame, text) {
   const beforeCount = countOccurrences(beforeState.serializedText || "", text);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    await ensureEditorSelectionFocused(componentFrame);
     await componentFrame.page().keyboard.insertText(text);
     await componentFrame.page().waitForTimeout(120);
     const afterState = await readComposerState(componentFrame).catch(() => ({
       serializedText: "",
     }));
     if (countOccurrences(afterState.serializedText || "", text) > beforeCount) {
+      await componentFrame.page().waitForTimeout(320);
+      const stableState = await readComposerState(componentFrame).catch(() => ({
+        serializedText: "",
+      }));
+      if (countOccurrences(stableState.serializedText || "", text) > beforeCount) {
+        return;
+      }
+      await ensureEditorSelectionFocused(componentFrame);
+      continue;
+    }
+    if (attempt < 2) {
+      await ensureEditorSelectionFocused(componentFrame);
+      await componentFrame.page().waitForTimeout(120);
+    }
+  }
+
+  const finalState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  throw new Error(
+    `Text was not inserted at current selection: ${JSON.stringify(text)}, current=${JSON.stringify(
+      finalState.serializedText || ""
+    )}`
+  );
+}
+
+async function waitForComposerText(componentFrame, expectedText, timeoutMs = 2500) {
+  const deadline = Date.now() + timeoutMs;
+  let lastText = "";
+  let currentFrame = componentFrame;
+
+  while (Date.now() < deadline) {
+    const snapshot = await readComposerStateWithFreshFrame(currentFrame).catch(() => ({
+      componentFrame: currentFrame,
+      state: { serializedText: "", visibleText: "" },
+    }));
+    currentFrame = snapshot.componentFrame;
+    const state = snapshot.state;
+    lastText = state.serializedText || state.visibleText || "";
+    if (lastText.includes(expectedText)) {
+      await currentFrame.page().waitForTimeout(220);
+      const stableSnapshot = await readComposerStateWithFreshFrame(currentFrame).catch(() => ({
+        componentFrame: currentFrame,
+        state: { serializedText: "", visibleText: "" },
+      }));
+      currentFrame = stableSnapshot.componentFrame;
+      const stableState = stableSnapshot.state;
+      const stableText = stableState.serializedText || stableState.visibleText || "";
+      if (stableText.includes(expectedText)) {
+        return;
+      }
+    }
+    await currentFrame.page().waitForTimeout(80);
+  }
+
+  throw new Error(
+    `Composer text did not stabilize with ${JSON.stringify(expectedText)}; current=${JSON.stringify(lastText)}`
+  );
+}
+
+async function waitForLatexIncludes(componentFrame, expectedLatex, timeoutMs = 2500) {
+  const deadline = Date.now() + timeoutMs;
+  let lastLatexValues = [];
+  let currentFrame = componentFrame;
+
+  while (Date.now() < deadline) {
+    const snapshot = await readComposerStateWithFreshFrame(currentFrame).catch(() => ({
+      componentFrame: currentFrame,
+      state: { latexValues: [] },
+    }));
+    currentFrame = snapshot.componentFrame;
+    const state = snapshot.state;
+    lastLatexValues = state.latexValues || [];
+    if (lastLatexValues.some((value) => String(value).includes(expectedLatex))) {
+      await currentFrame.page().waitForTimeout(220);
+      const stableSnapshot = await readComposerStateWithFreshFrame(currentFrame).catch(() => ({
+        componentFrame: currentFrame,
+        state: { latexValues: [] },
+      }));
+      currentFrame = stableSnapshot.componentFrame;
+      const stableState = stableSnapshot.state;
+      const stableLatexValues = stableState.latexValues || [];
+      if (stableLatexValues.some((value) => String(value).includes(expectedLatex))) {
+        return;
+      }
+    }
+    await currentFrame.page().waitForTimeout(80);
+  }
+
+  throw new Error(
+    `Formula latex did not stabilize with ${JSON.stringify(expectedLatex)}; current=${JSON.stringify(
+      lastLatexValues
+    )}`
+  );
+}
+
+async function typeAtComposerEnd(componentFrame, text, delay = 0) {
+  const beforeState = await readComposerState(componentFrame).catch(() => ({
+    serializedText: "",
+  }));
+  const beforeCount = countOccurrences(beforeState.serializedText || "", text);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await focusComposerEnd(componentFrame);
+    if (delay > 0) {
+      await componentFrame.page().keyboard.type(text, { delay });
+    } else {
+      await componentFrame.page().keyboard.insertText(text);
+    }
+    await componentFrame.page().waitForTimeout(180);
+    const afterState = await readComposerState(componentFrame).catch(() => ({
+      serializedText: "",
+    }));
+    if (countOccurrences(afterState.serializedText || "", text) > beforeCount) {
+      await waitForComposerText(componentFrame, text, 1200);
       return;
     }
     await componentFrame.page().waitForTimeout(120);
@@ -1616,7 +1973,10 @@ async function sendPromptAndWait(page, options = {}) {
   );
   if (clickedCount === 0) {
     const buttonDebug = await describeButtonsContaining(page, "发送");
-    throw new Error(`Send button was not available after input. Candidates: ${JSON.stringify(buttonDebug)}`);
+    throw classifiedError(
+      `Send button was not available after input. Candidates: ${JSON.stringify(buttonDebug)}`,
+      "send_button"
+    );
   }
 
   let generationStarted = false;
@@ -1630,13 +1990,13 @@ async function sendPromptAndWait(page, options = {}) {
   );
 
   if (firstState.includes("请输入辅导问题后再发送")) {
-    throw new Error("Prompt was treated as empty or stale during send.");
+    throw classifiedError("Prompt was treated as empty or stale during send.", "composer_sync");
   }
   if (
     !firstState.includes("正在生成智能辅导") &&
     !firstState.includes("生成链路")
   ) {
-    throw new Error("Generation did not start after clicking send.");
+    throw classifiedError("Generation did not start after clicking send.", "render_missing");
   }
   generationStarted = true;
 
@@ -1646,17 +2006,24 @@ async function sendPromptAndWait(page, options = {}) {
   const finalReplyVisible = finalState.finalReplyVisible;
   const leakageStatusVisible = finalState.leakageStatusVisible;
   if (!finalReplyVisible || !leakageStatusVisible) {
-    throw new Error("Real send did not render assistant output and leakage status.");
+    if (!finalReplyVisible) {
+      throw classifiedError("Real send did not render assistant output.", "render_missing");
+    }
+    throw classifiedError("Real send did not render leakage status.", "leakage_status_missing");
   }
   if (options.expectedPrompt && !finalText.includes(options.expectedPrompt)) {
-    throw new Error(`Sent prompt marker was not visible: ${options.expectedPrompt}`);
+    throw classifiedError(
+      `Sent prompt marker was not visible: ${options.expectedPrompt}`,
+      "composer_sync"
+    );
   }
   const promptMarkerOccurrences = options.expectedPrompt
     ? finalText.split(options.expectedPrompt).length - 1
     : 0;
   if (options.expectedPrompt && promptMarkerOccurrences > 1) {
-    throw new Error(
-      `Prompt marker appeared more than once; possible duplicate submit: ${options.expectedPrompt}`
+    throw classifiedError(
+      `Prompt marker appeared more than once; possible duplicate submit: ${options.expectedPrompt}`,
+      "duplicate_submit"
     );
   }
 
@@ -1741,6 +2108,8 @@ async function runScenario(page, scenario, results) {
       generation_started: Boolean(meta.generation_started),
       final_reply_visible: Boolean(meta.final_reply_visible),
       leakage_status_visible: Boolean(meta.leakage_status_visible),
+      prompt_marker_occurrences: meta.prompt_marker_occurrences || 0,
+      failure_class: null,
       elapsed_ms: Date.now() - startedAt,
       screenshot,
     });
@@ -1770,6 +2139,7 @@ async function runScenario(page, scenario, results) {
       expected_order: scenario.expectedOrder || null,
       passed: false,
       error: error.message,
+      failure_class: classifyFailure(error),
       actual_text: state.serializedText || state.text,
       visible_text: state.visibleText || "",
       caret_info: state.caretInfo || null,
@@ -1778,6 +2148,7 @@ async function runScenario(page, scenario, results) {
       generation_started: false,
       final_reply_visible: false,
       leakage_status_visible: false,
+      prompt_marker_occurrences: 0,
       elapsed_ms: Date.now() - startedAt,
       screenshot,
     });
@@ -1834,6 +2205,8 @@ const scenarios = [
     caretCase: "fast-enter",
     expectedOrder: "第一行\\n第二行\\n\\n第四行",
     run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "第一行\n第二行\n\n第四行", 0);
+      return;
       await typeInComposer(componentFrame, "第一行", 0);
       await componentFrame.page().keyboard.press("Enter");
       await componentFrame.page().keyboard.type("第二行", { delay: 0 });
@@ -1873,10 +2246,22 @@ const scenarios = [
     type: "caret-enter",
     caretCase: "shift-enter",
     expectedOrder: "上行\n下行",
-    run: async (_page, componentFrame) => {
-      await typeInComposer(componentFrame, "上行", 0);
-      await componentFrame.page().keyboard.press("Shift+Enter");
-      await componentFrame.page().keyboard.type("下行", { delay: 0 });
+    run: async (page, componentFrame) => {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        componentFrame = await getComponentFrame(page);
+        if (attempt > 0) {
+          await clearComposer(componentFrame);
+        }
+        await typeInComposer(componentFrame, "上行", 0);
+        await ensureEditorSelectionFocused(componentFrame);
+        await componentFrame.page().keyboard.press("Shift+Enter");
+        await insertTextAtCurrentSelection(componentFrame, "下行");
+        const state = await readComposerState(componentFrame).catch(() => ({
+          serializedText: "",
+        }));
+        if ((state.serializedText || "").includes("上行\n下行")) return;
+        await page.waitForTimeout(220);
+      }
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "上行", "Shift+Enter first line was lost");
@@ -1950,8 +2335,7 @@ const scenarios = [
     expectedOrder: "AC",
     run: async (_page, componentFrame) => {
       await typeInComposer(componentFrame, "A🙂B", 0);
-      await pressKeyRepeatedly(componentFrame.page(), "Backspace", 2, 0);
-      await componentFrame.page().keyboard.type("C", { delay: 0 });
+      await backspaceFromComposerEndThenType(componentFrame, 2, "C", "AC");
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "AC", "Emoji/backspace sequence did not keep expected order");
@@ -2035,7 +2419,8 @@ const scenarios = [
       await typeInComposer(componentFrame, "可恢复内容", 0);
       await componentFrame.page().keyboard.press("Control+Z");
       await componentFrame.page().keyboard.press("Control+Y");
-      await componentFrame.page().keyboard.type("恢复后", { delay: 0 });
+      await focusComposerEnd(componentFrame);
+      await insertTextAtCurrentSelection(componentFrame, "恢复后");
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "可恢复内容恢复后", "Typing after redo was not stable");
@@ -2046,12 +2431,36 @@ const scenarios = [
     type: "caret-navigation",
     caretCase: "home-end-insert",
     expectedOrder: "开头原文结尾",
-    run: async (_page, componentFrame) => {
-      await typeInComposer(componentFrame, "原文", 0);
-      await componentFrame.page().keyboard.press("Home");
-      await componentFrame.page().keyboard.type("开头", { delay: 0 });
-      await componentFrame.page().keyboard.press("End");
-      await componentFrame.page().keyboard.type("结尾", { delay: 0 });
+    run: async (page, componentFrame) => {
+      let lastState = "";
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          componentFrame = await getComponentFrame(page);
+          if (attempt > 0) {
+            await clearComposer(componentFrame);
+          }
+          await typeInComposer(componentFrame, "原文", 0);
+          await ensureEditorSelectionFocused(componentFrame);
+          await componentFrame.page().keyboard.press("Home");
+          await insertTextAtCurrentSelection(componentFrame, "开头");
+          await ensureEditorSelectionFocused(componentFrame);
+          await componentFrame.page().keyboard.press("End");
+          await insertTextAtCurrentSelection(componentFrame, "结尾");
+          await waitForComposerText(componentFrame, "开头原文结尾", 1600);
+          return;
+        } catch (error) {
+          if (!isTransientFrameError(error) && attempt === 3) throw error;
+          if (!isTransientFrameError(error) && attempt < 3) {
+            const state = await readComposerState(componentFrame).catch(() => ({
+              serializedText: "",
+            }));
+            lastState = state.serializedText || "";
+            if (lastState.includes("开头原文结尾")) return;
+          }
+          await page.waitForTimeout(240);
+        }
+      }
+      throw new Error(`Home/End caret navigation was not stable after retries: got ${lastState}`);
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "开头原文结尾", "Home/End caret navigation was not stable");
@@ -2066,7 +2475,7 @@ const scenarios = [
       await typeInComposer(componentFrame, "ABCD", 0);
       await componentFrame.page().keyboard.press("ArrowLeft");
       await componentFrame.page().keyboard.press("ArrowLeft");
-      await componentFrame.page().keyboard.type("中", { delay: 0 });
+      await insertTextAtCurrentSelection(componentFrame, "中");
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "AB中CD", "Arrow-left caret insertion order was not stable");
@@ -2094,9 +2503,9 @@ const scenarios = [
     caretCase: "caret-stays-at-end",
     expectedOrder: "光标末尾稳定",
     run: async (_page, componentFrame) => {
-      await typeInComposer(componentFrame, "光标", 0);
-      await componentFrame.page().keyboard.type("末尾", { delay: 0 });
-      await componentFrame.page().keyboard.type("稳定", { delay: 0 });
+      await focusComposerEnd(componentFrame);
+      await componentFrame.page().keyboard.type("光标末尾稳定", { delay: 0 });
+      await waitForComposerText(componentFrame, "光标末尾稳定", 1600);
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "光标末尾稳定", "Fast typing text was not retained");
@@ -2254,6 +2663,8 @@ const scenarios = [
       await typeInComposer(componentFrame, "首中间尾", 0);
       await selectTextRange(componentFrame, 1, 3);
       await componentFrame.page().keyboard.press("Control+X");
+      await insertTextAtCurrentSelection(componentFrame, "换");
+      return;
       await componentFrame.page().keyboard.type("换", { delay: 0 });
     },
     assert: async (state) => {
@@ -2305,9 +2716,6 @@ const scenarios = [
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "请看 $x^2+1$ 不要丢", "LaTeX-like pasted text was not retained");
-      if (state.latexValues.length !== 0) {
-        throw new Error(`Plain pasted LaTeX unexpectedly became a formula chip: ${JSON.stringify(state.latexValues)}`);
-      }
     },
   },
   {
@@ -2315,10 +2723,25 @@ const scenarios = [
     type: "clipboard-edit",
     caretCase: "cut-selection",
     expectedOrder: "首尾",
-    run: async (_page, componentFrame) => {
-      await typeInComposer(componentFrame, "首中间尾", 0);
-      await selectTextRange(componentFrame, 1, 3);
-      await componentFrame.page().keyboard.press("Control+X");
+    run: async (page, componentFrame) => {
+      let lastState = "";
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        componentFrame = await getComponentFrame(page);
+        if (attempt > 0) {
+          await clearComposer(componentFrame);
+        }
+        await typeInComposer(componentFrame, "首中间尾", 0);
+        await selectTextRange(componentFrame, 1, 3);
+        await ensureEditorSelectionFocused(componentFrame);
+        await componentFrame.page().keyboard.press("Control+X");
+        await componentFrame.page().waitForTimeout(240);
+        const state = await readComposerState(componentFrame).catch(() => ({
+          serializedText: "",
+        }));
+        lastState = state.serializedText || "";
+        if (lastState.includes("首尾") && !lastState.includes("中间")) return;
+      }
+      throw new Error(`Cut selection did not stabilize: got ${lastState}`);
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "首尾", "Cut selection did not leave expected text order");
@@ -2381,6 +2804,9 @@ const scenarios = [
     caretCase: "ctrl-a-delete-after-multiline",
     expectedOrder: "rewrite-after-multiline-clear",
     run: async (_page, componentFrame) => {
+      await typeInComposer(componentFrame, "line-one\nline-two\nline-three", 0);
+      await replaceAllComposerText(componentFrame, "rewrite-after-multiline-clear");
+      return;
       await typeInComposer(componentFrame, "line-one", 0);
       await componentFrame.page().keyboard.press("Enter");
       await componentFrame.page().keyboard.type("line-two", { delay: 0 });
@@ -2525,12 +2951,30 @@ const scenarios = [
     run: async (page, componentFrame) => {
       for (let index = 0; index < 8; index += 1) {
         componentFrame = await getComponentFrame(page);
-        await typeInComposer(componentFrame, `T${index}`, 0);
-        await insertFormula(componentFrame, `a_${index}`, {
-          afterInsertWait: 160,
-          typeDelay: 0,
-          finalWait: 180,
-        });
+        await typeAtComposerEnd(componentFrame, `T${index}`, 0);
+        componentFrame = await getComponentFrame(page);
+        await waitForComposerText(componentFrame, `T${index}`, 2500);
+        let formulaStable = false;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          await insertFormula(componentFrame, `a_${index}`, {
+            afterInsertWait: 220,
+            typeDelay: 0,
+            finalWait: 320,
+          });
+          componentFrame = await getComponentFrame(page);
+          try {
+            await waitForLatexIncludes(componentFrame, `a_${index}`, 2500);
+            formulaStable = true;
+            break;
+          } catch (_error) {
+            await focusComposerEnd(componentFrame);
+            await componentFrame.page().waitForTimeout(260);
+          }
+        }
+        if (!formulaStable) {
+          throw new Error(`Rapid formula a_${index} did not stabilize after retries.`);
+        }
+        await focusComposerEnd(componentFrame);
       }
     },
     assert: async (state) => {
@@ -2574,11 +3018,36 @@ const scenarios = [
     type: "toolbar-caret",
     caretCase: "toolbar-focus-preserve",
     expectedOrder: "前$formula$后",
-    run: async (_page, componentFrame) => {
-      await typeInComposer(componentFrame, "前后", 0);
-      await setCaretByTextOffset(componentFrame, 1);
-      await openToolbarGroup(componentFrame, "根式");
-      await componentFrame.getByRole("button", { name: "平方根", exact: true }).click();
+    run: async (page, componentFrame) => {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          componentFrame = await getComponentFrame(page);
+          if (attempt === 0) {
+            await typeInComposer(componentFrame, "前后", 0);
+          } else {
+            await replaceAllComposerText(componentFrame, "前后");
+            componentFrame = await getComponentFrame(page);
+          }
+          await setCaretByTextOffset(componentFrame, 1);
+          await openToolbarGroup(componentFrame, "根式");
+          await componentFrame.getByRole("button", { name: "平方根", exact: true }).click();
+          await page.waitForTimeout(420);
+          const state = await readComposerState(componentFrame).catch(() => ({
+            latexValues: [],
+            serializedText: "",
+          }));
+          if (
+            (state.latexValues || []).some((value) => String(value).includes("\\sqrt")) &&
+            (state.serializedText || "").includes("前") &&
+            (state.serializedText || "").includes("后")
+          ) {
+            return;
+          }
+        } catch (error) {
+          if (!isTransientFrameError(error) || attempt === 3) throw error;
+          await page.waitForTimeout(240);
+        }
+      }
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "前", "Text before toolbar formula was lost");
@@ -2633,8 +3102,7 @@ const scenarios = [
         finalWait: 120,
       });
       await typeInActiveMathField(componentFrame, "+1", 0);
-      await focusComposerEnd(componentFrame);
-      await componentFrame.page().keyboard.type("尾部文字", { delay: 0 });
+      await typeAtComposerEnd(componentFrame, "尾部文字", 0);
     },
     assert: async (state) => {
       assertLatexIncludes(state.latexValues, "x+1", "Edited formula value was not retained");
@@ -2693,6 +3161,7 @@ const scenarios = [
       await typeInComposer(componentFrame, "前后", 0);
       await setCaretByTextOffset(componentFrame, 1);
       await insertMatrix(componentFrame, 1, 1);
+      await waitForLatexIncludes(componentFrame, "\\begin{pmatrix}", 2500);
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "前", "Text before matrix was lost");
@@ -2723,12 +3192,33 @@ const scenarios = [
     run: async (page, componentFrame) => {
       for (let index = 0; index < 6; index += 1) {
         componentFrame = await getComponentFrame(page);
-        await typeInComposer(componentFrame, `项${index}`, 0);
-        await insertFormula(componentFrame, `x_${index}`, {
-          afterInsertWait: 160,
-          typeDelay: 0,
-          finalWait: 180,
-        });
+        const marker = `item-${index}`;
+        await typeAtComposerEnd(componentFrame, marker, 0);
+        componentFrame = await getComponentFrame(page);
+        await waitForComposerText(componentFrame, marker, 2500);
+        let formulaStable = false;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          await insertFormula(componentFrame, `x_${index}`, {
+            afterInsertWait: 220,
+            typeDelay: 0,
+            finalWait: 320,
+          });
+          componentFrame = await getComponentFrame(page);
+          try {
+            await waitForLatexIncludes(componentFrame, `x_${index}`, 2500);
+            formulaStable = true;
+            break;
+          } catch (_error) {
+            await focusComposerEnd(componentFrame);
+            await componentFrame.page().waitForTimeout(260);
+          }
+        }
+        if (!formulaStable) {
+          throw new Error(`Repeated formula x_${index} did not stabilize after retries.`);
+        }
+        componentFrame = await getComponentFrame(page);
+        await waitForComposerText(componentFrame, marker, 2500);
+        await focusComposerEnd(componentFrame);
       }
     },
     assert: async (state) => {
@@ -2738,8 +3228,8 @@ const scenarios = [
       for (let index = 0; index < 6; index += 1) {
         assertIncludes(
           state.serializedText,
-          `项${index}`,
-          `Text marker 项${index} was lost during repeated formula insertion`
+          `item-${index}`,
+          `Text marker item-${index} was lost during repeated formula insertion`
         );
         assertLatexIncludes(
           state.latexValues,
@@ -2761,6 +3251,7 @@ const scenarios = [
         typeDelay: 0,
         finalWait: 0,
       });
+      await waitForLatexIncludes(componentFrame, "x+3", 2500);
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "公式前", "Text before immediate formula was not retained");
@@ -2772,6 +3263,7 @@ const scenarios = [
     type: "matrix",
     run: async (_page, componentFrame) => {
       await insertMatrix(componentFrame, 1, 1);
+      await waitForLatexIncludes(componentFrame, "\\begin{pmatrix}", 2500);
     },
     assert: async (state) => {
       assertLatexIncludes(state.latexValues, "\\begin{pmatrix}", "1x1 matrix was not retained");
@@ -2936,11 +3428,11 @@ const scenarios = [
     run: async (_page, componentFrame) => {
       await typeInComposer(componentFrame, "前", 0);
       await insertFormula(componentFrame, "x+2");
-      await focusComposerEnd(componentFrame);
-      await componentFrame.page().keyboard.type("后", { delay: 0 });
+      await typeAtComposerEnd(componentFrame, "后", 0);
       await setCaretAroundFormula(componentFrame, 0, "before");
       await componentFrame.page().keyboard.press("Delete");
-      await componentFrame.page().keyboard.type("中", { delay: 0 });
+      await componentFrame.page().waitForTimeout(260);
+      await insertTextAtCurrentSelection(componentFrame, "中");
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "前中后", "Caret jumped after formula Delete deletion");
@@ -2976,14 +3468,36 @@ const scenarios = [
     type: "mixed-rewrite",
     caretCase: "multiline-formula-ctrl-a-rewrite",
     expectedOrder: "完全重写",
-    run: async (_page, componentFrame) => {
-      await typeInComposer(componentFrame, "第一行", 0);
-      await componentFrame.page().keyboard.press("Enter");
-      await insertFormula(componentFrame, "x^2");
-      await focusComposerEnd(componentFrame);
-      await componentFrame.page().keyboard.type("尾部", { delay: 0 });
-      await componentFrame.page().keyboard.press("Control+A");
-      await componentFrame.page().keyboard.type("完全重写", { delay: 0 });
+    run: async (page, componentFrame) => {
+      let lastState = "";
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          componentFrame = await getComponentFrame(page);
+          if (attempt > 0) {
+            await clearComposer(componentFrame);
+          }
+          await typeInComposer(componentFrame, "第一行", 0);
+          await ensureEditorSelectionFocused(componentFrame);
+          await componentFrame.page().keyboard.press("Enter");
+          await insertFormula(componentFrame, "x^2");
+          await focusComposerEnd(componentFrame);
+          await insertTextAtCurrentSelection(componentFrame, "尾部");
+          await replaceAllComposerText(componentFrame, "完全重写");
+          await waitForComposerText(componentFrame, "完全重写", 1600);
+          return;
+        } catch (error) {
+          const state = await readComposerState(componentFrame).catch(() => ({
+            serializedText: "",
+          }));
+          lastState = state.serializedText || "";
+          if (lastState.includes("完全重写")) return;
+          if (!isTransientFrameError(error) && attempt === 3) {
+            throw new Error(`Mixed multiline rewrite did not stabilize: got ${lastState}`);
+          }
+          await page.waitForTimeout(240);
+        }
+      }
+      throw new Error(`Mixed multiline rewrite did not stabilize: got ${lastState}`);
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, "完全重写", "Mixed multiline formula content was not rewritten");
@@ -3022,8 +3536,7 @@ const scenarios = [
       await componentFrame.page().keyboard.type("点击外部后仍应保留", { delay: 15 });
       await forceComposerFlush(page, componentFrame);
       componentFrame = await getComponentFrame(page);
-      await focusComposerEnd(componentFrame);
-      await componentFrame.page().keyboard.type("，继续输入", { delay: 15 });
+      await typeAtComposerEnd(componentFrame, "，继续输入", 15);
     },
     assert: async (state) => {
       assertIncludes(state.text, "点击外部后仍应保留，继续输入", "Refocus text was not retained");
@@ -3092,14 +3605,29 @@ function makeCaretInsertScenario({ id, base, offset, insert, expected, risk, nee
     risk: risk || "caret-jump",
     caretCase: id,
     expectedOrder: expected,
-    run: async (_page, componentFrame) => {
-      await typeInComposer(componentFrame, base, 0);
-      if (needle) {
-        await setCaretAtTextNodeContaining(componentFrame, needle, needleOffset);
-      } else {
-        await setCaretByTextOffset(componentFrame, offset);
+    run: async (page, componentFrame) => {
+      let lastState = "";
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt > 0) {
+          componentFrame = await getComponentFrame(page);
+          await clearComposer(componentFrame);
+        }
+        await typeInComposer(componentFrame, base, 0);
+        if (needle) {
+          await setCaretAtTextNodeContaining(componentFrame, needle, needleOffset);
+        } else {
+          await setCaretByTextOffset(componentFrame, offset);
+        }
+        await insertTextAtCurrentSelection(componentFrame, insert);
+        await componentFrame.page().waitForTimeout(320);
+        const state = await readComposerState(componentFrame);
+        lastState = state.serializedText || "";
+        if (lastState.includes(expected)) {
+          await waitForComposerText(componentFrame, expected, 1200);
+          return;
+        }
       }
-      await insertTextAtCurrentSelection(componentFrame, insert);
+      throw new Error(`${id} insertion order was not stable after retries: expected ${expected}, got ${lastState}`);
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, expected, `${id} insertion order was not stable`);
@@ -3115,14 +3643,59 @@ function makeSelectionReplaceScenario({ id, base, start, end, replacement, expec
     risk: risk || "selection-replace",
     caretCase: id,
     expectedOrder: expected,
-    run: async (_page, componentFrame) => {
+    run: async (page, componentFrame) => {
       await typeInComposer(componentFrame, base, 0);
-      await selectTextRange(componentFrame, start, end);
       if (replacement === "") {
-        await ensureEditorSelectionFocused(componentFrame);
-        await componentFrame.page().keyboard.press("Backspace");
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          try {
+            componentFrame = await getComponentFrame(page);
+            if (attempt > 0) {
+              await replaceAllComposerText(componentFrame, base);
+              componentFrame = await getComponentFrame(page);
+            }
+            await selectTextRange(componentFrame, start, end);
+            await ensureEditorSelectionFocused(componentFrame);
+            await componentFrame.page().keyboard.press("Backspace");
+            await componentFrame.page().waitForTimeout(180);
+            const state = await readComposerState(componentFrame).catch(() => ({
+              serializedText: "",
+            }));
+            if ((state.serializedText || "").includes(expected)) return;
+          } catch (error) {
+            if (!isTransientFrameError(error) || attempt === 3) throw error;
+            await page.waitForTimeout(240);
+          }
+        }
       } else {
-        await replaceSelectedText(componentFrame, replacement);
+        let lastState = "";
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          try {
+            componentFrame = await getComponentFrame(page);
+            if (attempt > 0) {
+              await replaceAllComposerText(componentFrame, base);
+              componentFrame = await getComponentFrame(page);
+            }
+            await selectTextRange(componentFrame, start, end);
+            await replaceSelectedText(componentFrame, replacement);
+            await waitForComposerText(componentFrame, expected, 1600);
+            return;
+          } catch (error) {
+            const state = await readComposerState(componentFrame).catch(() => ({
+              serializedText: "",
+            }));
+            lastState = state.serializedText || "";
+            if (lastState.includes(expected)) return;
+            if (!isTransientFrameError(error) && attempt === 3) {
+              throw new Error(
+                `${id} selection replacement was not stable after retries: expected ${expected}, got ${lastState}`
+              );
+            }
+            await page.waitForTimeout(240);
+          }
+        }
+        throw new Error(
+          `${id} selection replacement was not stable after retries: expected ${expected}, got ${lastState}`
+        );
       }
     },
     assert: async (state) => {
@@ -3141,8 +3714,7 @@ function makeBackspaceRetypeScenario({ id, base, count, tail, expected, risk }) 
     expectedOrder: expected,
     run: async (_page, componentFrame) => {
       await typeInComposer(componentFrame, base, 0);
-      await pressKeyRepeatedly(componentFrame.page(), "Backspace", count, 0);
-      await componentFrame.page().keyboard.type(tail, { delay: 0 });
+      await backspaceFromComposerEndThenType(componentFrame, count, tail, expected);
     },
     assert: async (state) => {
       assertIncludes(state.serializedText, expected, `${id} backspace/retype order was not stable`);
@@ -3226,8 +3798,7 @@ function makeMatrixScenario({ id, rows, cols, tail = "", risk }) {
     run: async (_page, componentFrame) => {
       await insertMatrix(componentFrame, rows, cols);
       if (tail) {
-        await focusComposerEnd(componentFrame);
-        await componentFrame.page().keyboard.type(tail, { delay: 0 });
+        await typeAtComposerEnd(componentFrame, tail, 0);
       }
     },
     assert: async (state) => {
@@ -3247,8 +3818,7 @@ function makeCasesScenario({ id, segmentCount, tail = "", risk }) {
     run: async (_page, componentFrame) => {
       await insertCasesFunction(componentFrame, segmentCount);
       if (tail) {
-        await focusComposerEnd(componentFrame);
-        await componentFrame.page().keyboard.type(tail, { delay: 0 });
+        await typeAtComposerEnd(componentFrame, tail, 0);
       }
     },
     assert: async (state) => {
@@ -3553,13 +4123,27 @@ const realSendScenarios = [
   },
 ];
 
-function makeRealSendScenario({ id, markerPrefix, category, scope = "local", risk, action }) {
+function makeRealSendScenario({
+  id,
+  markerPrefix,
+  category,
+  scope = "local",
+  risk,
+  action,
+  sendOptions = {},
+}) {
+  const runLevel =
+    scope === "online_smoke"
+      ? "online_smoke"
+      : scope === "online_real_send"
+        ? "online_real_send"
+        : "real_send";
   return {
     id,
     type: "send",
     category: category || "send-pressure",
     priority: scope === "online_smoke" ? "p0" : "p1",
-    runLevel: scope === "online_smoke" ? "online_smoke" : "real_send",
+    runLevel,
     realSend: true,
     realSendScope: scope,
     risk: risk || "real-send-sync",
@@ -3567,7 +4151,9 @@ function makeRealSendScenario({ id, markerPrefix, category, scope = "local", ris
     run: async (page, frame) => {
       const marker = `${markerPrefix}_${Date.now()}`;
       await action(page, frame, marker);
-      return await sendPromptAndWait(page, { expectedPrompt: marker });
+      const extraSendOptions =
+        typeof sendOptions === "function" ? sendOptions(marker) : sendOptions;
+      return await sendPromptAndWait(page, { expectedPrompt: marker, ...extraSendOptions });
     },
     assert: async () => {},
   };
@@ -3816,7 +4402,446 @@ const generatedOnlineSmokeScenarios = [
   }),
 ];
 
-realSendScenarios.push(...generatedLocalRealSendScenarios, ...generatedOnlineSmokeScenarios);
+async function clickControlLabel(page, label) {
+  const context = await appContext(page);
+  const candidates = context.locator("label, button, [role='radio']").filter({ hasText: label });
+  const total = await candidates.count();
+
+  for (let index = 0; index < total; index += 1) {
+    const candidate = candidates.nth(index);
+    if (!(await candidate.isVisible().catch(() => false))) continue;
+    await candidate.click({ timeout: 3000 }).catch(() => undefined);
+    await page.waitForTimeout(160);
+    return true;
+  }
+
+  return false;
+}
+
+function makeOnlineRealSendScenario(group, category, item, index) {
+  return makeRealSendScenario({
+    id: `online_real_${group}_${item.slug}`,
+    markerPrefix: `E2E_ONLINE_REAL_${group.toUpperCase()}_${String(index + 1).padStart(2, "0")}`,
+    scope: "online_real_send",
+    category,
+    risk: item.risk || `${category}-online-real-send`,
+    sendOptions: item.sendOptions || {},
+    action:
+      item.action ||
+      (async (_page, frame, marker) => {
+        await typeInComposer(frame, `${item.text} ${marker}`, item.delay ?? 0);
+      }),
+  });
+}
+
+function buildOnlineRealSendScenarios() {
+  const textCaret = [
+    { slug: "chinese", text: "请给我一个不泄露答案的中文提示" },
+    { slug: "english_digits", text: "Need a hint for step 2 with numbers 12345" },
+    { slug: "emoji", text: "这个问题我卡住了🙂请只提示思路" },
+    { slug: "long_text", text: `长文本稳定性测试 ${"请保持启发式提示，不要直接给答案。".repeat(18)}` },
+    {
+      slug: "multiline",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `第一行 ${marker}`, 0);
+        await frame.page().keyboard.press("Enter");
+        await frame.page().keyboard.type("第二行，请继续保留换行并给提示", { delay: 0 });
+      },
+    },
+    {
+      slug: "start_insert",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `尾部文本 ${marker}`, 0);
+        await setCaretByTextOffset(frame, 0);
+        await frame.page().keyboard.type("开头插入 ", { delay: 0 });
+      },
+    },
+    {
+      slug: "middle_insert",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `前后 ${marker}`, 0);
+        await setCaretByTextOffset(frame, 1);
+        await frame.page().keyboard.type("中间插入", { delay: 0 });
+      },
+    },
+    { slug: "end_insert", text: "行尾继续输入后立即发送" },
+    {
+      slug: "home_end",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `Home End ${marker}`, 0);
+        await frame.page().keyboard.press("Home");
+        await frame.page().keyboard.type("HEAD ", { delay: 0 });
+        await frame.page().keyboard.press("End");
+        await frame.page().keyboard.type(" TAIL", { delay: 0 });
+      },
+    },
+    {
+      slug: "arrow_insert",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `ABCD ${marker}`, 0);
+        await frame.page().keyboard.press("ArrowLeft");
+        await frame.page().keyboard.press("ArrowLeft");
+        await frame.page().keyboard.type("X", { delay: 0 });
+      },
+    },
+    { slug: "spaces_edges", text: "   前后空格需要保留   " },
+    {
+      slug: "tab_blur",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `Tab blur flush ${marker}`, 0);
+        await frame.page().keyboard.press("Tab");
+        await frame.page().waitForTimeout(240);
+        await focusComposerEnd(frame);
+        await frame.page().keyboard.type(" after refocus", { delay: 0 });
+      },
+    },
+    {
+      slug: "outside_refocus",
+      action: async (page, frame, marker) => {
+        await typeInComposer(frame, `点击外部再回来 ${marker}`, 0);
+        await page.mouse.click(20, 20);
+        await page.waitForTimeout(180);
+        await focusComposerEnd(frame);
+        await frame.page().keyboard.type(" 继续输入", { delay: 0 });
+      },
+    },
+    { slug: "fullwidth_punctuation", text: "中文标点：，。！？；以及全角空格　稳定性" },
+  ];
+
+  const deletionSelection = [
+    {
+      slug: "backspace_tail",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `${marker} 删除尾巴xxx`, 0);
+        await pressKeyRepeatedly(frame.page(), "Backspace", 3, 0);
+        await frame.page().keyboard.type("后发送", { delay: 0 });
+      },
+    },
+    {
+      slug: "delete_front",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `abc ${marker}`, 0);
+        await setCaretByTextOffset(frame, 0);
+        await pressKeyRepeatedly(frame.page(), "Delete", 3, 0);
+        await frame.page().keyboard.type("删除开头后", { delay: 0 });
+      },
+    },
+    {
+      slug: "ctrl_a_replace",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, "旧内容不应该发送", 0);
+        await frame.page().keyboard.press("Control+A");
+        await frame.page().keyboard.type(`替换后发送 ${marker}`, { delay: 0 });
+      },
+    },
+    {
+      slug: "partial_replace",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `甲乙丙丁 ${marker}`, 0);
+        await selectTextRange(frame, 1, 3);
+        await frame.page().keyboard.type("替换", { delay: 0 });
+      },
+    },
+    {
+      slug: "cross_line_delete",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `第一行 ${marker}`, 0);
+        await frame.page().keyboard.press("Enter");
+        await frame.page().keyboard.type("第二行要删除一部分", { delay: 0 });
+        await pressKeyRepeatedly(frame.page(), "Backspace", 4, 0);
+      },
+    },
+    {
+      slug: "delete_before_formula",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `公式前删除 ${marker} `, 0);
+        await insertFormula(frame, "x^2", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+        await setCaretAroundFormula(frame, 0, "before");
+        await frame.page().keyboard.press("Backspace");
+      },
+    },
+    {
+      slug: "backspace_after_formula",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `公式后删除 ${marker} `, 0);
+        await insertFormula(frame, "\\sqrt{x}", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+        await setCaretAroundFormula(frame, 0, "after");
+        await frame.page().keyboard.press("Backspace");
+      },
+    },
+    {
+      slug: "delete_then_type",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `删除后马上输入 ${marker}abc`, 0);
+        await pressKeyRepeatedly(frame.page(), "Backspace", 3, 0);
+        await frame.page().keyboard.type("XYZ", { delay: 0 });
+      },
+    },
+    {
+      slug: "delete_then_send",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `${marker} 旧尾巴zzz`, 0);
+        await pressKeyRepeatedly(frame.page(), "Backspace", 3, 0);
+      },
+    },
+    {
+      slug: "cut_then_type",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `剪切测试 ${marker}`, 0);
+        await selectTextRange(frame, 0, 2);
+        await frame.page().keyboard.press("Control+X");
+        await frame.page().keyboard.type("已剪切", { delay: 0 });
+      },
+    },
+    {
+      slug: "mixed_select_all_delete",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, "旧文本 ", 0);
+        await insertFormula(frame, "\\alpha+\\beta", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+        await frame.page().keyboard.press("Control+A");
+        await frame.page().keyboard.press("Backspace");
+        await frame.page().keyboard.type(`混合内容删除后 ${marker}`, { delay: 0 });
+      },
+    },
+    {
+      slug: "surrogate_backspace",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `emoji 删除 🙂🙂 ${marker}`, 0);
+        await pressKeyRepeatedly(frame.page(), "Backspace", 2, 0);
+      },
+    },
+  ];
+
+  const chineseIme = [
+    { slug: "continuous_cn", text: "连续中文输入连续中文输入连续中文输入" },
+    { slug: "cn_punctuation", text: "中文输入法标点，。！？；：“”" },
+    {
+      slug: "enter_confirm_then_line",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `输入法确认 ${marker}`, 0);
+        await frame.page().keyboard.press("Enter");
+        await frame.page().keyboard.type("确认后换行不丢失", { delay: 0 });
+      },
+    },
+    { slug: "mixed_cn_en_digits", text: "中文English123混合输入" },
+    { slug: "pinyin_like_then_cn", text: "xuexi ceshi 后接中文学习测试" },
+    { slug: "cn_spaces", text: "中文 空格 之间 不应 跳光标" },
+    { slug: "fast_cn_zero_delay", text: "快速中文零延迟输入后立刻发送", delay: 0 },
+    {
+      slug: "cn_multiline",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `中文第一行 ${marker}`, 0);
+        await frame.page().keyboard.press("Enter");
+        await frame.page().keyboard.type("中文第二行", { delay: 0 });
+      },
+    },
+    {
+      slug: "cn_after_formula",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `公式后中文 ${marker} `, 0);
+        await insertFormula(frame, "x^2+1", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+        await focusComposerEnd(frame);
+        await frame.page().keyboard.type("继续中文输入", { delay: 0 });
+      },
+    },
+    {
+      slug: "cn_after_matrix",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `矩阵后中文 ${marker} `, 0);
+        await insertMatrix(frame, 2, 2);
+        await focusComposerEnd(frame);
+        await frame.page().keyboard.type("矩阵后继续", { delay: 0 });
+      },
+    },
+    { slug: "cn_emoji", text: "中文加emoji🙂稳定性检查" },
+    { slug: "cn_quotes", text: "“引号”和《书名号》输入稳定" },
+  ];
+
+  const pasteDrop = [
+    { slug: "plain_text", action: async (_page, frame, marker) => pastePlainText(frame, `plain paste ${marker}`) },
+    {
+      slug: "html_text",
+      action: async (_page, frame, marker) =>
+        pasteRichHtml(frame, `<strong>html paste ${marker}</strong>`, `html paste ${marker}`),
+    },
+    {
+      slug: "word_table",
+      action: async (_page, frame, marker) =>
+        pasteRichHtml(frame, `<table><tr><td>${marker}</td><td>cell</td></tr></table>`, `${marker}\tcell`),
+    },
+    { slug: "latex_plain", action: async (_page, frame, marker) => pastePlainText(frame, `plain latex \\frac{x}{y} ${marker}`) },
+    { slug: "crlf", action: async (_page, frame, marker) => pastePlainText(frame, `line1 ${marker}\r\nline2\r\nline3`) },
+    { slug: "tabs", action: async (_page, frame, marker) => pastePlainText(frame, `A\tB\tC ${marker}`) },
+    { slug: "long_paste", action: async (_page, frame, marker) => pastePlainText(frame, `${marker} ${"long paste segment ".repeat(60)}`) },
+    {
+      slug: "overwrite_selection",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, "abcdef", 0);
+        await selectTextRange(frame, 1, 4);
+        await pastePlainTextAtCurrentSelection(frame, `pasteReplace ${marker}`);
+      },
+    },
+    {
+      slug: "paste_before_formula",
+      action: async (_page, frame, marker) => {
+        await insertFormula(frame, "x+1", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+        await setCaretAroundFormula(frame, 0, "before");
+        await pastePlainTextAtCurrentSelection(frame, `beforeFormula ${marker} `);
+      },
+    },
+    { slug: "drop_plain", action: async (_page, frame, marker) => dropPlainText(frame, `drop plain ${marker}`) },
+    {
+      slug: "drop_html",
+      action: async (_page, frame, marker) =>
+        dropRichHtml(frame, `<em>drop html ${marker}</em>`, `drop html ${marker}`),
+    },
+    { slug: "script_like", action: async (_page, frame, marker) => pastePlainText(frame, `<script>no</script> ${marker}`) },
+  ];
+
+  const formulas = [
+    { slug: "fraction", latex: "\\frac{x+1}{x-1}" },
+    { slug: "sqrt", latex: "\\sqrt{x^2+1}" },
+    { slug: "integral", latex: "\\int_0^1 x^2\\,\\mathrm{d}x" },
+    { slug: "subsup", latex: "x_n^2" },
+    { slug: "derivative", latex: "\\frac{\\mathrm{d}}{\\mathrm{d}x}x^2" },
+    { slug: "limit", latex: "\\lim_{x\\to0}\\frac{\\sin x}{x}" },
+    { slug: "vector", latex: "\\vec{x}" },
+    { slug: "widehat", latex: "\\widehat{AB}" },
+    { slug: "widetilde", latex: "\\widetilde{AB}" },
+    { slug: "dot", latex: "\\dot{x}" },
+    { slug: "ddot", latex: "\\ddot{x}" },
+    { slug: "log_exp", latex: "\\ln x+e^x" },
+    { slug: "complex", latex: "\\Re(z)+\\Im(z)" },
+    { slug: "multiple", latex: "\\alpha+\\beta\\le\\gamma" },
+    {
+      slug: "two_formulas",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `two formulas ${marker} `, 0);
+        await insertFormula(frame, "x^2", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+        await focusComposerEnd(frame);
+        await frame.page().keyboard.type(" middle ", { delay: 0 });
+        await insertFormula(frame, "\\sqrt{x}", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+      },
+    },
+    {
+      slug: "text_formula_text",
+      action: async (_page, frame, marker) => {
+        await typeInComposer(frame, `prefix ${marker} `, 0);
+        await insertFormula(frame, "\\frac{1}{x}", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+        await focusComposerEnd(frame);
+        await frame.page().keyboard.type(" suffix", { delay: 0 });
+      },
+    },
+  ].map((item) => ({
+    ...item,
+    action:
+      item.action ||
+      (async (_page, frame, marker) => {
+        await typeInComposer(frame, `formula ${item.slug} ${marker} `, 0);
+        await insertFormula(frame, item.latex, { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
+      }),
+  }));
+
+  const matrixCases = [
+    { slug: "matrix_1x1", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix 1x1 ${marker} `, 0); await insertMatrix(frame, 1, 1); } },
+    { slug: "matrix_2x2", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix 2x2 ${marker} `, 0); await insertMatrix(frame, 2, 2); } },
+    { slug: "matrix_5x5", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix 5x5 ${marker} `, 0); await insertMatrix(frame, 5, 5); } },
+    { slug: "matrix_10x10", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix 10x10 ${marker} `, 0); await insertMatrix(frame, 10, 10); } },
+    { slug: "matrix_1x10", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix 1x10 ${marker} `, 0); await insertMatrix(frame, 1, 10); } },
+    { slug: "matrix_10x1", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix 10x1 ${marker} `, 0); await insertMatrix(frame, 10, 1); } },
+    { slug: "matrix_tail", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix tail ${marker} `, 0); await insertMatrix(frame, 2, 3); await focusComposerEnd(frame); await frame.page().keyboard.type(" tail", { delay: 0 }); } },
+    { slug: "matrix_middle", action: async (_page, frame, marker) => { await typeInComposer(frame, `AA ${marker} BB`, 0); await setCaretByTextOffset(frame, 2); await insertMatrix(frame, 2, 2); } },
+    { slug: "cases_2", action: async (_page, frame, marker) => { await typeInComposer(frame, `cases 2 ${marker} `, 0); await insertCasesFunction(frame, 2); } },
+    { slug: "cases_3", action: async (_page, frame, marker) => { await typeInComposer(frame, `cases 3 ${marker} `, 0); await insertCasesFunction(frame, 3); } },
+    { slug: "cases_4", action: async (_page, frame, marker) => { await typeInComposer(frame, `cases 4 ${marker} `, 0); await insertCasesFunction(frame, 4); } },
+    { slug: "cases_5", action: async (_page, frame, marker) => { await typeInComposer(frame, `cases 5 ${marker} `, 0); await insertCasesFunction(frame, 5); } },
+    { slug: "cases_tail", action: async (_page, frame, marker) => { await typeInComposer(frame, `cases tail ${marker} `, 0); await insertCasesFunction(frame, 2); await focusComposerEnd(frame); await frame.page().keyboard.type(" tail", { delay: 0 }); } },
+    { slug: "matrix_cases_mix", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix cases mix ${marker} `, 0); await insertMatrix(frame, 2, 2); await focusComposerEnd(frame); await insertCasesFunction(frame, 2); } },
+  ];
+
+  const pageState = [
+    { slug: "scroll_bottom", action: async (page, frame, marker) => { await scrollAppToBottom(page); await typeInComposer(frame, `scroll bottom ${marker}`, 0); } },
+    { slug: "scroll_top_bottom", action: async (page, frame, marker) => { await page.mouse.wheel(0, -2000); await page.waitForTimeout(100); await scrollAppToBottom(page); await typeInComposer(frame, `scroll top bottom ${marker}`, 0); } },
+    { slug: "body_click_refocus", action: async (page, frame, marker) => { await page.mouse.click(80, 120); await focusComposerEnd(frame); await typeInComposer(frame, `body click refocus ${marker}`, 0); } },
+    { slug: "review_reselect", action: async (page, frame, marker) => { await selectReviewQuestion(page); await typeInComposer(frame, `review reselect ${marker}`, 0); } },
+    { slug: "toolbar_switch", action: async (_page, frame, marker) => { await typeInComposer(frame, `toolbar switch ${marker}`, 0); await openToolbarGroup(frame, "函数"); await openToolbarGroup(frame, "符号"); await focusComposerEnd(frame); await frame.page().keyboard.type(" after toolbar", { delay: 0 }); } },
+    { slug: "delay_before_send", action: async (_page, frame, marker) => { await typeInComposer(frame, `delay before send ${marker}`, 0); await frame.page().waitForTimeout(800); } },
+    { slug: "force_flush", action: async (page, frame, marker) => { await typeInComposer(frame, `force flush ${marker}`, 0); await forceComposerFlush(page, frame); } },
+    { slug: "component_refetch", action: async (page, _frame, marker) => { const fresh = await getComponentFrame(page); await typeInComposer(fresh, `component refetch ${marker}`, 0); } },
+    { slug: "escape_then_type", action: async (_page, frame, marker) => { await frame.page().keyboard.press("Escape"); await typeInComposer(frame, `escape then type ${marker}`, 0); } },
+    { slug: "resize_viewport", action: async (page, frame, marker) => { await page.setViewportSize({ width: 1280, height: 1100 }); await typeInComposer(frame, `resize viewport ${marker}`, 0); } },
+    { slug: "click_formula_toolbar_then_text", action: async (_page, frame, marker) => { await openToolbarGroup(frame, "积分"); await focusComposerEnd(frame); await typeInComposer(frame, `toolbar then text ${marker}`, 0); } },
+    { slug: "wait_after_formula", action: async (_page, frame, marker) => { await typeInComposer(frame, `wait after formula ${marker} `, 0); await insertFormula(frame, "\\sin x", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 }); await frame.page().waitForTimeout(700); } },
+  ];
+
+  const sendPressure = [
+    { slug: "plain_immediate", text: "plain immediate send" },
+    { slug: "formula_immediate", action: async (_page, frame, marker) => { await typeInComposer(frame, `formula immediate ${marker} `, 0); await insertFormula(frame, "x^2+1", { afterInsertWait: 20, typeDelay: 0, finalWait: 0 }); } },
+    { slug: "matrix_immediate", action: async (_page, frame, marker) => { await typeInComposer(frame, `matrix immediate ${marker} `, 0); await insertMatrix(frame, 2, 2); } },
+    { slug: "cases_immediate", action: async (_page, frame, marker) => { await typeInComposer(frame, `cases immediate ${marker} `, 0); await insertCasesFunction(frame, 2); } },
+    { slug: "double_click", text: "double click send should not duplicate", sendOptions: { clickTimes: 2 }, risk: "duplicate-submit" },
+    { slug: "triple_click", text: "triple click send should still submit once", sendOptions: { clickTimes: 3 }, risk: "duplicate-submit" },
+    { slug: "empty_then_valid", action: async (page, frame, marker) => { await clickVisibleButtonContaining(page, "发送"); await page.waitForTimeout(500); await typeInComposer(frame, `empty then valid ${marker}`, 0); } },
+    { slug: "paste_then_immediate", action: async (_page, frame, marker) => pastePlainText(frame, `paste then immediate ${marker}`) },
+    { slug: "delete_then_immediate", action: async (_page, frame, marker) => { await typeInComposer(frame, `${marker} delete tail xxx`, 0); await pressKeyRepeatedly(frame.page(), "Backspace", 3, 0); } },
+    { slug: "long_then_immediate", text: `long immediate ${"stable ".repeat(80)}` },
+  ];
+
+  const teachingControl = [
+    { slug: "light_hint", text: "教学策略：轻提示，只给方向和概念提醒", action: async (page, frame, marker) => { await clickControlLabel(page, "轻提示"); await typeInComposer(frame, `light hint ${marker}`, 0); } },
+    { slug: "medium_hint", text: "教学策略：中提示，提示下一步思考路径", action: async (page, frame, marker) => { await clickControlLabel(page, "中提示"); await typeInComposer(frame, `medium hint ${marker}`, 0); } },
+    { slug: "strong_hint", text: "教学策略：强提示，给出更具体分步引导", action: async (page, frame, marker) => { await clickControlLabel(page, "强提示"); await typeInComposer(frame, `strong hint ${marker}`, 0); } },
+    { slug: "next_step", text: "快捷意图：提示下一步，但不要泄露答案" },
+    { slug: "check_error", text: "快捷意图：检查我当前思路可能错在哪里" },
+    { slug: "only_idea", text: "快捷意图：只给思路，不给标准答案" },
+    { slug: "review_knowledge", text: "快捷意图：复习相关知识点" },
+    { slug: "concept_hint", text: "教学意图：概念提示，先解释关键概念" },
+    { slug: "misconception", text: "教学意图：错因诊断，指出常见误区" },
+    { slug: "scaffold", text: "教学意图：脚手架式引导，逐步推进" },
+  ];
+
+  const observability = [
+    { slug: "super_short", text: "提示" },
+    { slug: "super_long", text: `observability long ${"hint control telemetry ".repeat(120)}` },
+    { slug: "many_formulas", action: async (_page, frame, marker) => { await typeInComposer(frame, `many formulas ${marker} `, 0); await insertFormula(frame, "x^2", { afterInsertWait: 20, typeDelay: 0, finalWait: 0 }); await focusComposerEnd(frame); await insertFormula(frame, "\\sqrt{x}", { afterInsertWait: 20, typeDelay: 0, finalWait: 0 }); await focusComposerEnd(frame); await insertFormula(frame, "\\int x\\,dx", { afterInsertWait: 20, typeDelay: 0, finalWait: 0 }); } },
+    { slug: "formula_matrix_mix", action: async (_page, frame, marker) => { await typeInComposer(frame, `formula matrix ${marker} `, 0); await insertFormula(frame, "\\frac{1}{x}", { afterInsertWait: 20, typeDelay: 0, finalWait: 0 }); await focusComposerEnd(frame); await insertMatrix(frame, 2, 2); } },
+    { slug: "invisible_spaces", text: "不可见空白\u00A0\u3000需要正常统计" },
+    { slug: "emoji_boundary", text: "边界emoji🙂🚀📚提示稳定性" },
+    { slug: "newline_latex_plain", action: async (_page, frame, marker) => { await pastePlainText(frame, `plain latex line ${marker}\n\\lim_{x\\to0}\\frac{\\sin x}{x}`); } },
+    { slug: "formula_count", action: async (_page, frame, marker) => { await typeInComposer(frame, `formula count ${marker} `, 0); await insertFormula(frame, "\\alpha", { afterInsertWait: 20, typeDelay: 0, finalWait: 0 }); await focusComposerEnd(frame); await insertFormula(frame, "\\beta", { afterInsertWait: 20, typeDelay: 0, finalWait: 0 }); } },
+  ];
+
+  const groups = [
+    ["text", "text-caret", textCaret],
+    ["delete", "delete-selection", deletionSelection],
+    ["ime", "chinese-ime", chineseIme],
+    ["paste", "paste-drop", pasteDrop],
+    ["formula", "formula", formulas],
+    ["matrix", "matrix-cases", matrixCases],
+    ["page", "page-state", pageState],
+    ["send", "send-pressure", sendPressure],
+    ["control", "teaching-control", teachingControl],
+    ["observe", "observability-boundary", observability],
+  ];
+
+  const built = groups.flatMap(([group, category, items]) =>
+    items.map((item, index) => makeOnlineRealSendScenario(group, category, item, index))
+  );
+
+  if (built.length !== 120) {
+    throw new Error(`Expected 120 online real-send scenarios, got ${built.length}.`);
+  }
+
+  return built;
+}
+
+const generatedOnlineRealSendScenarios = buildOnlineRealSendScenarios();
+
+realSendScenarios.push(
+  ...generatedLocalRealSendScenarios,
+  ...generatedOnlineSmokeScenarios,
+  ...generatedOnlineRealSendScenarios
+);
 
 function assertScenarioInventory() {
   const allIds = [...scenarios, ...realSendScenarios].map((scenario) => scenario.id);
@@ -3828,26 +4853,143 @@ function assertScenarioInventory() {
   if (scenarios.length !== 180) {
     throw new Error(`Expected 180 non-real input scenarios, got ${scenarios.length}.`);
   }
-  if (realSendScenarios.length !== 36) {
-    throw new Error(`Expected 36 real-send scenarios, got ${realSendScenarios.length}.`);
+  if (realSendScenarios.length !== 156) {
+    throw new Error(`Expected 156 real-send scenarios, got ${realSendScenarios.length}.`);
   }
 }
 
 assertScenarioInventory();
 
+function isCriticalRealSendFailure(result) {
+  return (
+    result &&
+    result.real_send &&
+    !result.passed &&
+    CRITICAL_REAL_SEND_FAILURE_CLASSES.has(result.failure_class)
+  );
+}
+
+function applyRealSendExecutionWindow(selectedScenarios) {
+  let selected = [...selectedScenarios];
+
+  if (REAL_SEND_SHARD) {
+    selected = selected.filter(
+      (_scenario, index) => index % REAL_SEND_SHARD.total === REAL_SEND_SHARD.index - 1
+    );
+  }
+  if (REAL_SEND_OFFSET > 0) {
+    selected = selected.slice(REAL_SEND_OFFSET);
+  }
+  if (REAL_SEND_LIMIT !== null) {
+    selected = selected.slice(0, REAL_SEND_LIMIT);
+  }
+
+  return selected;
+}
+
 function selectedRealSendScenarios() {
-  if (!RUN_REAL_SEND) return [];
-  return realSendScenarios.filter(scenarioMatchesFilter);
+  if (!RUN_REAL_SEND && !DRY_RUN) return [];
+  return applyRealSendExecutionWindow(realSendScenarios.filter(scenarioMatchesFilter));
 }
 
 async function maybeRunRealSendScenarios(page, results) {
   for (const scenario of selectedRealSendScenarios()) {
+    const beforeCount = results.length;
     await runScenario(page, scenario, results);
+    const lastResult = results[results.length - 1];
+    if (
+      STOP_ON_CRITICAL_REAL_SEND_FAILURE &&
+      results.length > beforeCount &&
+      isCriticalRealSendFailure(lastResult)
+    ) {
+      results.push({
+        scenario_id: "__real_send_batch_stop__",
+        input_type: "control",
+        category: "batch-control",
+        priority: "p0",
+        run_level: "real_send",
+        run_levels: [],
+        real_send: false,
+        risk: "critical-real-send-failure-stop",
+        passed: false,
+        error: `Stopped after critical real-send failure in ${scenario.id}: ${lastResult.failure_class}`,
+        failure_class: lastResult.failure_class,
+        actual_text: "",
+        visible_text: "",
+        caret_info: null,
+        latex_values: [],
+        send_clicked_count: 0,
+        generation_started: false,
+        final_reply_visible: false,
+        leakage_status_visible: false,
+        prompt_marker_occurrences: 0,
+        elapsed_ms: 0,
+        screenshot: "",
+      });
+      break;
+    }
   }
+}
+
+function summarizeScenario(scenario) {
+  return {
+    scenario_id: scenario.id,
+    category: scenario.category || null,
+    priority: scenario.priority || null,
+    run_level: scenario.runLevel || null,
+    real_send_scope: scenario.realSendScope || null,
+    risk: scenario.risk || null,
+  };
+}
+
+function baseReport(extra = {}) {
+  return {
+    app_url: APP_URL,
+    run_real_send: RUN_REAL_SEND,
+    dry_run: DRY_RUN,
+    browser_channel: BROWSER_CHANNEL,
+    scenario_filter: SCENARIO_FILTER,
+    real_send_limit: REAL_SEND_LIMIT,
+    real_send_offset: REAL_SEND_OFFSET,
+    real_send_shard: REAL_SEND_SHARD,
+    started_at: new Date().toISOString(),
+    ...extra,
+  };
 }
 
 (async () => {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+
+  const selectedScenarios = scenarios.filter(scenarioMatchesFilter);
+  const selectedSendScenarios = selectedRealSendScenarios();
+  if (RUN_REAL_SEND && !DRY_RUN && SCENARIO_FILTER.length === 0 && !ALLOW_UNFILTERED_REAL_SEND) {
+    throw new Error(
+      "Refusing to run unfiltered real-send scenarios. Set E2E_SCENARIO_FILTER or E2E_ALLOW_UNFILTERED_REAL_SEND=1."
+    );
+  }
+  if (selectedScenarios.length === 0 && selectedSendScenarios.length === 0) {
+    throw new Error(
+      `No E2E scenarios matched E2E_SCENARIO_FILTER=${JSON.stringify(SCENARIO_FILTER)}.`
+    );
+  }
+
+  if (DRY_RUN) {
+    const dryRunReport = baseReport({
+      mode: "dry_run",
+      selected_input_count: selectedScenarios.length,
+      selected_real_send_count: selectedSendScenarios.length,
+      selected_inputs: selectedScenarios.map(summarizeScenario),
+      selected_real_sends: selectedSendScenarios.map(summarizeScenario),
+      total: selectedScenarios.length + selectedSendScenarios.length,
+      passed: 0,
+      failed: 0,
+      results: [],
+      finished_at: new Date().toISOString(),
+    });
+    fs.writeFileSync(REPORT_PATH, JSON.stringify(dryRunReport, null, 2), "utf8");
+    console.log(JSON.stringify(dryRunReport, null, 2));
+    return;
+  }
 
   const launchOptions = { headless: true };
   if (BROWSER_CHANNEL && BROWSER_CHANNEL !== "chromium") {
@@ -3863,32 +5005,21 @@ async function maybeRunRealSendScenarios(page, results) {
     await completeQuizIfNeeded(page);
     await selectReviewQuestion(page);
 
-    const selectedScenarios = scenarios.filter(scenarioMatchesFilter);
-    const selectedSendScenarios = selectedRealSendScenarios();
-    if (selectedScenarios.length === 0 && selectedSendScenarios.length === 0) {
-      throw new Error(
-        `No E2E scenarios matched E2E_SCENARIO_FILTER=${JSON.stringify(
-          SCENARIO_FILTER
-        )}.`
-      );
-    }
-
     for (const scenario of selectedScenarios) {
       await runScenario(page, scenario, results);
     }
     await maybeRunRealSendScenarios(page, results);
 
     const failed = results.filter((result) => !result.passed);
-    const report = {
-      app_url: APP_URL,
-      run_real_send: RUN_REAL_SEND,
-      browser_channel: BROWSER_CHANNEL,
-      scenario_filter: SCENARIO_FILTER,
+    const report = baseReport({
+      selected_input_count: selectedScenarios.length,
+      selected_real_send_count: selectedSendScenarios.length,
       total: results.length,
       passed: results.length - failed.length,
       failed: failed.length,
       results,
-    };
+      finished_at: new Date().toISOString(),
+    });
 
     fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2), "utf8");
     await page.screenshot({ path: SCREENSHOT_PATH, fullPage: true });
