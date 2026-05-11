@@ -24,8 +24,9 @@ try {
 }
 
 const APP_URL = process.env.E2E_APP_URL || "http://localhost:8517";
-const USERNAME = process.env.E2E_STUDENT_USERNAME || "";
-const PASSWORD = process.env.E2E_STUDENT_PASSWORD || "";
+let USERNAME = process.env.E2E_STUDENT_USERNAME || "";
+let PASSWORD = process.env.E2E_STUDENT_PASSWORD || "";
+const STUDENT_ACCOUNTS = parseStudentAccounts(process.env.E2E_STUDENT_ACCOUNTS || "");
 const COURSE_NAME = process.env.E2E_COURSE_NAME || "高等数学";
 const ANSWER_TEXT = process.env.E2E_ANSWER_TEXT || "A";
 const RUN_REAL_SEND = process.env.E2E_RUN_REAL_SEND === "1";
@@ -48,6 +49,7 @@ const DRY_RUN = process.env.E2E_DRY_RUN === "1";
 const REAL_SEND_LIMIT = parseOptionalPositiveInt(process.env.E2E_REAL_SEND_LIMIT);
 const REAL_SEND_OFFSET = parseOptionalNonNegativeInt(process.env.E2E_REAL_SEND_OFFSET) || 0;
 const REAL_SEND_SHARD = parseShardSpec(process.env.E2E_REAL_SEND_SHARD || "");
+const STUDENT_ACCOUNT_INDEX = parseOptionalPositiveInt(process.env.E2E_STUDENT_ACCOUNT_INDEX);
 const ALLOW_UNFILTERED_REAL_SEND = process.env.E2E_ALLOW_UNFILTERED_REAL_SEND === "1";
 const STOP_ON_CRITICAL_REAL_SEND_FAILURE =
   process.env.E2E_STOP_ON_CRITICAL_FAILURE !== "0";
@@ -65,6 +67,41 @@ const CRITICAL_REAL_SEND_FAILURE_CLASSES = new Set([
   "duplicate_submit",
   "leakage_status_missing",
 ]);
+
+function parseStudentAccounts(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+
+  const accounts = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const separatorIndex = item.indexOf(":");
+      if (separatorIndex <= 0 || separatorIndex === item.length - 1) {
+        throw new Error(
+          "E2E_STUDENT_ACCOUNTS items must look like username:password."
+        );
+      }
+      return {
+        username: item.slice(0, separatorIndex),
+        password: item.slice(separatorIndex + 1),
+      };
+    });
+
+  const duplicateUsernames = accounts
+    .map((account) => account.username)
+    .filter((username, index, all) => all.indexOf(username) !== index);
+  if (duplicateUsernames.length > 0) {
+    throw new Error(
+      `E2E_STUDENT_ACCOUNTS contains duplicate usernames: ${JSON.stringify([
+        ...new Set(duplicateUsernames),
+      ])}.`
+    );
+  }
+
+  return accounts;
+}
 
 function parseOptionalPositiveInt(value) {
   if (value === undefined || value === null || String(value).trim() === "") return null;
@@ -98,6 +135,45 @@ function parseShardSpec(value) {
   }
   return { index, total };
 }
+
+function buildStudentAccountPool() {
+  if (STUDENT_ACCOUNTS.length > 0) return STUDENT_ACCOUNTS;
+  if (USERNAME && PASSWORD) return [{ username: USERNAME, password: PASSWORD }];
+  return [];
+}
+
+function selectStudentAccount(accounts) {
+  if (accounts.length === 0) return null;
+  if (STUDENT_ACCOUNT_INDEX !== null) {
+    if (STUDENT_ACCOUNT_INDEX > accounts.length) {
+      throw new Error(
+        `E2E_STUDENT_ACCOUNT_INDEX=${STUDENT_ACCOUNT_INDEX} is outside the account pool size ${accounts.length}.`
+      );
+    }
+    return { ...accounts[STUDENT_ACCOUNT_INDEX - 1], source: "explicit-index" };
+  }
+  if (REAL_SEND_SHARD) {
+    return {
+      ...accounts[(REAL_SEND_SHARD.index - 1) % accounts.length],
+      source: "real-send-shard",
+    };
+  }
+  if (REAL_SEND_LIMIT !== null && REAL_SEND_LIMIT > 0 && REAL_SEND_OFFSET > 0) {
+    return {
+      ...accounts[Math.floor(REAL_SEND_OFFSET / REAL_SEND_LIMIT) % accounts.length],
+      source: "real-send-offset",
+    };
+  }
+  return { ...accounts[0], source: "default" };
+}
+
+const STUDENT_ACCOUNT_POOL = buildStudentAccountPool();
+const ACTIVE_STUDENT_ACCOUNT = selectStudentAccount(STUDENT_ACCOUNT_POOL);
+if (ACTIVE_STUDENT_ACCOUNT) {
+  USERNAME = ACTIVE_STUDENT_ACCOUNT.username;
+  PASSWORD = ACTIVE_STUDENT_ACCOUNT.password;
+}
+
 const INPUT_SMOKE_SCENARIO_IDS = new Set([
   "empty_send_warning",
   "plain_chinese_english_emoji",
@@ -596,9 +672,9 @@ async function loginIfNeeded(page) {
   );
 
   if (!(await bodyText(page)).includes("进入系统")) return;
-  if (!USERNAME || !PASSWORD) {
+  if (!ACTIVE_STUDENT_ACCOUNT) {
     throw new Error(
-      "Login is required. Set E2E_STUDENT_USERNAME and E2E_STUDENT_PASSWORD."
+      "Login is required. Set E2E_STUDENT_ACCOUNTS or E2E_STUDENT_USERNAME/E2E_STUDENT_PASSWORD."
     );
   }
 
@@ -5030,6 +5106,13 @@ function baseReport(extra = {}) {
     real_send_limit: REAL_SEND_LIMIT,
     real_send_offset: REAL_SEND_OFFSET,
     real_send_shard: REAL_SEND_SHARD,
+    student_account_pool_size: STUDENT_ACCOUNT_POOL.length,
+    active_student_account: ACTIVE_STUDENT_ACCOUNT
+      ? {
+          username: ACTIVE_STUDENT_ACCOUNT.username,
+          source: ACTIVE_STUDENT_ACCOUNT.source,
+        }
+      : null,
     started_at: new Date().toISOString(),
     ...extra,
   };
