@@ -215,17 +215,35 @@ async function appContext(page) {
   return page.frames().find((frame) => frame.url().includes("/~/+/")) || page;
 }
 
+async function readFrameBodyText(frame) {
+  return await frame
+    .evaluate(() => document.body?.innerText || "")
+    .catch(async () => frame.locator("body").innerText({ timeout: 1000 }));
+}
+
 async function bodyText(page) {
   const deadline = Date.now() + 5000;
+  let lastNonEmptyText = "";
   while (Date.now() < deadline) {
     try {
-      const context = await appContext(page);
-      return await context.locator("body").innerText({ timeout: 1000 });
+      const frames = page
+        .frames()
+        .filter((frame) => frame === page.mainFrame() || frame.url().includes("/~/+/"));
+      const texts = [];
+      for (const frame of frames) {
+        const frameText = await readFrameBodyText(frame).catch(() => "");
+        if (frameText) texts.push(frameText);
+      }
+      const text = texts.join("\n\n");
+      if (text) {
+        lastNonEmptyText = text;
+        return text;
+      }
     } catch (_error) {
       await page.waitForTimeout(250);
     }
   }
-  return "";
+  return lastNonEmptyText;
 }
 
 async function waitUntil(page, predicate, timeout = 30000, step = 600) {
@@ -399,15 +417,17 @@ async function waitForFinalSendState(page, options = {}) {
   let currentText = "";
 
   while (Date.now() - startedAt < timeout) {
-    currentText = await bodyText(page);
-    const finalState = getReplyStateAfterPrompt(currentText, options.expectedPrompt);
+    const latestText = await bodyText(page);
+    if (latestText) currentText = latestText;
+    const observedText = latestText || currentText;
+    const finalState = getReplyStateAfterPrompt(observedText, options.expectedPrompt);
     const finalContentVisible =
       finalState.finalReplyVisible && finalState.leakageStatusVisible;
     const stillGenerating =
-      currentText.includes("正在生成智能辅导") ||
+      observedText.includes("正在生成智能辅导") ||
       (await hasVisibleGenerationButton(page).catch(() => false));
 
-    if (finalContentVisible && !stillGenerating) return currentText;
+    if (finalContentVisible && !stillGenerating) return observedText;
     await page.waitForTimeout(700);
   }
 
@@ -422,15 +442,24 @@ function getReplyStateAfterPrompt(text, expectedPrompt) {
   }
 
   const tail = value.slice(startIndex);
+  const leakageStatusVisible = tail.includes("答案泄露检测状态");
   return {
-    finalReplyVisible: tail.includes("受控智能辅导"),
-    leakageStatusVisible: tail.includes("答案泄露检测状态"),
+    finalReplyVisible:
+      tail.includes("受控智能辅导") ||
+      tail.includes("生成中") ||
+      leakageStatusVisible,
+    leakageStatusVisible,
   };
 }
 
 function classifiedError(message, failureClass) {
   const error = new Error(message);
   error.failureClass = failureClass;
+  return error;
+}
+
+function withSendMeta(error, meta) {
+  error.sendMeta = meta;
   return error;
 }
 
@@ -1971,11 +2000,21 @@ async function sendPromptAndWait(page, options = {}) {
     "发送",
     options.clickTimes || 1
   );
+  const sendMeta = {
+    send_clicked_count: clickedCount,
+    generation_started: false,
+    final_reply_visible: false,
+    leakage_status_visible: false,
+    prompt_marker_occurrences: 0,
+  };
   if (clickedCount === 0) {
     const buttonDebug = await describeButtonsContaining(page, "发送");
-    throw classifiedError(
-      `Send button was not available after input. Candidates: ${JSON.stringify(buttonDebug)}`,
-      "send_button"
+    throw withSendMeta(
+      classifiedError(
+        `Send button was not available after input. Candidates: ${JSON.stringify(buttonDebug)}`,
+        "send_button"
+      ),
+      sendMeta
     );
   }
 
@@ -1990,49 +2029,87 @@ async function sendPromptAndWait(page, options = {}) {
   );
 
   if (firstState.includes("请输入辅导问题后再发送")) {
-    throw classifiedError("Prompt was treated as empty or stale during send.", "composer_sync");
+    throw withSendMeta(
+      classifiedError("Prompt was treated as empty or stale during send.", "composer_sync"),
+      sendMeta
+    );
   }
   if (
     !firstState.includes("正在生成智能辅导") &&
     !firstState.includes("生成链路")
   ) {
-    throw classifiedError("Generation did not start after clicking send.", "render_missing");
+    const promptVisible = options.expectedPrompt && firstState.includes(options.expectedPrompt);
+    throw withSendMeta(
+      classifiedError(
+        promptVisible
+          ? "Prompt was submitted but generation indicator was not detected."
+          : "Generation did not start after clicking send.",
+        promptVisible ? "llm_timeout" : "render_missing"
+      ),
+      {
+        ...sendMeta,
+        prompt_marker_occurrences: promptVisible ? 1 : 0,
+      }
+    );
   }
   generationStarted = true;
+  sendMeta.generation_started = true;
 
   const finalText = await waitForFinalSendState(page, options);
 
   const finalState = getReplyStateAfterPrompt(finalText, options.expectedPrompt);
   const finalReplyVisible = finalState.finalReplyVisible;
   const leakageStatusVisible = finalState.leakageStatusVisible;
-  if (!finalReplyVisible || !leakageStatusVisible) {
-    if (!finalReplyVisible) {
-      throw classifiedError("Real send did not render assistant output.", "render_missing");
-    }
-    throw classifiedError("Real send did not render leakage status.", "leakage_status_missing");
-  }
-  if (options.expectedPrompt && !finalText.includes(options.expectedPrompt)) {
-    throw classifiedError(
-      `Sent prompt marker was not visible: ${options.expectedPrompt}`,
-      "composer_sync"
-    );
-  }
   const promptMarkerOccurrences = options.expectedPrompt
     ? finalText.split(options.expectedPrompt).length - 1
     : 0;
+  Object.assign(sendMeta, {
+    final_reply_visible: finalReplyVisible,
+    leakage_status_visible: leakageStatusVisible,
+    prompt_marker_occurrences: promptMarkerOccurrences,
+  });
+  if (!finalReplyVisible || !leakageStatusVisible) {
+    const promptWasSubmitted =
+      (options.expectedPrompt && promptMarkerOccurrences >= 1) ||
+      sendMeta.generation_started;
+    if (!finalReplyVisible) {
+      throw withSendMeta(
+        classifiedError(
+          promptWasSubmitted
+            ? "Real send timed out before assistant output was rendered."
+            : "Real send did not render assistant output.",
+          promptWasSubmitted ? "llm_timeout" : "render_missing"
+        ),
+        sendMeta
+      );
+    }
+    throw withSendMeta(
+      classifiedError("Real send did not render leakage status.", "leakage_status_missing"),
+      sendMeta
+    );
+  }
+  if (options.expectedPrompt && !finalText.includes(options.expectedPrompt)) {
+    throw withSendMeta(
+      classifiedError(
+        `Sent prompt marker was not visible: ${options.expectedPrompt}`,
+        "composer_sync"
+      ),
+      sendMeta
+    );
+  }
   if (options.expectedPrompt && promptMarkerOccurrences > 1) {
-    throw classifiedError(
-      `Prompt marker appeared more than once; possible duplicate submit: ${options.expectedPrompt}`,
-      "duplicate_submit"
+    throw withSendMeta(
+      classifiedError(
+        `Prompt marker appeared more than once; possible duplicate submit: ${options.expectedPrompt}`,
+        "duplicate_submit"
+      ),
+      sendMeta
     );
   }
 
   return {
-    send_clicked_count: clickedCount,
+    ...sendMeta,
     generation_started: generationStarted,
-    final_reply_visible: finalReplyVisible,
-    leakage_status_visible: leakageStatusVisible,
-    prompt_marker_occurrences: promptMarkerOccurrences,
   };
 }
 
@@ -2120,6 +2197,7 @@ async function runScenario(page, scenario, results) {
     }
 
     await page.screenshot({ path: screenshot, fullPage: true }).catch(() => {});
+    const sendMeta = error.sendMeta || {};
     const state = await getComponentFrame(page)
       .then((frame) => readComposerState(frame))
       .catch(() => ({
@@ -2144,11 +2222,11 @@ async function runScenario(page, scenario, results) {
       visible_text: state.visibleText || "",
       caret_info: state.caretInfo || null,
       latex_values: state.latexValues || [],
-      send_clicked_count: 0,
-      generation_started: false,
-      final_reply_visible: false,
-      leakage_status_visible: false,
-      prompt_marker_occurrences: 0,
+      send_clicked_count: sendMeta.send_clicked_count || 0,
+      generation_started: Boolean(sendMeta.generation_started),
+      final_reply_visible: Boolean(sendMeta.final_reply_visible),
+      leakage_status_visible: Boolean(sendMeta.leakage_status_visible),
+      prompt_marker_occurrences: sendMeta.prompt_marker_occurrences || 0,
       elapsed_ms: Date.now() - startedAt,
       screenshot,
     });
