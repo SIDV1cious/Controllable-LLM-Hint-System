@@ -2,6 +2,7 @@ import streamlit as st
 
 from admin_course_management_ui import render_course_and_question_management_tab
 from admin_dashboard_ui import render_learning_overview_dashboard
+from admin_dataset_export_ui import render_interaction_dataset_export_tab
 from admin_monitoring_ui import (
     render_interaction_monitoring_tab,
     render_login_logs_tab,
@@ -39,6 +40,11 @@ ADMIN_SECTIONS = [
         "renderer": render_interaction_monitoring_tab,
     },
     {
+        "id": "dataset_export",
+        "label": "📦 交互数据集导出",
+        "renderer": render_interaction_dataset_export_tab,
+    },
+    {
         "id": "content_management",
         "label": "🛠️ 课程与题库管理",
         "renderer": render_course_and_question_management_tab,
@@ -57,6 +63,7 @@ ADMIN_SECTION_DESCRIPTIONS = {
     "🕒 登录日志": "追踪学生账号登录记录，用于观察系统使用活跃度。",
     "⏱️ 学习时长追踪": "按课程汇总学习会话时长，辅助分析学生投入情况。",
     "💬 AI辅导监控": "抽查智能辅导请求、模型回复与安全控制字段。",
+    "📦 交互数据集导出": "按学生、课程、时间与安全状态筛选辅导交互，导出研究数据集。",
     "🛠️ 课程与题库管理": "维护课程模块与自定义题目，支持答辩演示和扩展测试。",
     "⚙️ 智能辅导大模型设置": "配置系统提示词，统一控制受控提示生成策略。",
 }

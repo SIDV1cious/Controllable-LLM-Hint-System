@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 
 import controlled_generation_service as controlled_generation
@@ -44,6 +46,16 @@ from hint_policy import (
 )
 from hint_request_observability import build_hint_request_observability, count_formula_fragments
 from hint_text_utils import format_math, parse_json_object
+from interaction_dataset_export_service import (
+    DatasetExportFilters,
+    anonymize_student_id,
+    build_csv_bytes,
+    build_dataset_export_dataframe,
+    build_dataset_markdown,
+    build_jsonl_bytes,
+    clamp_export_limit,
+    clean_tutoring_prompt,
+)
 from interaction_repository import build_interaction_payload
 from leakage_detection_service import heuristic_leakage_check
 from llm_gateway import build_llm_call_metadata
@@ -550,6 +562,104 @@ def test_dynamic_session_key_builders_are_stable():
 def test_interaction_marker_formatters_are_stable():
     assert format_answer_submission("A") == f"{InteractionMarker.ANSWER_SUBMISSION}A"
     assert format_tutoring_query("中提示", "请提示下一步") == "【辅导】【提示强度：中提示】请提示下一步"
+
+
+def test_dataset_export_cleans_prompt_and_anonymizes_student_id():
+    raw_df = pd.DataFrame(
+        [
+            {
+                "id": 9,
+                "student_id": "3021244094",
+                "question_id": 1001,
+                "course_name": "高等数学",
+                "user_query": "【辅导】【提示强度：中提示】请提示下一步",
+                "ai_response": "先回到极限定义。",
+                "is_leaking_answer": 0,
+                "leakage_score": 0,
+                "rewrite_count": 0,
+                "leakage_reason": "未发现泄露",
+                "hint_strength": "",
+                "pedagogical_intent": "",
+                "hint_safety_status": "",
+                "request_char_count": 8,
+                "formula_fragment_count": 0,
+                "generation_elapsed_ms": 900,
+                "rewrite_triggered": 0,
+                "generation_status": "",
+                "generation_error": "",
+                "created_at": pd.Timestamp("2026-05-11 10:30:00"),
+            }
+        ]
+    )
+
+    export_df = build_dataset_export_dataframe(raw_df, include_raw_student_id=False)
+
+    assert clean_tutoring_prompt("【辅导】【提示强度：强提示】检查错误") == "检查错误"
+    assert export_df.loc[0, "sample_id"] == "hint-9"
+    assert "student_hash" in export_df.columns
+    assert "student_id" not in export_df.columns
+    assert export_df.loc[0, "student_hash"] == anonymize_student_id("3021244094")
+    assert export_df.loc[0, "student_prompt"] == "请提示下一步"
+    assert export_df.loc[0, "hint_strength"] == "中提示"
+    assert export_df.loc[0, "pedagogical_intent"] == "未记录"
+    assert export_df.loc[0, "hint_safety_status"] == "泄露检测通过"
+    assert export_df.loc[0, "generation_status"] == "success"
+
+
+def test_dataset_export_can_include_raw_student_id_when_admin_requests_it():
+    raw_df = pd.DataFrame(
+        [
+            {
+                "id": 10,
+                "student_id": "s001",
+                "question_id": 1002,
+                "course_name": "线性代数",
+                "user_query": "【辅导】矩阵怎么做",
+                "ai_response": "先观察矩阵秩。",
+                "rewrite_count": 1,
+                "is_leaking_answer": 0,
+            }
+        ]
+    )
+
+    export_df = build_dataset_export_dataframe(raw_df, include_raw_student_id=True)
+
+    assert "student_id" in export_df.columns
+    assert "student_hash" not in export_df.columns
+    assert export_df.loc[0, "student_id"] == "s001"
+    assert export_df.loc[0, "hint_safety_status"] == "已自动重写"
+
+
+def test_dataset_export_serializers_and_markdown_dictionary_are_stable():
+    export_df = pd.DataFrame(
+        [
+            {
+                "sample_id": "hint-1",
+                "student_hash": "abc123",
+                "student_prompt": "含有 | 和换行\n的提示",
+                "model_response": "先拆条件。",
+            }
+        ]
+    )
+    filters = DatasetExportFilters(student_id="3021244094", course_name="高等数学")
+
+    csv_bytes = build_csv_bytes(export_df)
+    jsonl_bytes = build_jsonl_bytes(export_df)
+    markdown = build_dataset_markdown(export_df.columns.tolist(), len(export_df), filters)
+
+    assert csv_bytes.startswith(b"\xef\xbb\xbf")
+    assert json.loads(jsonl_bytes.decode("utf-8").strip())["student_prompt"] == "含有 | 和换行\n的提示"
+    assert "智能辅导交互数据集说明" in markdown
+    assert "`student_hash`" in markdown
+    assert "含义" in markdown
+
+
+def test_dataset_export_limit_is_clamped():
+    assert clamp_export_limit(None) == 1000
+    assert clamp_export_limit("bad") == 1000
+    assert clamp_export_limit(0) == 1000
+    assert clamp_export_limit(1) == 1
+    assert clamp_export_limit(6000) == 5000
 
 
 def test_course_catalog_merge_deduplicates_base_courses():
