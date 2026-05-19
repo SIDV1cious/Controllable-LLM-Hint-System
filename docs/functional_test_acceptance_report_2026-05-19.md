@@ -16,7 +16,7 @@
 | --- | --- | --- | --- |
 | 分式与连分式重复 | 源码搜索工具栏菜单，确认重复入口移除 | 通过：源码中未检出 `连分式`，保留 `分式` | `rg "连分式|cfrac" streamlit-component-x/.../MyComponent.tsx` 无重复入口 |
 | 反常积分定义狭隘 | 源码搜索积分菜单，确认狭窄入口移除 | 通过：源码中未检出 `反常积分` | `rg "反常积分" streamlit-component-x/.../MyComponent.tsx` 无结果 |
-| 二重/三重积分无法完整填写，缺多重积分 | 源码搜索模板，浏览器输入冒烟复测 | 通过：`二重积分`、`三重积分`、`四重积分`、`五重积分` 均包含逐层上下限与对应 `d变量`；`区域多重积分` 单独用于 `∫⋯∫_D` 区域写法 | `MyComponent.tsx:80-100`；`functional_acceptance_input_smoke_report_rerun.json` |
+| 二重/三重积分无法完整填写，缺多重积分 | 源码搜索模板，浏览器输入冒烟复测 | 通过：`多重积分` 下拉统一提供二重、三重、四重、五重模板，均包含逐层上下限与对应 `d变量`；`区域多重积分` 单独用于 `∫⋯∫_D` 区域写法 | `MyComponent.tsx:80-90`；`multi_integral_dropdown_5` E2E |
 | 回复位置不统一，输入框应在底部 | 本地登录真实发送，截图复核回复在输入区上方 | 通过：生成回复、历史回复在上方；输入框在下方可见 | `C:\Users\19269\AppData\Local\Temp\functional_acceptance_real_send.png` |
 | AI 质疑学生正确的 `x=-1` 左右极限 | AI 定向服务层测试 | 通过：回复明确“结论本身是正确的”，再引导检查函数值 | `functional_acceptance_ai_targeted_report_utf8.json` |
 | 忘记泰勒/等价无穷小时不应只让回想 | AI 定向服务层测试；发现缺平方根公式后已补修并复测 | 通过：回复直接给出 `1-cos x`、`tan x`、`sqrt(1-x^2)-1` 等通用公式 | `controlled_generation_service.py:207`、`tests/test_core_logic.py:218`、AI 报告 JSON |

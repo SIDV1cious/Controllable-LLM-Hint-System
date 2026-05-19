@@ -186,6 +186,7 @@ const INPUT_SMOKE_SCENARIO_IDS = new Set([
   "formula_immediate_after_insert",
   "matrix_2x2_immediate",
   "cases_function_5_segments",
+  "multi_integral_dropdown_5",
   "select_across_formula_delete_then_type",
 ]);
 
@@ -1107,6 +1108,31 @@ async function insertCasesFunction(componentFrame, segmentCount) {
     select.value = value;
     select.dispatchEvent(new Event("change", { bubbles: true }));
   }, String(segmentCount));
+  await componentFrame.page().waitForTimeout(700);
+}
+
+async function insertMultiIntegral(componentFrame, integralCount) {
+  await openToolbarGroup(componentFrame, "积分");
+  const integralSelect = componentFrame.locator('select[aria-label="插入多重积分"]');
+  if ((await integralSelect.count()) === 0) {
+    throw new Error("Multi-integral selector was not found.");
+  }
+
+  await dismissMathLivePopover(componentFrame);
+  await integralSelect.selectOption(String(integralCount));
+  await componentFrame.page().waitForTimeout(700);
+
+  const state = await readComposerState(componentFrame);
+  const hasExpectedIntegral = state.latexValues.some((value) => {
+    const latex = String(value);
+    return (latex.match(/\\int/g) || []).length >= integralCount;
+  });
+  if (hasExpectedIntegral) return;
+
+  await integralSelect.evaluate((select, value) => {
+    select.value = value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }, String(integralCount));
   await componentFrame.page().waitForTimeout(700);
 }
 
@@ -3552,6 +3578,26 @@ const scenarios = [
     },
   },
   {
+    id: "multi_integral_dropdown_5",
+    type: "formula-multi-integral",
+    run: async (_page, componentFrame) => {
+      await insertMultiIntegral(componentFrame, 5);
+      await waitForLatexIncludes(componentFrame, "\\int", 2500);
+    },
+    assert: async (state) => {
+      const integralLatex = state.latexValues.find((value) =>
+        String(value).includes("\\int")
+      ) || "";
+      const integralCount = (integralLatex.match(/\\int/g) || []).length;
+      const differentialCount = (integralLatex.match(/\\mathrm\{d\}/g) || []).length;
+      if (integralCount < 5 || differentialCount < 5) {
+        throw new Error(
+          `5-fold integral template appears incomplete: ${integralLatex}`
+        );
+      }
+    },
+  },
+  {
     id: "formula_delete",
     type: "formula-delete",
     run: async (_page, componentFrame) => {
@@ -5039,8 +5085,8 @@ function assertScenarioInventory() {
     const duplicateIds = allIds.filter((id, index) => allIds.indexOf(id) !== index);
     throw new Error(`Duplicate E2E scenario ids: ${JSON.stringify([...new Set(duplicateIds)])}`);
   }
-  if (scenarios.length !== 180) {
-    throw new Error(`Expected 180 non-real input scenarios, got ${scenarios.length}.`);
+  if (scenarios.length !== 181) {
+    throw new Error(`Expected 181 non-real input scenarios, got ${scenarios.length}.`);
   }
   if (realSendScenarios.length !== 156) {
     throw new Error(`Expected 156 real-send scenarios, got ${realSendScenarios.length}.`);

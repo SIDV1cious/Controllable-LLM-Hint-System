@@ -17,7 +17,7 @@ declare global {
 type FormulaItem = {
   label: string;
   latex?: string;
-  kind?: "cases";
+  kind?: "cases" | "multi-integral";
 };
 
 type FormulaGroup = {
@@ -37,6 +37,12 @@ const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
 const CASES_SEGMENT_COUNTS = [2, 3, 4, 5];
+const MULTI_INTEGRAL_COUNTS = [
+  { count: 2, label: "二重" },
+  { count: 3, label: "三重" },
+  { count: 4, label: "四重" },
+  { count: 5, label: "五重" },
+];
 
 let mathRuntimePromise: Promise<void> | null = null;
 
@@ -77,23 +83,8 @@ const FORMULA_GROUPS: FormulaGroup[] = [
       { label: "定积分", latex: "\\int_{#?}^{#?}#?\\,\\mathrm{d}#?" },
       { label: "无穷积分", latex: "\\int_{-\\infty}^{+\\infty}#?\\,\\mathrm{d}#?" },
       {
-        label: "二重积分",
-        latex: "\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
-      },
-      {
-        label: "三重积分",
-        latex:
-          "\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
-      },
-      {
-        label: "四重积分",
-        latex:
-          "\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
-      },
-      {
-        label: "五重积分",
-        latex:
-          "\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
+        label: "多重积分",
+        kind: "multi-integral",
       },
       {
         label: "区域多重积分",
@@ -300,6 +291,18 @@ const createCasesLatex = (segmentCount: number) => {
     " \\\\ "
   );
   return `\\begin{cases}${rows}\\end{cases}`;
+};
+
+const createMultiIntegralLatex = (integralCount: number) => {
+  const integrals = Array.from(
+    { length: integralCount },
+    () => "\\int_{#?}^{#?}"
+  ).join("");
+  const differentials = Array.from(
+    { length: integralCount },
+    () => "\\mathrm{d}#?"
+  ).join("\\,");
+  return `${integrals}#?\\,${differentials}`;
 };
 
 const MyComponent = ({ args }: ComponentProps) => {
@@ -1654,6 +1657,30 @@ const MyComponent = ({ args }: ComponentProps) => {
                 {CASES_SEGMENT_COUNTS.map((count) => (
                   <option key={count} value={count}>
                     {count}段
+                  </option>
+                ))}
+              </select>
+            ) : item.kind === "multi-integral" ? (
+              <select
+                key={`${openToolbarGroup}-${item.label}-multi-integral`}
+                defaultValue=""
+                aria-label="插入多重积分"
+                onMouseDown={(event) => event.stopPropagation()}
+                onChange={(event) => {
+                  const integralCount = Number(event.currentTarget.value);
+                  if (integralCount) {
+                    insertLatexIntoFormula(createMultiIntegralLatex(integralCount));
+                  }
+                  event.currentTarget.value = "";
+                }}
+                style={formulaSelectStyle}
+              >
+                <option value="" disabled hidden>
+                  {item.label}
+                </option>
+                {MULTI_INTEGRAL_COUNTS.map(({ count, label }) => (
+                  <option key={count} value={count}>
+                    {label}
                   </option>
                 ))}
               </select>
