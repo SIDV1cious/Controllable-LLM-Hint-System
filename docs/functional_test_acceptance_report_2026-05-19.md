@@ -38,6 +38,9 @@
 | 焦点专项 | 通过 | `4/4 passed` |
 | 真实发送专项 | 通过 | `3/3 passed`，每条均有生成开始、最终回复、泄露状态 |
 | AI 定向四场景 | 通过 | 补充平方根公式后 `4/4 passed` |
+| 线上 `input_smoke` | 通过 | 部署后复测 `12/12 passed` |
+| 线上焦点专项 | 通过 | 部署后复测 `4/4 passed` |
+| 线上真实发送专项 | 通过 | 部署后复测 `3/3 passed` |
 
 ## 证据文件
 
@@ -46,9 +49,12 @@
 - 真实发送报告：`C:\Users\19269\AppData\Local\Temp\functional_acceptance_real_send_report.json`
 - AI 定向报告：`C:\Users\19269\AppData\Local\Temp\functional_acceptance_ai_targeted_report_utf8.json`
 - 真实发送截图：`C:\Users\19269\AppData\Local\Temp\functional_acceptance_real_send.png`
+- 线上输入冒烟报告：`C:\Users\19269\AppData\Local\Temp\online_acceptance_input_smoke_report.json`
+- 线上焦点专项报告：`C:\Users\19269\AppData\Local\Temp\online_acceptance_focus_report.json`
+- 线上真实发送报告：`C:\Users\19269\AppData\Local\Temp\online_acceptance_real_send_report.json`
 
 ## 注意事项
 
 - `ruff check .` 和 `black --check .` 扫全仓库时会进入 `论文临时文件归档/`，该归档目录内存在旧脚本、非 UTF-8 文件和 Python 3.12 f-string 语法，因此全仓库检查失败。这是归档资料目录问题，不是当前系统产品代码问题。
-- 线上地址 `https://controllable-llm-hint-system-zzt.streamlit.app/` 当前可访问，返回 HTTP 200；但当前本地修复尚未证明已部署到线上，所以线上验收状态应标记为“待部署后复核”。
+- 已推送到 GitHub `main` 并完成线上复测。线上地址 `https://controllable-llm-hint-system-zzt.streamlit.app/` 当前可访问，且输入冒烟、焦点专项、真实发送专项均通过。
 - 本次本地 Streamlit 验收端口：`http://localhost:18618`。
