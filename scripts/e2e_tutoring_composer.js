@@ -4562,7 +4562,10 @@ const generatedHighRiskRealSendScenarios = [
         { name: "mentions_limit_zero", terms: ["左右极限", "左极限", "右极限", "0"] },
       ],
       rejectAny: [
-        { name: "old_unnecessary_doubt", terms: ["算错", "不对", "不正确", "重新检查一下", "更仔细地检查一下"] },
+        {
+          name: "old_unnecessary_doubt",
+          terms: ["算错", "不对", "不正确", "重新检查一下", "更仔细地检查一下", "需要重新检查", "需重新检查"],
+        },
       ],
     },
   }),
