@@ -30,9 +30,10 @@ HINT_LLM_STAGE_MAX_RETRIES = 0
 
 KNOWLEDGE_RECALL_PATTERN = re.compile(
     r"(forgot|forget|formula|definition|theorem|taylor|"
-    r"\u5fd8\u8bb0|\u60f3\u4e0d\u8d77|\u4e0d\u8bb0\u5f97|\u8bb0\u4e0d\u6e05|"
+    r"\u5fd8\u8bb0|\u5fd8\u4e86|\u60f3\u4e0d\u8d77|\u4e0d\u8bb0\u5f97|\u8bb0\u4e0d\u6e05|"
+    r"\u8111\u5b50\u7a7a|\u5361\u4f4f|\u60f3\u4e0d\u660e\u767d|"
     r"\u516c\u5f0f|\u5b9a\u4e49|\u5b9a\u7406|\u6cf0\u52d2|\u5c55\u5f00|"
-    r"\u7b49\u4ef7\u65e0\u7a77\u5c0f|\u77e5\u8bc6\u70b9)",
+    r"\u7b49\u4ef7\u65e0\u7a77\u5c0f|\u5e38\u7528\u8fd1\u4f3c|\u8fd1\u4f3c\u5f0f|\u77e5\u8bc6\u70b9)",
     re.I,
 )
 ANSWER_VERIFICATION_PATTERN = re.compile(
@@ -46,7 +47,8 @@ ANSWER_VERIFICATION_PATTERN = re.compile(
 FORMULA_PARSE_GAP_PATTERN = re.compile(
     r"(\{\s*\}|\[\s*\]|\u3010\s*\u3011|formula.{0,12}\{\s*\}|"
     r"\u516c\u5f0f.{0,12}\{\s*\}|\u6ca1\u6709\u663e\u793a|\u7a7a\u767d|"
-    r"\u770b\u4e0d\u5230|\u672a\u8bc6\u522b|\u8bc6\u522b\u4e0d\u5230)",
+    r"\u770b\u4e0d\u5230|\u672a\u8bc6\u522b|\u8bc6\u522b\u4e0d\u5230|"
+    r"\u5360\u4f4d|\u5c0f\u65b9\u6846|\u4f20\u4e0a\u6765|\u25a1)",
     re.I,
 )
 DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
@@ -206,13 +208,16 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
 def _build_foundational_formula_bank(student_request: str) -> str:
     request = str(student_request or "")
     items: list[str] = []
-    if re.search(r"(taylor|\u6cf0\u52d2|\u5c55\u5f00)", request, flags=re.I):
+    if re.search(
+        r"(taylor|\u6cf0\u52d2|\u5c55\u5f00|\u5e38\u7528\u8fd1\u4f3c|\u8fd1\u4f3c\u5f0f)", request, flags=re.I
+    ):
         items.extend(
             [
                 r"在 \(x=0\) 附近，\(\sin x=x-\frac{x^3}{6}+o(x^3)\)。",
                 r"\(\cos x=1-\frac{x^2}{2}+o(x^2)\)。",
                 r"\(\tan x=x+\frac{x^3}{3}+o(x^3)\)。",
                 r"\(e^x=1+x+\frac{x^2}{2}+o(x^2)\)，\(\ln(1+x)=x-\frac{x^2}{2}+o(x^2)\)。",
+                r"因此常用等价式包括 \(e^x-1\sim x\) 与 \(\ln(1+x)\sim x\)。",
                 r"\(\sqrt{1+u}=1+\frac{u}{2}+o(u)\)，所以 \(\sqrt{1-x^2}-1\sim-\frac{x^2}{2}\)。",
             ]
         )
@@ -222,6 +227,20 @@ def _build_foundational_formula_bank(student_request: str) -> str:
                 r"在 \(x=0\) 附近，\(\sin x\sim x\)，\(\tan x\sim x\)，\(1-\cos x\sim \frac{x^2}{2}\)。",
                 r"\(\sqrt{1+u}-1\sim \frac{u}{2}\)，因此 \(\sqrt{1-x^2}-1\sim-\frac{x^2}{2}\)。",
                 r"\(\ln(1+x)\sim x\)，\(e^x-1\sim x\)，\((1+x)^\alpha-1\sim \alpha x\)。",
+            ]
+        )
+    if re.search(r"(\u8fde\u7eed|\u5206\u6bb5)", request, flags=re.I):
+        items.extend(
+            [
+                r"判断分段点连续性时，先分别求左极限、右极限，再和该点函数值比较。",
+                r"若 \(\lim_{x\to x_0^-}f(x)=\lim_{x\to x_0^+}f(x)=f(x_0)\)，则 \(f\) 在 \(x_0\) 连续。",
+            ]
+        )
+    if re.search(r"(\u6d1b\u5fc5\u8fbe|l['’]?hospital|l\u2019hospital)", request, flags=re.I):
+        items.extend(
+            [
+                r"洛必达法则常用于 \(0/0\) 或 \(\infty/\infty\) 型极限。",
+                r"使用前要先确认分子、分母在邻域内可导，且分母导数不为 0，再比较导数之比的极限。",
             ]
         )
     return "\n".join(dict.fromkeys(items))

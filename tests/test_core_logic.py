@@ -220,6 +220,62 @@ def test_generate_controlled_hint_uses_local_formula_bank_for_recall(monkeypatch
     assert result["rewrite_count"] == 0
 
 
+def test_generate_controlled_hint_treats_brain_blank_as_formula_recall(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("common-approximation recall should use local formula bank")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "我脑子空了，sin x、ln(1+x)、e^x-1 这些常用近似是什么？",
+    )
+
+    assert result["generation_status"] == "success"
+    assert r"\sin x" in result["hint"]
+    assert r"\ln(1+x)" in result["hint"]
+    assert r"e^x-1" in result["hint"]
+    assert "generate_local_formula_hint" in result["stage_timings"]
+
+
+def test_generate_controlled_hint_handles_formula_placeholder_as_input_repair(monkeypatch):
+    observed = {}
+
+    def fake_generate_student_hint(
+        question_data,
+        student_answer,
+        is_correct,
+        student_request,
+        hint_plan,
+        system_prompt,
+        hint_strength,
+    ):
+        observed["plan"] = json.loads(hint_plan)
+        return "我看到你的公式像是小方框或占位内容，说明公式没有完整传上来。请重新输入或补全公式。"
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fake_generate_student_hint)
+    monkeypatch.setattr(
+        controlled_generation,
+        "evaluate_hint_leakage",
+        lambda *args, **kwargs: {"is_leaking": False, "score": 0, "reason": "local_safe"},
+    )
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "我公式框里只剩一个小方框 □，请继续讲。",
+    )
+
+    assert observed["plan"]["interaction_intent"] == "formula_parse_repair"
+    assert result["generation_status"] == "success"
+    assert "重新输入" in result["hint"] or "补全公式" in result["hint"]
+
+
 def test_generate_controlled_hint_locally_verifies_parameter_claim(monkeypatch):
     monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
 
