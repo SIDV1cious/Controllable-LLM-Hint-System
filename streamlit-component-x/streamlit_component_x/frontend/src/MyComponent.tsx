@@ -310,6 +310,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     typeof args.storage_key === "string" && args.storage_key
       ? `controlled_hint_composer:${args.storage_key}`
       : null;
+  const focusRecoveryKey = storageKey ? `${storageKey}:focus-recovery` : null;
   const readInitialValue = () => {
     const defaultValue = String(args.default_value || "");
     if (defaultValue) return defaultValue;
@@ -329,6 +330,9 @@ const MyComponent = ({ args }: ComponentProps) => {
   const pendingValueRef = useRef(initialValue);
   const committedValueRef = useRef(initialValue);
   const initialValueRef = useRef(initialValue);
+  const lastTextOffsetRef = useRef<number | null>(
+    initialValue.replaceAll(ZERO_WIDTH_SPACE, "").length
+  );
   const syncTimerRef = useRef<number | null>(null);
   const isComposingRef = useRef(false);
   const recentNativeTextInputRef = useRef<{ text: string; timestamp: number } | null>(
@@ -410,6 +414,174 @@ const MyComponent = ({ args }: ComponentProps) => {
     selection.addRange(range);
     savedRangeRef.current = range.cloneRange();
     return true;
+  };
+
+  const getTextOffsetFromRange = (range: Range | null) => {
+    const editor = editorRef.current;
+    if (!editor || !range || !isInsideEditor(range.commonAncestorContainer)) {
+      return null;
+    }
+
+    try {
+      const beforeCaret = document.createRange();
+      beforeCaret.selectNodeContents(editor);
+      beforeCaret.setEnd(range.startContainer, range.startOffset);
+      return beforeCaret.toString().replaceAll(ZERO_WIDTH_SPACE, "").length;
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const refreshSavedTextOffset = () => {
+    const offset = getTextOffsetFromRange(savedRangeRef.current);
+    if (offset !== null) lastTextOffsetRef.current = offset;
+  };
+
+  const restoreCaretFromTextOffset = (textOffset: number | null) => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || textOffset === null || textOffset < 0) {
+      return false;
+    }
+
+    let remaining = textOffset;
+    let targetNode: Text | null = null;
+    let targetOffset = 0;
+
+    const visit = (node: Node) => {
+      if (targetNode) return;
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textNode = node as Text;
+        const rawText = textNode.textContent || "";
+        const visibleText = rawText.replaceAll(ZERO_WIDTH_SPACE, "");
+        if (remaining <= visibleText.length) {
+          let rawOffset = 0;
+          let visibleOffset = 0;
+          while (rawOffset < rawText.length && visibleOffset < remaining) {
+            if (rawText[rawOffset] !== ZERO_WIDTH_SPACE) visibleOffset += 1;
+            rawOffset += 1;
+          }
+          targetNode = textNode;
+          targetOffset = rawOffset;
+          return;
+        }
+        remaining -= visibleText.length;
+        return;
+      }
+
+      if (!(node instanceof HTMLElement)) return;
+      if (node.classList.contains("inline-formula-chip")) return;
+      node.childNodes.forEach(visit);
+    };
+
+    editor.childNodes.forEach(visit);
+    if (!targetNode) return false;
+
+    editor.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.setStart(targetNode, targetOffset);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+    return true;
+  };
+
+  const persistFocusRecovery = (selectionSnapshot: Range | null) => {
+    if (!focusRecoveryKey) return;
+    try {
+      const rangeOffset = getTextOffsetFromRange(selectionSnapshot);
+      const valueLength = pendingValueRef.current.replaceAll(ZERO_WIDTH_SPACE, "").length;
+      const textOffset =
+        rangeOffset !== null && !(rangeOffset === 0 && valueLength > 0)
+          ? rangeOffset
+          : lastTextOffsetRef.current ?? valueLength;
+      const payload = {
+        textOffset,
+        timestamp: Date.now(),
+      };
+      window.localStorage.setItem(focusRecoveryKey, JSON.stringify(payload));
+    } catch (_error) {
+      // Focus recovery is best-effort; normal Streamlit value sync still works.
+    }
+  };
+
+  const readFocusRecovery = () => {
+    if (!focusRecoveryKey) return null;
+    try {
+      const raw = window.localStorage.getItem(focusRecoveryKey);
+      if (!raw) return null;
+      const payload = JSON.parse(raw) as {
+        textOffset?: number | null;
+        timestamp?: number;
+      };
+      if (!payload.timestamp || Date.now() - payload.timestamp > 6000) {
+        window.localStorage.removeItem(focusRecoveryKey);
+        return null;
+      }
+      return {
+        textOffset:
+          typeof payload.textOffset === "number" ? payload.textOffset : null,
+      };
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const clearFocusRecovery = () => {
+    if (!focusRecoveryKey) return;
+    try {
+      window.localStorage.removeItem(focusRecoveryKey);
+    } catch (_error) {
+      // Ignore storage cleanup failures.
+    }
+  };
+
+  const restorePersistedFocusRecovery = () => {
+    const payload = readFocusRecovery();
+    if (!payload) return false;
+    if (!restoreCaretFromTextOffset(payload.textOffset)) {
+      if (!focusEditorAtEnd()) return false;
+    }
+    return true;
+  };
+
+  const selectionIsInsideEditor = () => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    const activeElement = document.activeElement;
+    if (!editor || !selection || selection.rangeCount === 0) return false;
+
+    const range = selection.getRangeAt(0);
+    return (
+      range.collapsed &&
+      editor.contains(range.commonAncestorContainer) &&
+      (activeElement === editor || editor.contains(activeElement))
+    );
+  };
+
+  const restoreSelectionAfterStreamlitSync = (selectionSnapshot: Range | null) => {
+    [0, 80, 220, 450, 900].forEach((delay) => {
+      window.setTimeout(() => {
+        const editor = editorRef.current;
+        const activeElement = document.activeElement;
+        if (!editor || !editor.isConnected) return;
+        if (
+          activeElement &&
+          activeElement !== document.body &&
+          activeElement !== editor &&
+          !editor.contains(activeElement)
+        ) {
+          return;
+        }
+        if (selectionIsInsideEditor()) return;
+        if (!restoreSavedSelection(selectionSnapshot)) {
+          if (!restorePersistedFocusRecovery()) focusEditorAtEnd();
+        }
+      }, delay);
+    });
+    window.setTimeout(clearFocusRecovery, 1800);
   };
 
   const setActiveFormula = (id: string | null) => {
@@ -562,6 +734,7 @@ const MyComponent = ({ args }: ComponentProps) => {
       const currentValue = serializeEditor(editor);
       lastValueRef.current = currentValue;
       pendingValueRef.current = currentValue;
+      lastTextOffsetRef.current = currentValue.replaceAll(ZERO_WIDTH_SPACE, "").length;
       persistDraftValue(currentValue);
     }
 
@@ -570,14 +743,10 @@ const MyComponent = ({ args }: ComponentProps) => {
     const selectionSnapshot = shouldRestoreSelection
       ? savedRangeRef.current?.cloneRange() ?? null
       : null;
+    if (shouldRestoreSelection) persistFocusRecovery(selectionSnapshot);
     Streamlit.setComponentValue(pendingValueRef.current);
     if (shouldRestoreSelection) {
-      window.setTimeout(() => {
-        if (!restoreSavedSelection(selectionSnapshot)) focusEditorAtEnd();
-      }, 0);
-      window.setTimeout(() => {
-        if (!restoreSavedSelection(selectionSnapshot)) focusEditorAtEnd();
-      }, 80);
+      restoreSelectionAfterStreamlitSync(selectionSnapshot);
     }
   };
 
@@ -603,6 +772,7 @@ const MyComponent = ({ args }: ComponentProps) => {
     const value = serializeEditor(editor);
     lastValueRef.current = value;
     pendingValueRef.current = value;
+    refreshSavedTextOffset();
     persistDraftValue(value);
 
     if (immediate) {
@@ -1257,6 +1427,15 @@ const MyComponent = ({ args }: ComponentProps) => {
     lastValueRef.current = initialValueRef.current;
     pendingValueRef.current = initialValueRef.current;
     committedValueRef.current = initialValueRef.current;
+    if (readFocusRecovery()) {
+      [0, 120, 320, 700].forEach((delay) => {
+        window.setTimeout(() => {
+          if (restorePersistedFocusRecovery()) {
+            window.setTimeout(clearFocusRecovery, 1200);
+          }
+        }, delay);
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -1301,10 +1480,9 @@ const MyComponent = ({ args }: ComponentProps) => {
       renderValue(valueToRender, true);
 
       if (shouldRestoreCaret) {
-        window.setTimeout(() => {
-          if (!restoreSavedSelection(selectionSnapshot)) focusEditorAtEnd();
-          syncValue();
-        }, 0);
+        persistFocusRecovery(selectionSnapshot);
+        restoreSelectionAfterStreamlitSync(selectionSnapshot);
+        window.setTimeout(() => syncValue(), 0);
       }
     }
   }, [mathRuntimeReady]);
@@ -1726,6 +1904,11 @@ const MyComponent = ({ args }: ComponentProps) => {
           if (isComposingRef.current) return;
           rememberNativeTextInput(event.nativeEvent as InputEvent);
           saveSelection();
+          refreshSavedTextOffset();
+          window.setTimeout(() => {
+            saveSelection();
+            refreshSavedTextOffset();
+          }, 0);
           syncValue();
         }}
         onBlur={() => syncValue(true)}
