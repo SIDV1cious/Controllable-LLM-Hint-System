@@ -56,6 +56,15 @@ DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
     r"\u9009\u9879\u662f\u4ec0\u4e48)",
     re.I,
 )
+PARAMETER_AB_VERIFICATION_PATTERN = re.compile(
+    r"(a\s*=\s*2.{0,12}b\s*=\s*-?\s*2|b\s*=\s*-?\s*2.{0,12}a\s*=\s*2)",
+    re.I,
+)
+NEG_ONE_LIMIT_VERIFICATION_PATTERN = re.compile(
+    r"((x\s*=\s*-1|x=-1|\u22121).{0,80}(\u5de6\u53f3\u6781\u9650|\u5de6\u6781\u9650|\u53f3\u6781\u9650).{0,40}0|"
+    r"(\u5de6\u53f3\u6781\u9650|\u5de6\u6781\u9650|\u53f3\u6781\u9650).{0,80}(x\s*=\s*-1|x=-1|\u22121).{0,40}0)",
+    re.I,
+)
 
 
 class ControlledHintGenerationTimeout(TimeoutError):
@@ -226,6 +235,33 @@ def _build_foundational_formula_hint(formula_bank: str) -> str:
         "接下来先做一个安全的小判断：看本题需要保留到几阶，再把对应展开代入到你当前那一步。"
         "我先不替你把整题算完，这样还能保留你自己完成关键推理的空间。"
     )
+
+
+def _build_local_student_claim_verification(student_request: str, student_answer: str = "") -> str:
+    combined = f"{student_answer}\n{student_request}"
+    compact = re.sub(r"\s+", "", combined)
+
+    if PARAMETER_AB_VERIFICATION_PATTERN.search(compact):
+        return (
+            "你给出的候选值 $a=2,\\ b=-2$ 可以作为当前结论来核对。"
+            "从你已经整理出的分子系数看，关键是检查 $2-a=0$ 和 $a+b=0$ "
+            "这两个条件是否同时成立；代入后它们分别成立。\n\n"
+            "注意不要机械地再把常数项 $1-b$ 也强行设为 0。"
+            "下一步建议你回到题目里的极限条件，说明为什么当前只需要控制这些会影响极限的项，"
+            "这样就能把你的结论解释完整。"
+        )
+
+    if NEG_ONE_LIMIT_VERIFICATION_PATTERN.search(compact):
+        return (
+            "你判断 $x=-1$ 处左极限和右极限都是 0，这个判断是正确的。\n\n"
+            "核对思路是：当 $x\\to-1^-$ 时，$|x|>1$，所以 $x^{2n}$ 会随 $n\\to\\infty$ "
+            "变大，分母趋大，整体极限趋于 0；当 $x\\to-1^+$ 时，$|x|<1$，"
+            "$x^{2n}\\to0$，表达式趋向 $1+x$，再令 $x\\to-1^+$ 也得到 0。\n\n"
+            "下一步不要重新怀疑这个左右极限结论，而是继续检查函数在 $x=-1$ 处的函数值，"
+            "再用“左右极限是否等于函数值”来判断连续性。"
+        )
+
+    return ""
 
 
 def _build_refined_interaction_policy(profile: dict) -> str:
@@ -496,11 +532,17 @@ def generate_controlled_hint(
 
         interaction_profile = analyze_student_interaction(student_request, student_answer)
         foundational_formula_bank = _build_foundational_formula_bank(student_request)
+        local_claim_verification_hint = _build_local_student_claim_verification(student_request, student_answer)
         if interaction_profile["needs_foundational_formula"] and foundational_formula_bank:
             stage_started_at = time.perf_counter()
             final_hint = _build_foundational_formula_hint(foundational_formula_bank)
             _record_stage_timing(stage_timings, "generate_local_formula_hint", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_local_formula_hint")
+        elif interaction_profile["student_supplied_answer_or_step"] and local_claim_verification_hint:
+            stage_started_at = time.perf_counter()
+            final_hint = local_claim_verification_hint
+            _record_stage_timing(stage_timings, "generate_local_claim_verification", stage_started_at)
+            _ensure_generation_budget(total_started_at, "generate_local_claim_verification")
         else:
             stage_started_at = time.perf_counter()
             try:

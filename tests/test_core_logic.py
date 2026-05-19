@@ -220,6 +220,52 @@ def test_generate_controlled_hint_uses_local_formula_bank_for_recall(monkeypatch
     assert result["rewrite_count"] == 0
 
 
+def test_generate_controlled_hint_locally_verifies_parameter_claim(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("student-supplied parameter verification should use local verifier")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "a=2,b=-2", "solution": "标准解析"},
+        "a=2,b=-2",
+        True,
+        "分子化简为 (2-a)x^2-(a+b)x+1-b，所以我算出 a=2,b=-2，对吗？",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "a=2" in result["hint"]
+    assert "b=-2" in result["hint"]
+    assert "常数项" in result["hint"]
+    assert "generate_local_claim_verification" in result["stage_timings"]
+    assert result["rewrite_count"] == 0
+
+
+def test_generate_controlled_hint_locally_verifies_negative_one_limit_claim(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("known left/right limit verification should use local verifier")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "对于 f(x)=lim_{n->∞}(1+x)/(1+x^{2n})，我判断 x=-1 处左右极限都是0，这个判断正确吗？",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "正确" in result["hint"]
+    assert "左极限" in result["hint"] or "右极限" in result["hint"]
+    assert "不正确" not in result["hint"]
+    assert "generate_local_claim_verification" in result["stage_timings"]
+    assert result["rewrite_count"] == 0
+
+
 def test_compact_dialogue_history_keeps_recent_messages_accessible():
     history = [{"role": "assistant", "content": f"message-{index}"} for index in range(9)]
 

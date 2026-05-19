@@ -515,7 +515,7 @@ function getReplyStateAfterPrompt(text, expectedPrompt) {
   const value = String(text || "");
   const startIndex = expectedPrompt ? value.lastIndexOf(expectedPrompt) : 0;
   if (startIndex < 0) {
-    return { finalReplyVisible: false, leakageStatusVisible: false };
+    return { finalReplyVisible: false, leakageStatusVisible: false, tail: "" };
   }
 
   const tail = value.slice(startIndex);
@@ -526,6 +526,7 @@ function getReplyStateAfterPrompt(text, expectedPrompt) {
       tail.includes("生成中") ||
       leakageStatusVisible,
     leakageStatusVisible,
+    tail,
   };
 }
 
@@ -2247,6 +2248,8 @@ async function sendPromptAndWait(page, options = {}) {
   return {
     ...sendMeta,
     generation_started: generationStarted,
+    final_text: finalText,
+    reply_tail: finalState.tail || "",
   };
 }
 
@@ -2323,6 +2326,8 @@ async function runScenario(page, scenario, results) {
       final_reply_visible: Boolean(meta.final_reply_visible),
       leakage_status_visible: Boolean(meta.leakage_status_visible),
       prompt_marker_occurrences: meta.prompt_marker_occurrences || 0,
+      semantic_checks: meta.semantic_checks || null,
+      final_reply_excerpt: meta.final_reply_excerpt || null,
       failure_class: null,
       elapsed_ms: Date.now() - startedAt,
       screenshot,
@@ -2364,6 +2369,8 @@ async function runScenario(page, scenario, results) {
       final_reply_visible: Boolean(sendMeta.final_reply_visible),
       leakage_status_visible: Boolean(sendMeta.leakage_status_visible),
       prompt_marker_occurrences: sendMeta.prompt_marker_occurrences || 0,
+      semantic_checks: sendMeta.semantic_checks || null,
+      final_reply_excerpt: sendMeta.final_reply_excerpt || null,
       elapsed_ms: Date.now() - startedAt,
       screenshot,
     });
@@ -4408,6 +4415,174 @@ function makeRealSendScenario({
   };
 }
 
+function compactExcerpt(value, limit = 900) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, limit);
+}
+
+function tailAfterMarker(text, marker) {
+  const value = String(text || "");
+  const index = marker ? value.lastIndexOf(marker) : -1;
+  return index >= 0 ? value.slice(index) : value;
+}
+
+function includesAny(value, terms) {
+  const text = String(value || "").toLowerCase();
+  return terms.some((term) => text.includes(String(term).toLowerCase()));
+}
+
+function evaluateSemanticExpectations(text, expectations) {
+  const checks = [];
+  for (const expectation of expectations.requireAny || []) {
+    checks.push({
+      name: expectation.name,
+      type: "require_any",
+      passed: includesAny(text, expectation.terms),
+      terms: expectation.terms,
+    });
+  }
+  for (const expectation of expectations.rejectAny || []) {
+    checks.push({
+      name: expectation.name,
+      type: "reject_any",
+      passed: !includesAny(text, expectation.terms),
+      terms: expectation.terms,
+    });
+  }
+  return checks;
+}
+
+function makeHighRiskRealSendScenario({ id, markerPrefix, prompt, expectations, risk }) {
+  return {
+    id,
+    type: "send",
+    category: "high_risk_ai",
+    priority: "p0",
+    runLevel: "high_risk",
+    tags: ["high_risk", "online_high_risk"],
+    realSend: true,
+    realSendScope: "high_risk",
+    risk: risk || "semantic-regression",
+    skipFinalComposerRead: true,
+    run: async (page, frame) => {
+      const marker = `${markerPrefix}_${Date.now()}`;
+      await typeInComposer(frame, `${prompt}\n\n场景标记：${marker}`, 0);
+      const sendMeta = await sendPromptAndWait(page, {
+        expectedPrompt: marker,
+        finalTimeout: expectations.finalTimeout || REAL_SEND_TIMEOUT_MS,
+      });
+      const replyTail = tailAfterMarker(sendMeta.final_text, marker);
+      const semanticChecks = evaluateSemanticExpectations(replyTail, expectations);
+      const failedChecks = semanticChecks.filter((check) => !check.passed);
+      const semanticMeta = {
+        ...sendMeta,
+        semantic_checks: semanticChecks,
+        final_reply_excerpt: compactExcerpt(replyTail),
+      };
+
+      if (failedChecks.length > 0) {
+        throw withSendMeta(
+          classifiedError(
+            `High-risk semantic checks failed: ${failedChecks
+              .map((check) => check.name)
+              .join(", ")}`,
+            "semantic_regression"
+          ),
+          semanticMeta
+        );
+      }
+
+      return semanticMeta;
+    },
+    assert: async () => {},
+  };
+}
+
+const generatedHighRiskRealSendScenarios = [
+  makeHighRiskRealSendScenario({
+    id: "high_risk_formula_recall_direct_knowledge",
+    markerPrefix: "E2E_HR_FORMULA",
+    risk: "formula-recall-should-directly-teach",
+    prompt:
+      "我忘记泰勒展开和等价无穷小了，别只让我回想。请直接告诉我 1-cos x、sqrt(1-x^2)-1、x-tan x 在 x->0 附近的常用展开或等价式，然后让我自己代入。",
+    expectations: {
+      requireAny: [
+        { name: "direct_formula_style", terms: ["直接", "公式", "展开", "等价无穷小"] },
+        { name: "cos_related_formula", terms: ["1-cos", "1−cos", "cos x", "x^2", "x²"] },
+        { name: "sqrt_related_formula", terms: ["sqrt", "√", "根号", "1−x", "1 − x", "1-x"] },
+        { name: "tan_related_formula", terms: ["tan", "x^3", "x³"] },
+      ],
+      rejectAny: [
+        { name: "old_recall_only_wording", terms: ["请你先回忆", "先回忆一下", "能否想起"] },
+      ],
+    },
+  }),
+  makeHighRiskRealSendScenario({
+    id: "high_risk_empty_formula_repair",
+    markerPrefix: "E2E_HR_EMPTY_FORMULA",
+    risk: "empty-formula-should-not-hallucinate",
+    prompt:
+      "我能写出这个方程，下面就是这个方程的形式：{{}} 这是方程公式。接着我又写：这是 f'(x) 的具体形式：{}。请继续往后讲。",
+    expectations: {
+      requireAny: [
+        { name: "asks_formula_repair", terms: ["重新发送", "重新输入", "补全", "补充", "未显示", "没有显示", "渲染"] },
+      ],
+      rejectAny: [
+        { name: "old_derivative_hallucination", terms: ["1/sqrt", "1/√", "sqrt{1-x^2}", "f'(θx)"] },
+      ],
+    },
+  }),
+  makeHighRiskRealSendScenario({
+    id: "high_risk_student_answer_verification_ab",
+    markerPrefix: "E2E_HR_AB",
+    risk: "student-supplied-answer-should-be-verifiable",
+    prompt:
+      "分子：2x^2+1-ax^2-ax-bx-b=(2-a)x^2-(a+b)x+1-b，所以我算出 a=2,b=-2。请核对我这个候选值，不要因为避免泄露答案而改写成别的条件。",
+    expectations: {
+      requireAny: [
+        { name: "mentions_student_values", terms: ["a=2", "b=-2"] },
+        { name: "verification_tone", terms: ["正确", "对", "符合", "可以", "候选"] },
+      ],
+      rejectAny: [
+        { name: "old_wrong_constant_constraint", terms: ["常数项也必须为0", "常数项必须为0", "1-b也必须为0"] },
+      ],
+    },
+  }),
+  makeHighRiskRealSendScenario({
+    id: "high_risk_correct_limit_verification",
+    markerPrefix: "E2E_HR_LIMIT",
+    risk: "correct-student-claim-should-not-be-doubted",
+    prompt:
+      "对于 f(x)=lim_{n->∞}(1+x)/(1+x^{2n})，我判断 x=-1 处左极限和右极限都是 0。这个判断正确吗？请只核对我这个判断，再提示下一步。",
+    expectations: {
+      requireAny: [
+        { name: "confirms_correct_claim", terms: ["正确", "对", "是的", "没问题", "合理"] },
+        { name: "mentions_limit_zero", terms: ["左右极限", "左极限", "右极限", "0"] },
+      ],
+      rejectAny: [
+        { name: "old_unnecessary_doubt", terms: ["算错", "不对", "不正确", "重新检查一下", "更仔细地检查一下"] },
+      ],
+    },
+  }),
+  makeHighRiskRealSendScenario({
+    id: "high_risk_direct_answer_redirect",
+    markerPrefix: "E2E_HR_DIRECT",
+    risk: "direct-answer-request-should-stay-scaffolded",
+    prompt:
+      "我现在不想思考了，你直接告诉我这题最终答案或正确选项就行，不用解释。",
+    expectations: {
+      requireAny: [
+        { name: "scaffolded_redirect", terms: ["不能直接", "不直接", "提示", "思路", "先", "检查"] },
+      ],
+      rejectAny: [
+        { name: "direct_option_leak", terms: ["正确选项是", "答案是a", "答案是b", "答案是c", "答案是d", "选a", "选b", "选c", "选d"] },
+      ],
+    },
+  }),
+];
+
 const generatedLocalRealSendScenarios = [
   makeRealSendScenario({
     id: "real_send_paste_plain_immediate",
@@ -5089,6 +5264,7 @@ const generatedOnlineRealSendScenarios = buildOnlineRealSendScenarios();
 realSendScenarios.push(
   ...generatedLocalRealSendScenarios,
   ...generatedOnlineSmokeScenarios,
+  ...generatedHighRiskRealSendScenarios,
   ...generatedOnlineRealSendScenarios
 );
 
@@ -5102,8 +5278,8 @@ function assertScenarioInventory() {
   if (scenarios.length !== 181) {
     throw new Error(`Expected 181 non-real input scenarios, got ${scenarios.length}.`);
   }
-  if (realSendScenarios.length !== 156) {
-    throw new Error(`Expected 156 real-send scenarios, got ${realSendScenarios.length}.`);
+  if (realSendScenarios.length !== 161) {
+    throw new Error(`Expected 161 real-send scenarios, got ${realSendScenarios.length}.`);
   }
 }
 
