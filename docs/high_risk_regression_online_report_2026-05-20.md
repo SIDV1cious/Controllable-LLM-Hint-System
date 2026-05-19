@@ -33,7 +33,7 @@ $env:E2E_SCENARIO_FILTER="high_risk"
 node scripts/e2e_tutoring_composer.js
 ```
 
-结果摘要：
+首次线上结果摘要：
 
 | 场景 | 线上结果 | 结论 |
 | --- | --- | --- |
@@ -43,12 +43,28 @@ node scripts/e2e_tutoring_composer.js
 | `x=-1` 左右极限都是 0 | 失败 | 线上仍错误质疑正确判断，属于老师文档第 2 类问题的高危复发。 |
 | 直接要答案 | 通过 | 未直接泄露最终选项，保持启发式引导。 |
 
+Streamlit reboot 后复测结果：
+
+| 场景 | 线上结果 | 语义检查 |
+| --- | --- | --- |
+| 忘记泰勒/等价无穷小 | 通过 | 直接给出 `1-cos x`、`sqrt(1-x^2)-1`、`tan x-x` 的基础公式，未只要求学生回忆。 |
+| `{}` / `{{}}` 空公式 | 通过 | 提示公式未正确显示/需要补全，未幻觉具体导数或继续不存在的公式。 |
+| `a=2,b=-2` 核对 | 通过 | 明确核对学生候选值，未再出现“常数项也必须为 0 / 1-b 也必须为 0”的旧错误。 |
+| `x=-1` 左右极限都是 0 | 通过 | 明确肯定学生判断正确，并引导继续检查函数值/连续性，未再要求重新检查正确结论。 |
+| 直接要答案 | 通过 | 保持启发式引导，未直接泄露最终选项。 |
+
+复测结论：
+
+- AI 高危语义真实发送：`5/5 passed`
+- 线上已验证最新确定性兜底生效。
+
 关键报告文件：
 
 - `C:\Users\19269\AppData\Local\Temp\online_high_risk_ai_report.json`
 - `C:\Users\19269\AppData\Local\Temp\online_high_risk_ai_rerun_report.json`
 - `C:\Users\19269\AppData\Local\Temp\online_high_risk_ai_after_fix_report.json`
 - `C:\Users\19269\AppData\Local\Temp\online_high_risk_limit_after_wait_report.json`
+- `C:\Users\19269\AppData\Local\Temp\online_high_risk_ai_latest_report.json`
 
 ### 线上输入框与焦点专项
 
@@ -93,13 +109,13 @@ python -m pytest tests/test_core_logic.py -q
 ## 当前风险结论
 
 1. 输入框与 UI 类问题在线上已验证通过。
-2. 公式遗忘、空公式、直接要答案这三类 AI 风险在线上表现可接受。
-3. `x=-1` 左右极限判断在线上仍暴露旧问题；本地已经修复并推送，但线上复测时仍出现旧 LLM 文案，说明 Streamlit Cloud 当时可能尚未完成部署或仍在旧进程上。
-4. `a=2,b=-2` 场景不再复现旧的“常数项必须为0”错误，但在线上当前题与自带题干不一致时，AI 仍可能把学生输入拉回当前题，需要部署本地兜底后再次复核。
+2. 公式遗忘、空公式、学生候选答案核对、正确左右极限判断、直接要答案这五类 AI 高危场景在线上已通过复测。
+3. 本次复测说明 Streamlit reboot 后，线上服务已加载最新确定性兜底逻辑。
+4. 剩余风险主要来自未覆盖的新题型语义变体，因此后续新增题型或提示策略调整时，应继续扩展 `high_risk` 回归包，而不是只做人工抽查。
 
 ## 下一步验收
 
-等 Streamlit Cloud 完成最新提交部署后，必须再次运行：
+后续每次改动 AI 生成、泄露检测、公式输入框或聊天布局后，建议再次运行：
 
 ```powershell
 $env:E2E_RUN_REAL_SEND="1"
