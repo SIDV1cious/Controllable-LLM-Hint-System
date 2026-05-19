@@ -14,6 +14,20 @@ class LLMCallMetadata(TypedDict):
     prompt_chars: int
 
 
+def classify_llm_error(exc: Exception) -> str:
+    name = type(exc).__name__.lower()
+    message = str(exc).lower()
+    if "timeout" in name or "timeout" in message or "timed out" in message:
+        return "timeout"
+    if "rate" in name or "rate" in message or "429" in message:
+        return "rate_limit"
+    if "auth" in name or "api key" in message or "401" in message or "403" in message:
+        return "auth"
+    if "connect" in name or "network" in message or "connection" in message:
+        return "network"
+    return "llm_error"
+
+
 client = OpenAI(
     api_key=AppConfig.LLM_API_KEY or "missing-api-key",
     base_url=AppConfig.BASE_URL,
@@ -44,6 +58,7 @@ def chat_completion_text(
     temperature: float = 0.2,
     timeout_seconds: float | None = None,
     max_retries: int | None = None,
+    stage_name: str = "llm_call",
 ) -> str:
     if not AppConfig.LLM_API_KEY:
         raise RuntimeError("未配置 LLM_API_KEY，无法调用大模型。")
@@ -65,7 +80,8 @@ def chat_completion_text(
         content = (resp.choices[0].message.content or "").strip()
         elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
         logging.info(
-            "LLM call succeeded: model=%s temperature=%s messages=%s prompt_chars=%s response_chars=%s elapsed_ms=%s",
+            "LLM call succeeded: stage=%s model=%s temperature=%s messages=%s prompt_chars=%s response_chars=%s elapsed_ms=%s",
+            stage_name,
             metadata["model"],
             metadata["temperature"],
             metadata["message_count"],
@@ -74,10 +90,13 @@ def chat_completion_text(
             elapsed_ms,
         )
         return content
-    except Exception:
+    except Exception as exc:
         elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
+        error_type = classify_llm_error(exc)
         logging.exception(
-            "LLM call failed: model=%s temperature=%s messages=%s prompt_chars=%s elapsed_ms=%s",
+            "LLM call failed: stage=%s error_type=%s model=%s temperature=%s messages=%s prompt_chars=%s elapsed_ms=%s",
+            stage_name,
+            error_type,
             metadata["model"],
             metadata["temperature"],
             metadata["message_count"],
@@ -85,3 +104,6 @@ def chat_completion_text(
             elapsed_ms,
         )
         raise
+
+
+call_deepseek_chat = chat_completion_text

@@ -3,6 +3,7 @@ import json
 import pandas as pd
 
 import controlled_generation_service as controlled_generation
+import controlled_hint_ui
 from admin_content_repository import (
     build_course_name_list,
     make_question_delete_label,
@@ -140,13 +141,101 @@ def test_heuristic_leakage_check_allows_non_answer_hint():
     assert result["score"] == 0
 
 
+def test_heuristic_leakage_check_allows_student_supplied_answer_reference():
+    result = heuristic_leakage_check(
+        "a=2,b=-2",
+        "你给出的 \\(a=2,b=-2\\) 可以作为当前候选结论，我们只需要回到方程组逐项核对。",
+        student_context="我算出 a=2,b=-2，对吗？",
+    )
+
+    assert result["is_leaking"] is False
+    assert result["score"] == 0
+    assert result["reason"] == "local_student_supplied_answer_reference"
+
+
+def test_local_hint_plan_detects_recall_and_verification_intents():
+    plan = json.loads(
+        controlled_generation.build_local_hint_plan(
+            {"id": 1, "category": "高等数学", "content": "题目", "answer": "a=2,b=-2", "solution": "解析"},
+            "a=2,b=-2",
+            False,
+            "我忘记泰勒展开公式了，a=2,b=-2 对吗？",
+        )
+    )
+
+    assert plan["needs_foundational_formula"] is True
+    assert plan["student_supplied_answer_or_step"] is True
+    assert plan["allowed_content"].startswith("general formulas")
+    assert "sin x" in plan["foundational_formula_bank"]
+
+
+def test_generate_student_hint_adds_reference_context_and_refined_policy(monkeypatch):
+    observed = {}
+
+    def fake_chat_completion_text(messages, **kwargs):
+        observed["system"] = messages[0]["content"]
+        observed["user"] = messages[1]["content"]
+        observed["stage_name"] = kwargs["stage_name"]
+        return "先核对你已经写出的等式是否与题目条件一致。"
+
+    monkeypatch.setattr(controlled_generation, "chat_completion_text", fake_chat_completion_text)
+
+    hint = controlled_generation.generate_student_hint(
+        {"id": 1, "content": "题目", "answer": "a=2,b=-2", "solution": "标准解析"},
+        "a=2,b=-2",
+        False,
+        "我算出 a=2,b=-2，对吗？",
+        "private-plan",
+        "system-prompt",
+    )
+
+    assert hint.startswith("先核对")
+    assert "Refined Tutoring Policy" in observed["system"]
+    assert "Reference Answer (private" in observed["user"]
+    assert "a=2,b=-2" in observed["user"]
+    assert "student_answer_verification" in observed["user"]
+    assert "Foundational Formula Bank" in observed["user"]
+    assert observed["stage_name"] == "generate_student_hint"
+
+
+def test_generate_controlled_hint_uses_local_formula_bank_for_recall(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("formula recall should use local formula bank")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "我忘记泰勒展开公式了，能不能直接告诉我？",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "sin x" in result["hint"]
+    assert r"\sqrt{1-x^2}-1" in result["hint"]
+    assert "generate_local_formula_hint" in result["stage_timings"]
+    assert result["rewrite_count"] == 0
+
+
+def test_compact_dialogue_history_keeps_recent_messages_accessible():
+    history = [{"role": "assistant", "content": f"message-{index}"} for index in range(9)]
+
+    archived, recent = controlled_hint_ui._split_compact_dialogue_history(history)
+
+    assert [item["content"] for item in archived] == [f"message-{index}" for index in range(5)]
+    assert [item["content"] for item in recent] == [f"message-{index}" for index in range(5, 9)]
+
+
 def test_generate_controlled_hint_keeps_request_plan_and_system_prompt_order(monkeypatch):
     observed = {}
 
     monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
     monkeypatch.setattr(
         controlled_generation,
-        "build_hint_plan",
+        "build_local_hint_plan",
         lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
     )
 
@@ -191,13 +280,14 @@ def test_generate_controlled_hint_keeps_request_plan_and_system_prompt_order(mon
         "hint_strength": "中提示",
     }
     assert result["generation_status"] == "success"
+    assert result["generation_strategy"] == "fast_path"
 
 
 def test_generate_controlled_hint_returns_safe_fallback_on_generation_error(monkeypatch):
     monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
     monkeypatch.setattr(
         controlled_generation,
-        "build_hint_plan",
+        "build_local_hint_plan",
         lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
     )
 
@@ -217,6 +307,104 @@ def test_generate_controlled_hint_returns_safe_fallback_on_generation_error(monk
     assert result["generation_error"] == "RuntimeError"
     assert result["is_leaking"] == 0
     assert "保底启发式提示" in result["leakage_reason"]
+
+
+def test_generate_controlled_hint_escalates_high_risk_hint_to_llm_check(monkeypatch):
+    calls = {"detect": 0}
+
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_local_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "generate_student_hint",
+        lambda *args, **kwargs: "The correct option is A.",
+    )
+
+    def fake_evaluate(*args, **kwargs):
+        calls["detect"] += 1
+        return {"is_leaking": False, "score": 0, "reason": "llm_checked_safe"}
+
+    monkeypatch.setattr(controlled_generation, "evaluate_hint_leakage", fake_evaluate)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "A", "solution": "解析"},
+        "B",
+        False,
+        "tell me the answer",
+    )
+
+    assert calls["detect"] == 1
+    assert result["generation_strategy"] == "llm_checked"
+    assert result["leakage_reason"] == "llm_checked_safe"
+
+
+def test_generate_controlled_hint_rewrites_once_then_local_rechecks(monkeypatch):
+    calls = {"rewrite": 0}
+
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_local_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "generate_student_hint",
+        lambda *args, **kwargs: "The correct option is A.",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "evaluate_hint_leakage",
+        lambda *args, **kwargs: {"is_leaking": True, "score": 3, "reason": "direct_answer"},
+    )
+
+    def fake_rewrite(*args, **kwargs):
+        calls["rewrite"] += 1
+        return "Check which definition applies before choosing."
+
+    monkeypatch.setattr(controlled_generation, "rewrite_unsafe_hint", fake_rewrite)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "A", "solution": "解析"},
+        "B",
+        False,
+        "give me a strong hint",
+    )
+
+    assert calls["rewrite"] == 1
+    assert result["rewrite_count"] == 1
+    assert result["generation_strategy"] == "rewritten"
+    assert result["is_leaking"] == 0
+
+
+def test_generate_controlled_hint_returns_timeout_fallback_on_generation_timeout(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_local_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+
+    def raise_timeout(*args, **kwargs):
+        raise TimeoutError("request timed out")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", raise_timeout)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "A", "solution": "解析"},
+        "B",
+        False,
+        "请提示下一步",
+    )
+
+    assert result["generation_status"] == "timeout"
+    assert result["generation_strategy"] == "fallback"
+    assert result["timeout_stage"] == "generate"
+    assert result["is_leaking"] == 0
 
 
 def test_experiment_summary_and_export_are_stable():
@@ -331,7 +519,7 @@ def test_hint_request_observability_counts_text_formula_and_latency():
 def test_hint_policy_defaults_and_risk_threshold_are_stable():
     assert normalize_hint_strength("未知强度") == "中提示"
     assert "完整推导" in get_hint_strength_policy("中提示")
-    assert MAX_HINT_REWRITE_ATTEMPTS == 2
+    assert MAX_HINT_REWRITE_ATTEMPTS == 1
     assert FALLBACK_SAFE_HINT.startswith("这道题我们先抓住关键条件")
     assert is_high_risk_leakage_score(2) is True
     assert is_high_risk_leakage_score("bad-score") is False
@@ -358,10 +546,13 @@ def test_llm_call_metadata_counts_messages_and_prompt_chars():
 def test_leakage_observability_ddl_is_centralized():
     ddl = iter_leakage_observability_ddl()
 
-    assert len(ddl) == 14
+    assert len(ddl) == 17
     assert any("leakage_score" in statement for statement in ddl)
     assert any("generation_elapsed_ms" in statement for statement in ddl)
     assert any("generation_status" in statement for statement in ddl)
+    assert any("generation_strategy" in statement for statement in ddl)
+    assert any("timeout_stage" in statement for statement in ddl)
+    assert any("stage_timings" in statement for statement in ddl)
     assert any("idx_interaction_hint_strength" in statement for statement in ddl)
 
 
@@ -536,6 +727,9 @@ def test_interaction_payload_truncates_observability_fields():
         rewrite_triggered=1,
         generation_status="timeout",
         generation_error="OpenAIError" * 40,
+        generation_strategy="fallback",
+        timeout_stage="generate",
+        stage_timings={"generate_student_hint": 25000},
     )
 
     assert payload["qid"] == 1001
@@ -550,6 +744,9 @@ def test_interaction_payload_truncates_observability_fields():
     assert payload["rewrite_flag"] == 1
     assert payload["generation_status"] == "timeout"
     assert len(payload["generation_error"]) == 255
+    assert payload["generation_strategy"] == "fallback"
+    assert payload["timeout_stage"] == "generate"
+    assert "generate_student_hint" in payload["stage_timings"]
 
 
 def test_dynamic_session_key_builders_are_stable():
@@ -731,6 +928,11 @@ def test_admin_hint_leakage_summary_and_score_distribution():
         "leaked_hints": 1,
         "rewrite_total": 3,
         "leak_rate": 33.3,
+        "avg_generation_elapsed_ms": 0.0,
+        "p95_generation_elapsed_ms": 0.0,
+        "timeout_rate": 0.0,
+        "fast_path_rate": 100.0,
+        "rewrite_rate": 66.7,
     }
     assert score_counts == {0: 1, 1: 0, 2: 2, 3: 0}
     assert risk_labels[0] == "0 安全"

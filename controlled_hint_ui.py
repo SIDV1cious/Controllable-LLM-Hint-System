@@ -34,6 +34,9 @@ from ui_texts import (
     TUTORING_TITLE,
 )
 
+CHAT_RECENT_MESSAGE_COUNT = 4
+CHAT_SCROLL_HEIGHT = 440
+
 
 def apply_controlled_hint_panel_style():
     st.markdown(
@@ -73,6 +76,24 @@ def apply_controlled_hint_panel_style():
             linear-gradient(135deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 0.92)),
             radial-gradient(circle at right top, rgba(37, 99, 235, 0.08), transparent 9rem);
         box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
+    }
+
+    .tutoring-history-note {
+        border: 1px solid #dbe7f5;
+        border-radius: 14px;
+        padding: 9px 11px;
+        margin: 0.15rem 0 0.65rem 0;
+        color: #475569;
+        font-size: 13px;
+        line-height: 1.55;
+        background:
+            linear-gradient(135deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 0.92)),
+            radial-gradient(circle at left center, rgba(37, 99, 235, 0.07), transparent 7rem);
+    }
+
+    .tutoring-history-note strong {
+        color: #1f2937;
+        font-weight: 760;
     }
 
     .quick-request-label {
@@ -476,7 +497,7 @@ def _render_generation_status() -> None:
     st.markdown(
         """
 <div class="generation-status-card">
-    <strong>生成链路：</strong>正在生成启发式提示，并同步进行答案泄露检测与必要重写。
+    <strong>生成链路：</strong>正在生成提示；低风险样本会走本地快路径，高风险样本会进入泄露检测与必要重写。
 </div>
         """,
         unsafe_allow_html=True,
@@ -512,12 +533,38 @@ def _render_hint_dialogue_history(history: list):
                 st.markdown(format_math(message["content"]))
 
 
+def _split_compact_dialogue_history(history: list) -> tuple[list, list]:
+    if len(history) <= CHAT_RECENT_MESSAGE_COUNT + 1:
+        return [], history
+    return history[:-CHAT_RECENT_MESSAGE_COUNT], history[-CHAT_RECENT_MESSAGE_COUNT:]
+
+
+def _render_compact_hint_dialogue_history(history: list) -> None:
+    archived_history, recent_history = _split_compact_dialogue_history(history)
+    if archived_history:
+        st.markdown(
+            f"""
+<div class="tutoring-history-note">
+    <strong>对话已自动收纳：</strong>
+    当前只展开最近 {len(recent_history)} 条，较早 {len(archived_history)} 条可在下方折叠区查看，避免页面越聊越长。
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.expander(f"查看较早 {len(archived_history)} 条对话", expanded=False):
+            _render_hint_dialogue_history(archived_history)
+
+    _render_hint_dialogue_history(recent_history)
+
+
 def _build_safety_status(controlled: dict, pedagogical_intent: str) -> dict:
     rewrite_count = int(controlled.get("rewrite_count", 0))
     leakage_score = int(controlled.get("leakage_score", 0))
     reason = controlled.get("leakage_reason", "未返回检测原因")
     hint_strength = controlled.get("hint_strength", "中提示")
     generation_status = controlled.get("generation_status", "success")
+    generation_strategy = controlled.get("generation_strategy", "fast_path")
+    timeout_stage = controlled.get("timeout_stage", "")
 
     if generation_status == "timeout":
         return {
@@ -528,7 +575,7 @@ def _build_safety_status(controlled: dict, pedagogical_intent: str) -> dict:
             "leakage_score": "未生成",
             "rewrite_count": rewrite_count,
             "reason": reason,
-            "detail": f"提示强度：{hint_strength}；生成链路超时，已返回保底启发式提示。",
+            "detail": f"提示强度：{hint_strength}；超时阶段：{timeout_stage or 'unknown'}；已返回保底启发式提示。",
         }
 
     if generation_status == "failed":
@@ -543,6 +590,18 @@ def _build_safety_status(controlled: dict, pedagogical_intent: str) -> dict:
             "detail": f"提示强度：{hint_strength}；模型生成异常，已返回保底启发式提示。",
         }
 
+    if timeout_stage:
+        return {
+            "label": "阶段降级保护",
+            "badge_class": "safety-badge-safe",
+            "hint_strength": hint_strength,
+            "pedagogical_intent": pedagogical_intent,
+            "leakage_score": leakage_score,
+            "rewrite_count": rewrite_count,
+            "reason": reason,
+            "detail": f"提示强度：{hint_strength}；{timeout_stage} 阶段超时，系统已使用本地安全检测结果继续返回。",
+        }
+
     if rewrite_count > 0:
         return {
             "label": "已自动重写",
@@ -552,7 +611,7 @@ def _build_safety_status(controlled: dict, pedagogical_intent: str) -> dict:
             "leakage_score": leakage_score,
             "rewrite_count": rewrite_count,
             "reason": reason,
-            "detail": f"提示强度：{hint_strength}；泄露评分：{leakage_score}；重写次数：{rewrite_count}；原因：{reason}",
+            "detail": f"提示强度：{hint_strength}；生成策略：{generation_strategy}；泄露评分：{leakage_score}；重写次数：{rewrite_count}；原因：{reason}",
         }
 
     return {
@@ -563,7 +622,7 @@ def _build_safety_status(controlled: dict, pedagogical_intent: str) -> dict:
         "leakage_score": leakage_score,
         "rewrite_count": rewrite_count,
         "reason": reason,
-        "detail": f"提示强度：{hint_strength}；泄露评分：{leakage_score}；原因：{reason}",
+        "detail": f"提示强度：{hint_strength}；生成策略：{generation_strategy}；泄露评分：{leakage_score}；原因：{reason}",
     }
 
 
@@ -609,6 +668,126 @@ def _render_safety_status(status: dict):
     )
 
 
+def _create_chat_history_container(enable_scroll: bool):
+    if not enable_scroll:
+        return st.container()
+    try:
+        return st.container(height=CHAT_SCROLL_HEIGHT, border=False)
+    except TypeError:
+        return st.container()
+
+
+def _render_pending_assistant_response(
+    *,
+    history: list,
+    data: dict,
+    qid: int,
+    selected_strength: str,
+    safety_status_key: str,
+    pending_intent_key: str,
+    record_learning_interaction,
+) -> bool:
+    if not (history and history[-1]["role"] == ChatRole.USER):
+        return False
+
+    with st.chat_message("assistant"):
+        last_query = history[-1]["content"]
+        pedagogical_intent = st.session_state.get(pending_intent_key, DEFAULT_PEDAGOGICAL_INTENT)
+        generation_started_at = time.perf_counter()
+        try:
+            _render_message_header(
+                ChatRole.ASSISTANT,
+                "\u751f\u6210\u4e2d",
+                "\u63d0\u793a\u751f\u6210 \u00b7 \u6cc4\u9732\u68c0\u6d4b \u00b7 \u81ea\u52a8\u91cd\u5199",
+            )
+            _render_generation_status()
+            with st.spinner(TUTORING_SPINNER):
+                controlled = generate_controlled_hint(
+                    data["question_data"],
+                    data["user_answer"],
+                    data["is_correct"],
+                    last_query,
+                    hint_strength=selected_strength,
+                )
+            generation_elapsed_ms = int(
+                controlled.get(
+                    "generation_elapsed_ms",
+                    round((time.perf_counter() - generation_started_at) * 1000),
+                )
+            )
+            generation_status = controlled.get("generation_status", "success")
+            generation_error = controlled.get("generation_error", "")
+            generation_strategy = controlled.get("generation_strategy", "fast_path")
+            timeout_stage = controlled.get("timeout_stage", "")
+            final = controlled["hint"]
+            st.markdown(format_math(final))
+            status = _build_safety_status(controlled, pedagogical_intent)
+            st.session_state[safety_status_key] = status
+            _render_safety_status(status)
+            if controlled["rewrite_count"] > 0:
+                _render_rewrite_notice(controlled["rewrite_count"])
+            history.append({"role": ChatRole.ASSISTANT, "content": final})
+            record_learning_interaction(
+                qid,
+                format_tutoring_query(selected_strength, last_query),
+                final,
+                leak=controlled["is_leaking"],
+                leakage_score=controlled["leakage_score"],
+                rewrite_count=controlled["rewrite_count"],
+                leakage_reason=controlled["leakage_reason"],
+                hint_strength=selected_strength,
+                pedagogical_intent=pedagogical_intent,
+                hint_safety_status=status["label"],
+                generation_status=generation_status,
+                generation_error=generation_error,
+                generation_strategy=generation_strategy,
+                timeout_stage=timeout_stage,
+                stage_timings=controlled.get("stage_timings", {}),
+                **build_hint_request_observability(
+                    last_query,
+                    generation_elapsed_ms,
+                    controlled["rewrite_count"],
+                ),
+            )
+        except Exception as exc:
+            generation_elapsed_ms = round((time.perf_counter() - generation_started_at) * 1000)
+            log_exception("Controlled hint generation error", exc)
+            fallback = TUTORING_FALLBACK_HINT
+            st.markdown(fallback)
+            history.append({"role": ChatRole.ASSISTANT, "content": fallback})
+            fallback_status = {
+                "label": "\u4fdd\u5e95\u5b89\u5168\u63d0\u793a",
+                "badge_class": "safety-badge-safe",
+                "hint_strength": selected_strength,
+                "pedagogical_intent": pedagogical_intent,
+                "leakage_score": "\u672a\u751f\u6210",
+                "rewrite_count": 0,
+                "reason": "\u6a21\u578b\u751f\u6210\u5f02\u5e38\uff0c\u5df2\u8fd4\u56de\u4fdd\u5e95\u542f\u53d1\u5f0f\u63d0\u793a\u3002",
+                "detail": (
+                    f"\u63d0\u793a\u5f3a\u5ea6\uff1a{selected_strength}\uff1b"
+                    "\u6a21\u578b\u751f\u6210\u5f02\u5e38\uff0c\u5df2\u8fd4\u56de\u4fdd\u5e95\u542f\u53d1\u5f0f\u63d0\u793a\u3002"
+                ),
+            }
+            st.session_state[safety_status_key] = fallback_status
+            _render_safety_status(fallback_status)
+            record_learning_interaction(
+                qid,
+                format_tutoring_query(selected_strength, last_query),
+                fallback,
+                leak=0,
+                hint_strength=selected_strength,
+                pedagogical_intent=pedagogical_intent,
+                hint_safety_status=fallback_status["label"],
+                generation_status="failed",
+                generation_error=type(exc).__name__,
+                generation_strategy="fallback",
+                timeout_stage="",
+                stage_timings={},
+                **build_hint_request_observability(last_query, generation_elapsed_ms, 0),
+            )
+    return True
+
+
 def render_controlled_hint_panel(data: dict, record_learning_interaction):
     apply_controlled_hint_panel_style()
 
@@ -624,10 +803,6 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
         f"<div class='tutoring-subtitle'>{TUTORING_SUBTITLE}</div>",
         unsafe_allow_html=True,
     )
-    _render_hint_dialogue_history(history)
-
-    if safety_status_key in st.session_state:
-        _render_safety_status(st.session_state[safety_status_key])
 
     composer_input_key = composer_input(qid)
     composer_reset_key = composer_reset(qid)
@@ -655,7 +830,27 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
         st.session_state[math_widget_version_key] += 1
         st.session_state[composer_reset_key] = False
 
+    strength_options = list(HINT_STRENGTH_OPTIONS.keys())
+    default_strength = strength_options[1] if len(strength_options) > 1 else strength_options[0]
+    if st.session_state.get(hint_strength_key) not in HINT_STRENGTH_OPTIONS:
+        st.session_state[hint_strength_key] = default_strength
+    selected_strength = st.session_state[hint_strength_key]
     generation_pending = bool(history and history[-1]["role"] == ChatRole.USER)
+    chat_history_should_scroll = generation_pending or len(history) > 2
+    with _create_chat_history_container(chat_history_should_scroll):
+        _render_compact_hint_dialogue_history(history)
+        if safety_status_key in st.session_state and not generation_pending:
+            _render_safety_status(st.session_state[safety_status_key])
+        if _render_pending_assistant_response(
+            history=history,
+            data=data,
+            qid=qid,
+            selected_strength=selected_strength,
+            safety_status_key=safety_status_key,
+            pending_intent_key=pending_intent_key,
+            record_learning_interaction=record_learning_interaction,
+        ):
+            generation_pending = bool(history and history[-1]["role"] == ChatRole.USER)
 
     st.markdown("<div class='tutoring-divider'></div>", unsafe_allow_html=True)
     st.markdown("<div class='hint-control-label'>提示强度控制</div>", unsafe_allow_html=True)
@@ -665,8 +860,8 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
     )
     selected_strength = st.radio(
         "提示强度控制",
-        list(HINT_STRENGTH_OPTIONS.keys()),
-        index=1,
+        strength_options,
+        index=strength_options.index(st.session_state[hint_strength_key]),
         key=hint_strength_key,
         horizontal=True,
         label_visibility="collapsed",
@@ -745,85 +940,3 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
                 st.session_state[composer_empty_feedback_key] = True
                 st.toast(TUTORING_EMPTY_WARNING, icon="⚠️")
                 st.rerun()
-
-    if history and history[-1]["role"] == ChatRole.USER:
-        with st.chat_message("assistant"):
-            last_query = history[-1]["content"]
-            pedagogical_intent = st.session_state.get(pending_intent_key, DEFAULT_PEDAGOGICAL_INTENT)
-            generation_started_at = time.perf_counter()
-            try:
-                _render_message_header(ChatRole.ASSISTANT, "生成中", "提示生成 · 泄露检测 · 自动重写")
-                _render_generation_status()
-                with st.spinner(TUTORING_SPINNER):
-                    controlled = generate_controlled_hint(
-                        data["question_data"],
-                        data["user_answer"],
-                        data["is_correct"],
-                        last_query,
-                        hint_strength=selected_strength,
-                    )
-                generation_elapsed_ms = int(
-                    controlled.get(
-                        "generation_elapsed_ms",
-                        round((time.perf_counter() - generation_started_at) * 1000),
-                    )
-                )
-                generation_status = controlled.get("generation_status", "success")
-                generation_error = controlled.get("generation_error", "")
-                final = controlled["hint"]
-                st.markdown(format_math(final))
-                status = _build_safety_status(controlled, pedagogical_intent)
-                st.session_state[safety_status_key] = status
-                _render_safety_status(status)
-                if controlled["rewrite_count"] > 0:
-                    _render_rewrite_notice(controlled["rewrite_count"])
-                history.append({"role": ChatRole.ASSISTANT, "content": final})
-                record_learning_interaction(
-                    qid,
-                    format_tutoring_query(selected_strength, last_query),
-                    final,
-                    leak=controlled["is_leaking"],
-                    leakage_score=controlled["leakage_score"],
-                    rewrite_count=controlled["rewrite_count"],
-                    leakage_reason=controlled["leakage_reason"],
-                    hint_strength=selected_strength,
-                    pedagogical_intent=pedagogical_intent,
-                    hint_safety_status=status["label"],
-                    generation_status=generation_status,
-                    generation_error=generation_error,
-                    **build_hint_request_observability(
-                        last_query,
-                        generation_elapsed_ms,
-                        controlled["rewrite_count"],
-                    ),
-                )
-            except Exception as exc:
-                generation_elapsed_ms = round((time.perf_counter() - generation_started_at) * 1000)
-                log_exception("Controlled hint generation error", exc)
-                fallback = TUTORING_FALLBACK_HINT
-                st.markdown(fallback)
-                history.append({"role": ChatRole.ASSISTANT, "content": fallback})
-                fallback_status = {
-                    "label": "保底安全提示",
-                    "badge_class": "safety-badge-safe",
-                    "hint_strength": selected_strength,
-                    "pedagogical_intent": pedagogical_intent,
-                    "leakage_score": "未生成",
-                    "rewrite_count": 0,
-                    "reason": "模型生成异常，已返回保底启发式提示。",
-                    "detail": f"提示强度：{selected_strength}；模型生成异常，已返回保底启发式提示。",
-                }
-                st.session_state[safety_status_key] = fallback_status
-                _render_safety_status(fallback_status)
-                record_learning_interaction(
-                    qid,
-                    format_tutoring_query(selected_strength, last_query),
-                    fallback,
-                    leak=0,
-                    hint_strength=selected_strength,
-                    pedagogical_intent=pedagogical_intent,
-                    hint_safety_status=fallback_status["label"],
-                    generation_status="failed",
-                    generation_error=type(exc).__name__,
-                    **build_hint_request_observability(last_query, generation_elapsed_ms, 0),
-                )

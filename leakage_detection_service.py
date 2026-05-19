@@ -1,32 +1,190 @@
 import logging
 import re
+from difflib import SequenceMatcher
+from typing import Any
 
 from domain_models import LeakageEvaluation, QuestionData
 from hint_text_utils import parse_json_object
-from llm_gateway import chat_completion_text
+from llm_gateway import chat_completion_text, classify_llm_error
 from prompts import LEAKAGE_CHECK_PROMPT_SYSTEM
 
+CHOICE_ANSWER_PATTERN = re.compile(r"^[A-D]$", re.I)
+NUMBER_PATTERN = re.compile(r"(?<![A-Za-z])[-+]?\d+(?:\.\d+)?(?:/\d+)?(?![A-Za-z])")
+HIGH_RISK_REQUEST_PATTERN = re.compile(
+    r"(answer|solution|final|correct|option|choose|direct|complete|答案|选项|选择|正确|直接|完整|结果|标准答案)",
+    re.I,
+)
+ANSWER_CONTEXT_PATTERN = re.compile(
+    r"(answer|solution|final|correct|option|choose|答案|选项|选择|正确|结论|结果)",
+    re.I,
+)
+STEP_PATTERN = re.compile(
+    r"(^|\n|\s)(step\s*\d+|\d+[.)、]|first|second|third|then|finally|步骤|第一|第二|第三|最后)", re.I
+)
 
-def heuristic_leakage_check(reference_answer: str, candidate_hint: str) -> LeakageEvaluation:
+
+def _normalize_text(value: str | None) -> str:
+    return re.sub(r"\s+", "", str(value or "")).lower()
+
+
+def _clamp_score(value: Any) -> int:
+    try:
+        return max(0, min(3, int(value)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _parse_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "y", "是"}
+    return False
+
+
+def _numbers_from_text(value: str | None) -> set[str]:
+    return {match.group(0) for match in NUMBER_PATTERN.finditer(str(value or ""))}
+
+
+def _choice_already_in_student_context(choice: str, student_context: str | None) -> bool:
+    context = str(student_context or "")
+    if not context.strip():
+        return False
+    patterns = [
+        rf"\({re.escape(choice)}\)",
+        rf"\b(?:choose|option|answer)\s*[:：]?\s*{re.escape(choice)}\b",
+        rf"\b{re.escape(choice)}\s*(?:\?|right|correct)\b",
+        rf"\u9009\s*{re.escape(choice)}",
+        rf"\u9009\u9879\s*{re.escape(choice)}",
+        rf"\u6211\u9009\s*{re.escape(choice)}",
+        rf"\u7b54\u6848.{0,4}{re.escape(choice)}",
+        rf"{re.escape(choice)}\s*(?:\u5bf9\u5417|\u662f\u4e0d\u662f|\u6b63\u786e)",
+    ]
+    return any(re.search(pattern, context, flags=re.I) for pattern in patterns)
+
+
+def _answer_already_in_student_context(reference_answer: str, student_context: str | None) -> bool:
+    answer = str(reference_answer or "").strip()
+    context = str(student_context or "")
+    if not answer or not context.strip():
+        return False
+    if CHOICE_ANSWER_PATTERN.match(answer):
+        return _choice_already_in_student_context(answer.upper(), context)
+    normalized_answer = _normalize_text(answer)
+    if len(normalized_answer) >= 2 and normalized_answer in _normalize_text(context):
+        return True
+    answer_numbers = _numbers_from_text(answer)
+    return bool(answer_numbers) and answer_numbers.issubset(_numbers_from_text(context))
+
+
+def _solution_overlap_score(solution: str, candidate_hint: str) -> float:
+    solution_norm = _normalize_text(solution)
+    hint_norm = _normalize_text(candidate_hint)
+    if len(solution_norm) < 24 or len(hint_norm) < 24:
+        return 0.0
+    return SequenceMatcher(None, solution_norm[:500], hint_norm[:500]).ratio()
+
+
+def heuristic_leakage_check(
+    reference_answer: str,
+    candidate_hint: str,
+    student_context: str = "",
+) -> LeakageEvaluation:
     hint = candidate_hint or ""
     answer = (reference_answer or "").strip()
+    normalized_hint = _normalize_text(hint)
+    normalized_answer = _normalize_text(answer)
     if not answer:
-        return {"is_leaking": False, "score": 0, "reason": "无标准答案，启用低风险默认判定"}
+        return {"is_leaking": False, "score": 0, "reason": "local_no_reference_answer"}
 
-    if len(answer) == 1 and answer.upper() in "ABCD":
-        direct_patterns = [
-            rf"(答案|选项|选择|应选|正确选项)\s*(是|为|:|：)?\s*{answer}",
-            rf"{answer}\s*(项|选项)\s*(正确|是对的)?",
-            rf"\({answer}\)",
+    if CHOICE_ANSWER_PATTERN.match(answer):
+        choice = answer.upper()
+        choice_patterns = [
+            rf"\b{choice}\b",
+            rf"\({choice}\)",
+            rf"选{choice}",
+            rf"选择{choice}",
+            rf"答案.{0,4}{choice}",
+            rf"正确.{0,4}{choice}",
         ]
-        if any(re.search(p, hint, flags=re.I) for p in direct_patterns):
-            return {"is_leaking": True, "score": 3, "reason": "提示中直接暴露选择题选项"}
-        return {"is_leaking": False, "score": 0, "reason": "未发现直接选项泄露"}
+        has_choice = any(re.search(pattern, hint, flags=re.I) for pattern in choice_patterns)
+        if has_choice and ANSWER_CONTEXT_PATTERN.search(hint):
+            if _choice_already_in_student_context(choice, student_context):
+                return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_choice_reference"}
+            return {"is_leaking": True, "score": 3, "reason": "local_direct_choice_answer"}
+        if has_choice:
+            if _choice_already_in_student_context(choice, student_context):
+                return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_choice_mention"}
+            return {"is_leaking": False, "score": 1, "reason": "local_choice_letter_mentioned"}
+        return {"is_leaking": False, "score": 0, "reason": "local_no_direct_choice_leak"}
 
-    if len(answer) >= 2 and answer in hint:
-        return {"is_leaking": True, "score": 3, "reason": "提示中直接包含标准答案文本"}
+    if len(normalized_answer) >= 2 and normalized_answer in normalized_hint:
+        if _answer_already_in_student_context(answer, student_context):
+            return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_answer_reference"}
+        return {"is_leaking": True, "score": 3, "reason": "local_direct_answer_text"}
 
-    return {"is_leaking": False, "score": 0, "reason": "未命中本地泄露规则"}
+    answer_numbers = _numbers_from_text(answer)
+    if answer_numbers and answer_numbers.issubset(_numbers_from_text(hint)):
+        if answer_numbers.issubset(_numbers_from_text(student_context)):
+            return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_numeric_reference"}
+        return {"is_leaking": True, "score": 2, "reason": "local_key_numeric_answer"}
+
+    return {"is_leaking": False, "score": 0, "reason": "local_no_explicit_leak"}
+
+
+def heuristic_solution_leakage_check(
+    question_data: QuestionData,
+    candidate_hint: str,
+    student_context: str = "",
+) -> LeakageEvaluation:
+    answer_result = heuristic_leakage_check(question_data.get("answer", ""), candidate_hint, student_context)
+    if answer_result["is_leaking"] or answer_result["score"] > 0:
+        return answer_result
+
+    solution = question_data.get("solution", "")
+    overlap = _solution_overlap_score(solution, candidate_hint)
+    if overlap >= 0.72:
+        return {"is_leaking": True, "score": 3, "reason": "local_solution_text_overlap"}
+    if overlap >= 0.48:
+        return {"is_leaking": False, "score": 1, "reason": "local_possible_solution_overlap"}
+
+    if len(STEP_PATTERN.findall(candidate_hint or "")) >= 3 and _numbers_from_text(solution) & _numbers_from_text(
+        candidate_hint
+    ):
+        return {"is_leaking": False, "score": 1, "reason": "local_step_by_step_with_solution_numbers"}
+
+    return answer_result
+
+
+def should_escalate_leakage_check(
+    question_data: QuestionData,
+    candidate_hint: str,
+    local_result: LeakageEvaluation,
+    student_request: str = "",
+) -> bool:
+    if local_result.get("is_leaking") or int(local_result.get("score", 0)) >= 1:
+        return True
+    if str(local_result.get("reason", "")).startswith("local_student_supplied"):
+        return False
+    if HIGH_RISK_REQUEST_PATTERN.search(student_request or ""):
+        return True
+    if ANSWER_CONTEXT_PATTERN.search(candidate_hint or "") and (
+        question_data.get("answer") or question_data.get("solution")
+    ):
+        return True
+    return False
+
+
+def _normalize_llm_result(parsed: dict[str, Any]) -> LeakageEvaluation:
+    score = _clamp_score(parsed.get("score", 0))
+    is_leaking = _parse_bool(parsed.get("is_leaking", False)) or score >= 3
+    return {
+        "is_leaking": is_leaking,
+        "score": score,
+        "reason": str(parsed.get("reason", ""))[:255],
+    }
 
 
 def evaluate_hint_leakage(
@@ -34,40 +192,48 @@ def evaluate_hint_leakage(
     candidate_hint: str,
     timeout_seconds: float | None = None,
     max_retries: int | None = None,
+    student_context: str = "",
 ) -> LeakageEvaluation:
     std_ans = question_data.get("answer", "")
     std_sol = question_data.get("solution", "")
+    local_result = heuristic_solution_leakage_check(question_data, candidate_hint, student_context)
     if not (std_ans or std_sol):
-        return heuristic_leakage_check(std_ans, candidate_hint)
+        return local_result
 
-    prompt = f"""题目：
-{question_data['content']}
+    prompt = f"""Problem:
+{question_data.get('content', '')}
 
-标准答案：
+Reference answer:
 {std_ans}
 
-标准解析：
+Reference solution:
 {std_sol}
 
-待检测提示：
+Student request and visible student attempt:
+{student_context}
+
+Candidate hint:
 {candidate_hint}
 
-请判断待检测提示是否泄露答案信息。"""
+Return JSON with is_leaking, score from 0 to 3, and reason. Judge whether the hint exposes NEW answer information.
+If the candidate only verifies or comments on a claim already supplied by the student, do not mark it as direct leakage unless it adds a new final answer, option, key value, or full solution."""
     try:
         raw = chat_completion_text(
             [{"role": "system", "content": LEAKAGE_CHECK_PROMPT_SYSTEM}, {"role": "user", "content": prompt}],
             temperature=0,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
+            stage_name="leakage_detection",
         )
         parsed = parse_json_object(raw)
         if parsed:
-            return {
-                "is_leaking": bool(parsed.get("is_leaking", False)),
-                "score": int(parsed.get("score", 0)),
-                "reason": str(parsed.get("reason", ""))[:255],
-            }
+            return _normalize_llm_result(parsed)
     except Exception as e:
-        logging.error(f"Leakage evaluation error: {e}")
+        error_type = classify_llm_error(e)
+        logging.error("Leakage evaluation error: %s", e)
+        fallback = dict(local_result)
+        fallback["llm_error_type"] = error_type
+        fallback["reason"] = f"{fallback.get('reason', 'local_fallback')}|llm_error:{error_type}"[:255]
+        return fallback
 
-    return heuristic_leakage_check(std_ans, candidate_hint)
+    return local_result

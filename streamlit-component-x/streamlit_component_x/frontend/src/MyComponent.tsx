@@ -32,7 +32,7 @@ const EXPANDED_FRAME_HEIGHT = 520;
 const COMPACT_CONTAINER_HEIGHT = "385px";
 const EXPANDED_CONTAINER_HEIGHT = "485px";
 const MAX_MATRIX_SIZE = 10;
-const VALUE_SYNC_DEBOUNCE_MS = 180;
+const VALUE_SYNC_DEBOUNCE_MS = 2500;
 const ZERO_WIDTH_SPACE = "\u200B";
 const COMMON_SYMBOLS_TITLE = "符号";
 const MATHFIELD_PLACEHOLDER_STYLE_ID = "hint-placeholder-style";
@@ -51,7 +51,6 @@ const FORMULA_GROUPS: FormulaGroup[] = [
     items: [
       { label: "分式", latex: "\\frac{#?}{#?}" },
       { label: "斜分式", latex: "#?/#?" },
-      { label: "连分式", latex: "\\cfrac{#?}{#?}" },
       { label: "倒数", latex: "\\frac{1}{#?}" },
       { label: "二项式", latex: "\\binom{#?}{#?}" },
       { label: "上标", latex: "#?^{#?}" },
@@ -76,10 +75,20 @@ const FORMULA_GROUPS: FormulaGroup[] = [
     items: [
       { label: "不定积分", latex: "\\int #?\\,\\mathrm{d}#?" },
       { label: "定积分", latex: "\\int_{#?}^{#?}#?\\,\\mathrm{d}#?" },
-      { label: "反常积分", latex: "\\int_{#?}^{\\infty}#?\\,\\mathrm{d}#?" },
       { label: "无穷积分", latex: "\\int_{-\\infty}^{+\\infty}#?\\,\\mathrm{d}#?" },
-      { label: "二重积分", latex: "\\iint_{#?}#?\\,\\mathrm{d}#?" },
-      { label: "三重积分", latex: "\\iiint_{#?}#?\\,\\mathrm{d}#?" },
+      {
+        label: "二重积分",
+        latex: "\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
+      },
+      {
+        label: "三重积分",
+        latex:
+          "\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
+      },
+      {
+        label: "多重积分",
+        latex: "\\int\\cdots\\int_{#?}#?\\,\\mathrm{d}#?_{1}\\cdots\\mathrm{d}#?_{#?}",
+      },
       { label: "曲线积分", latex: "\\int_{#?}#?\\,\\mathrm{d}s" },
       { label: "闭曲线积分", latex: "\\oint_{#?}#?\\,\\mathrm{d}s" },
       { label: "曲面积分", latex: "\\iint_{#?}#?\\,\\mathrm{d}S" },

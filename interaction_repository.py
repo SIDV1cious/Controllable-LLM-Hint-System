@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import streamlit as st
 from sqlalchemy import text
 
@@ -32,8 +34,15 @@ def build_interaction_payload(
     rewrite_triggered: int = 0,
     generation_status: str = "success",
     generation_error: str = "",
+    generation_strategy: str = "fast_path",
+    timeout_stage: str = "",
+    stage_timings: dict | str | None = None,
 ) -> dict:
     rewrite_total = _safe_non_negative_int(rewrite_count)
+    if isinstance(stage_timings, str):
+        stage_timings_text = stage_timings
+    else:
+        stage_timings_text = json.dumps(stage_timings or {}, ensure_ascii=False, sort_keys=True)
     return {
         "qid": question_id,
         "sid": student_id,
@@ -52,6 +61,9 @@ def build_interaction_payload(
         "rewrite_flag": int(bool(_safe_non_negative_int(rewrite_triggered) or rewrite_total)),
         "generation_status": (generation_status or "success")[:32],
         "generation_error": (generation_error or "")[:255],
+        "generation_strategy": (generation_strategy or "fast_path")[:32],
+        "timeout_stage": (timeout_stage or "")[:32],
+        "stage_timings": stage_timings_text[:4096],
         "time": now_shanghai(),
     }
 
@@ -68,10 +80,12 @@ def insert_interaction_log(payload: dict) -> None:
                     "leakage_score, rewrite_count, leakage_reason, hint_strength, "
                     "pedagogical_intent, hint_safety_status, request_char_count, "
                     "formula_fragment_count, generation_elapsed_ms, rewrite_triggered, "
-                    "generation_status, generation_error, created_at) "
+                    "generation_status, generation_error, generation_strategy, timeout_stage, "
+                    "stage_timings, created_at) "
                     "VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, "
                     ":strength, :intent, :status, :request_chars, :formula_count, :elapsed_ms, "
-                    ":rewrite_flag, :generation_status, :generation_error, :time)"
+                    ":rewrite_flag, :generation_status, :generation_error, :generation_strategy, "
+                    ":timeout_stage, :stage_timings, :time)"
                 ),
                 payload,
             )

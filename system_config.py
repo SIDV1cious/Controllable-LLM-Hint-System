@@ -28,8 +28,15 @@ class AppConfig:
     LLM_MODEL = get_secret_or_env("LLM_MODEL", "deepseek-chat")
     LLM_TIMEOUT_SECONDS = float(get_secret_or_env("LLM_TIMEOUT_SECONDS", "45"))
     LLM_MAX_RETRIES = int(get_secret_or_env("LLM_MAX_RETRIES", "2"))
-    CONTROLLED_HINT_TOTAL_TIMEOUT_SECONDS = float(get_secret_or_env("CONTROLLED_HINT_TOTAL_TIMEOUT_SECONDS", "90"))
+    CONTROLLED_HINT_TOTAL_TIMEOUT_SECONDS = float(get_secret_or_env("CONTROLLED_HINT_TOTAL_TIMEOUT_SECONDS", "65"))
     CONTROLLED_HINT_STAGE_TIMEOUT_SECONDS = float(get_secret_or_env("CONTROLLED_HINT_STAGE_TIMEOUT_SECONDS", "25"))
+    CONTROLLED_HINT_GENERATION_TIMEOUT_SECONDS = float(
+        get_secret_or_env("CONTROLLED_HINT_GENERATION_TIMEOUT_SECONDS", "25")
+    )
+    CONTROLLED_HINT_DETECTION_TIMEOUT_SECONDS = float(
+        get_secret_or_env("CONTROLLED_HINT_DETECTION_TIMEOUT_SECONDS", "12")
+    )
+    CONTROLLED_HINT_REWRITE_TIMEOUT_SECONDS = float(get_secret_or_env("CONTROLLED_HINT_REWRITE_TIMEOUT_SECONDS", "18"))
     ASSESS_CONCURRENCY = int(get_secret_or_env("ASSESS_CONCURRENCY", "5"))
     QUIZ_SIZE = int(get_secret_or_env("QUIZ_SIZE", "10"))
 

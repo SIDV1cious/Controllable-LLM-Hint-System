@@ -31,4 +31,6 @@ class ControlledHintResult(TypedDict, total=False):
     generation_status: str
     generation_elapsed_ms: int
     generation_error: str
+    generation_strategy: str
+    timeout_stage: str
     stage_timings: dict[str, int]

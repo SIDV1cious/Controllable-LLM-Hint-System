@@ -7,7 +7,7 @@ import streamlit as st
 from sqlalchemy import text
 
 from app_constants import InteractionMarker
-from database_service import get_database_engine
+from database_service import ensure_leakage_observability_columns, get_database_engine
 
 ANSWER_SUBMISSION_PATTERN = f"{InteractionMarker.ANSWER_SUBMISSION}%"
 TUTORING_PATTERN = f"{InteractionMarker.TUTORING}%"
@@ -93,10 +93,14 @@ def fetch_course_accuracy_summary(conn) -> tuple[pd.DataFrame, bool]:
 
 
 def fetch_hint_leakage_records(conn) -> pd.DataFrame:
+    ensure_leakage_observability_columns()
     return pd.read_sql(
         text(
             "SELECT is_leaking_answer, leakage_score, rewrite_count, request_char_count, "
-            "formula_fragment_count, generation_elapsed_ms, rewrite_triggered "
+            "formula_fragment_count, generation_elapsed_ms, rewrite_triggered, "
+            "COALESCE(NULLIF(generation_status, ''), 'success') AS generation_status, "
+            "COALESCE(NULLIF(generation_strategy, ''), 'fast_path') AS generation_strategy, "
+            "COALESCE(timeout_stage, '') AS timeout_stage "
             "FROM interaction_logs WHERE user_query LIKE :pattern"
         ),
         conn,
@@ -111,16 +115,39 @@ def summarize_hint_leakage_records(df: pd.DataFrame) -> dict:
             "leaked_hints": 0,
             "rewrite_total": 0,
             "leak_rate": 0.0,
+            "avg_generation_elapsed_ms": 0.0,
+            "p95_generation_elapsed_ms": 0.0,
+            "timeout_rate": 0.0,
+            "fast_path_rate": 0.0,
+            "rewrite_rate": 0.0,
         }
 
     total_hints = len(df)
     leaked_hints = int(df["is_leaking_answer"].fillna(0).astype(int).sum())
-    rewrite_total = int(df.get("rewrite_count", pd.Series([0] * total_hints)).fillna(0).astype(int).sum())
+    rewrite_count = pd.to_numeric(df.get("rewrite_count", pd.Series([0] * total_hints)), errors="coerce").fillna(0)
+    rewrite_triggered = pd.to_numeric(
+        df.get("rewrite_triggered", pd.Series([0] * total_hints)), errors="coerce"
+    ).fillna(0)
+    elapsed_ms = pd.to_numeric(df.get("generation_elapsed_ms", pd.Series([0] * total_hints)), errors="coerce").fillna(0)
+    generation_status = df.get("generation_status", pd.Series(["success"] * total_hints)).fillna("success").astype(str)
+    generation_strategy = (
+        df.get("generation_strategy", pd.Series(["fast_path"] * total_hints)).fillna("fast_path").astype(str)
+    )
+    timeout_stage = df.get("timeout_stage", pd.Series([""] * total_hints)).fillna("").astype(str)
+    rewrite_total = int(rewrite_count.astype(int).sum())
+    rewrite_session_count = int(((rewrite_triggered.astype(int) > 0) | (rewrite_count.astype(int) > 0)).sum())
+    timeout_count = int(((generation_status == "timeout") | (timeout_stage.str.strip() != "")).sum())
+    fast_path_count = int((generation_strategy == "fast_path").sum())
     return {
         "total_hints": total_hints,
         "leaked_hints": leaked_hints,
         "rewrite_total": rewrite_total,
         "leak_rate": round(leaked_hints / total_hints * 100, 1),
+        "avg_generation_elapsed_ms": round(float(elapsed_ms.mean()), 1),
+        "p95_generation_elapsed_ms": round(float(elapsed_ms.quantile(0.95)), 1),
+        "timeout_rate": round(timeout_count / total_hints * 100, 1),
+        "fast_path_rate": round(fast_path_count / total_hints * 100, 1),
+        "rewrite_rate": round(rewrite_session_count / total_hints * 100, 1),
     }
 
 
@@ -168,6 +195,7 @@ def fetch_recent_study_duration_logs(conn, limit: int = 50) -> pd.DataFrame:
 
 
 def fetch_recent_interaction_logs(conn, limit: int = 50) -> pd.DataFrame:
+    ensure_leakage_observability_columns()
     try:
         return pd.read_sql(
             text(
@@ -177,6 +205,7 @@ def fetch_recent_interaction_logs(conn, limit: int = 50) -> pd.DataFrame:
                 "leakage_score AS '泄露评分', rewrite_count AS '重写次数', rewrite_triggered AS '是否触发重写', "
                 "request_char_count AS '输入长度', formula_fragment_count AS '公式数量', "
                 "generation_elapsed_ms AS '生成耗时(ms)', generation_status AS '生成状态', "
+                "generation_strategy AS '生成策略', timeout_stage AS '超时阶段', "
                 "generation_error AS '生成异常', leakage_reason AS '检测原因', "
                 "created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT :limit"
             ),

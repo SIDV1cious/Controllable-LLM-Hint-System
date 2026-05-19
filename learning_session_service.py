@@ -90,6 +90,9 @@ def record_learning_interaction(
     rewrite_triggered: int = 0,
     generation_status: str = "success",
     generation_error: str = "",
+    generation_strategy: str = "fast_path",
+    timeout_stage: str = "",
+    stage_timings: dict | str | None = None,
 ) -> None:
     try:
         payload = build_interaction_payload(
@@ -110,6 +113,9 @@ def record_learning_interaction(
             rewrite_triggered=rewrite_triggered,
             generation_status=generation_status,
             generation_error=generation_error,
+            generation_strategy=generation_strategy,
+            timeout_stage=timeout_stage,
+            stage_timings=stage_timings,
         )
         insert_interaction_log(payload)
         clear_student_interaction_log_cache()

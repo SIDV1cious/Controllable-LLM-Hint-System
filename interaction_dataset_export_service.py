@@ -43,6 +43,9 @@ DATASET_FIELD_DESCRIPTIONS = {
     "formula_fragment_count": "提示词中的公式片段数量。",
     "generation_elapsed_ms": "智能辅导生成耗时，单位毫秒。",
     "generation_status": "生成链路状态。",
+    "generation_strategy": "生成策略，如 fast_path、llm_checked、rewritten、fallback。",
+    "timeout_stage": "发生阶段级超时时的阶段名称。",
+    "stage_timings": "各生成阶段耗时 JSON。",
     "generation_error": "生成异常类型或简要原因。",
     "created_at": "交互记录创建时间。",
 }
@@ -206,6 +209,9 @@ def fetch_interaction_dataset(conn, filters: DatasetExportFilters) -> pd.DataFra
             il.generation_elapsed_ms,
             il.rewrite_triggered,
             il.generation_status,
+            il.generation_strategy,
+            il.timeout_stage,
+            il.stage_timings,
             il.generation_error,
             il.created_at
         FROM interaction_logs il
@@ -257,6 +263,9 @@ def build_dataset_export_dataframe(raw_df: pd.DataFrame, *, include_raw_student_
         "formula_fragment_count",
         "generation_elapsed_ms",
         "generation_status",
+        "generation_strategy",
+        "timeout_stage",
+        "stage_timings",
         "generation_error",
         "created_at",
     ]
@@ -276,6 +285,9 @@ def build_dataset_export_dataframe(raw_df: pd.DataFrame, *, include_raw_student_
         "pedagogical_intent",
         "hint_safety_status",
         "generation_status",
+        "generation_strategy",
+        "timeout_stage",
+        "stage_timings",
         "generation_error",
         "created_at",
     ]:
@@ -305,6 +317,9 @@ def build_dataset_export_dataframe(raw_df: pd.DataFrame, *, include_raw_student_
     export_df["formula_fragment_count"] = df["formula_fragment_count"]
     export_df["generation_elapsed_ms"] = df["generation_elapsed_ms"]
     export_df["generation_status"] = df["generation_status"].str.strip().replace("", "success")
+    export_df["generation_strategy"] = df["generation_strategy"].str.strip().replace("", "fast_path")
+    export_df["timeout_stage"] = df["timeout_stage"].str.strip()
+    export_df["stage_timings"] = df["stage_timings"].str.strip()
     export_df["generation_error"] = df["generation_error"].str.strip()
     export_df["created_at"] = pd.to_datetime(df.get("created_at"), errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
     export_df["created_at"] = export_df["created_at"].fillna("")
