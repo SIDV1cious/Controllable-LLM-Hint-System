@@ -86,7 +86,17 @@ const FORMULA_GROUPS: FormulaGroup[] = [
           "\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
       },
       {
-        label: "多重积分",
+        label: "四重积分",
+        latex:
+          "\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
+      },
+      {
+        label: "五重积分",
+        latex:
+          "\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}\\int_{#?}^{#?}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?\\,\\mathrm{d}#?",
+      },
+      {
+        label: "区域多重积分",
         latex: "\\int\\cdots\\int_{#?}#?\\,\\mathrm{d}#?_{1}\\cdots\\mathrm{d}#?_{#?}",
       },
       { label: "曲线积分", latex: "\\int_{#?}#?\\,\\mathrm{d}s" },
