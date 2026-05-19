@@ -3584,7 +3584,7 @@ const scenarios = [
       await insertMultiIntegral(componentFrame, 5);
       await waitForLatexIncludes(componentFrame, "\\int", 2500);
     },
-    assert: async (state) => {
+    assert: async (state, _page, componentFrame) => {
       const integralLatex = state.latexValues.find((value) =>
         String(value).includes("\\int")
       ) || "";
@@ -3593,6 +3593,20 @@ const scenarios = [
       if (integralCount < 5 || differentialCount < 5) {
         throw new Error(
           `5-fold integral template appears incomplete: ${integralLatex}`
+        );
+      }
+      const metrics = await componentFrame.locator(".inline-formula-chip").last().evaluate((chip) => {
+        const editor = chip.closest(".mixed-editor");
+        const field = chip.querySelector("math-field");
+        return {
+          chipWidth: chip.getBoundingClientRect().width,
+          editorWidth: editor?.getBoundingClientRect().width || 0,
+          fieldWidth: field?.getBoundingClientRect().width || 0,
+        };
+      });
+      if (metrics.editorWidth >= 520 && metrics.chipWidth < 420) {
+        throw new Error(
+          `5-fold integral chip is still visually capped: ${JSON.stringify(metrics)}`
         );
       }
     },

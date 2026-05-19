@@ -118,7 +118,7 @@ object-assign
         display: inline-flex;
         align-items: center;
         vertical-align: baseline;
-        max-width: min(340px, 80vw);
+        max-width: calc(100% - 8px);
         min-width: 92px;
         min-height: 34px;
         margin: 0 3px;
@@ -138,9 +138,10 @@ object-assign
 
       .inline-formula-field {
         display: inline-block;
-        width: 100%;
+        flex: 1 1 auto;
+        width: auto;
         min-width: 72px;
-        max-width: 300px;
+        max-width: none;
         min-height: 28px;
         border: 0;
         padding: 2px 4px;
