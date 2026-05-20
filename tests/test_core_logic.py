@@ -451,6 +451,70 @@ def test_generate_controlled_hint_locally_handles_student_choice_claim(monkeypat
     assert "generate_local_claim_verification" in result["stage_timings"]
 
 
+def test_generate_controlled_hint_locally_guides_limit_nonexistent_claim(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("limit-existence claim should use local verifier")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "我觉得这个极限不存在，但我不确定。请只告诉我如何核对左右极限，不要替我下最终结论。",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "左极限" in result["hint"]
+    assert "右极限" in result["hint"]
+    assert "generate_local_claim_verification" in result["stage_timings"]
+
+
+def test_generate_controlled_hint_locally_handles_missing_code_context(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("missing code context should use local repair/verifier")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "我这个 C 语言指针写法对吗？代码没贴上来。如果信息不够，请你先让我补代码，不要猜。",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "重新发送" in result["hint"] or "补全" in result["hint"] or "代码" in result["hint"]
+    assert (
+        "generate_local_formula_repair_hint" in result["stage_timings"]
+        or "generate_local_claim_verification" in result["stage_timings"]
+    )
+
+
+def test_generate_controlled_hint_does_not_treat_no_answer_request_as_direct_answer(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("short no-answer hint should use local process hint")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "A", "solution": "解析"},
+        "",
+        False,
+        "只给一句很短的提示，别给答案。",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "短提示" in result["hint"]
+    assert "generate_local_process_hint" in result["stage_timings"]
+
+
 def test_generate_controlled_hint_locally_verifies_negative_one_limit_claim(monkeypatch):
     monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
 

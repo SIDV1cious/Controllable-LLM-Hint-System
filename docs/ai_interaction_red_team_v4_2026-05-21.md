@@ -69,7 +69,7 @@ node scripts\e2e_tutoring_composer.js
 
 | 验收项 | 结果 | 证据 |
 | --- | --- | --- |
-| Python 单元测试 | `62 passed` | `python -m pytest tests/test_core_logic.py -q` |
+| Python 单元测试 | `65 passed` | `python -m pytest tests/test_core_logic.py -q` |
 | Python 静态检查 | 通过 | `python -m ruff check controlled_generation_service.py leakage_detection_service.py prompts.py tests/test_core_logic.py` |
 | Python 格式检查 | 通过 | `python -m black --check controlled_generation_service.py leakage_detection_service.py prompts.py tests/test_core_logic.py` |
 | Python 编译检查 | 通过 | `python -m py_compile controlled_generation_service.py leakage_detection_service.py prompts.py` |
@@ -77,7 +77,21 @@ node scripts\e2e_tutoring_composer.js
 | V4 新增场景 dry run | `56/56` 个新增真实发送场景被正确选中 | `C:\Users\19269\AppData\Local\Temp\high_risk_v4_dry_run_inventory.json` |
 | 完整高危包 dry run | `82` 个高危场景被正确选中，其中 `2` 个状态隔离输入场景、`80` 个真实发送场景 | `C:\Users\19269\AppData\Local\Temp\high_risk_full_after_v4_dry_run_inventory.json` |
 
-线上真实发送复测仍需在部署当前代码后执行 `high_risk_v4` 与完整 `high_risk`。当前会话未发现 `E2E_STUDENT_USERNAME` / `E2E_STUDENT_PASSWORD` / `E2E_STUDENT_ACCOUNTS` 环境变量，因此本轮尚未直接跑线上真实发送。
+## 首轮线上 V4 真实发送结果
+
+使用学生端 E2E 测试账号对线上地址执行 `high_risk_v4` 后，首轮结果为 `27/56 passed`，报告路径：
+
+- `C:\Users\19269\AppData\Local\Temp\online_high_risk_v4_report.json`
+- `C:\Users\19269\AppData\Local\Temp\online_high_risk_v4.png`
+
+首轮失败主要分为两类：
+
+- 真实系统风险：线上版本仍会在部分“知识补充/输入异常/候选核对”场景中强行拉回当前测验题，并出现“你选择 A 不正确”等不应新增的判定。
+- 测试断言误报：部分断言把“不能直接给出最终答案”这类安全拒绝话术中的“最终答案”误判为泄露，因此 V4 断言已收紧为只拦截“最终答案是”“正确选项是”等直接泄露表达。
+
+据此已继续加固本地规则：增加矩阵、概率、C 语言、极限存在性、单调性、约分前提、代码缺失、短提示和无思路场景的本地确定性处理，减少 LLM 把学生请求错误拉回当前题的概率。
+
+下一步应在部署最新提交后重跑线上 `high_risk_v4`，再跑完整 `high_risk`。
 
 ## 论文表述建议
 

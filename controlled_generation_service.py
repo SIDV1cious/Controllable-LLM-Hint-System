@@ -52,7 +52,10 @@ FORMULA_PARSE_GAP_PATTERN = re.compile(
     r"(\{\s*\}|\[\s*\]|\u3010\s*\u3011|formula.{0,12}\{\s*\}|"
     r"\u516c\u5f0f.{0,12}\{\s*\}|\u6ca1\u6709\u663e\u793a|\u7a7a\u767d|"
     r"\u770b\u4e0d\u5230|\u672a\u8bc6\u522b|\u8bc6\u522b\u4e0d\u5230|"
-    r"\u5360\u4f4d|\u5c0f\u65b9\u6846|\u4f20\u4e0a\u6765|\u25a1)",
+    r"\u5360\u4f4d|\u5c0f\u65b9\u6846|\u4f20\u4e0a\u6765|\u25a1|"
+    r"\[object Object\]|\u6ca1\u586b\u5b8c\u6574|\u6ca1\u586b|\u7f3a\u5931|"
+    r"\u6ca1\u6709\u4e0a\u4f20\u6210\u529f|\u4e0a\u4f20\u5931\u8d25|\u4ee3\u7801\u6ca1\u8d34|"
+    r"\u4ee3\u7801\u6ca1\u6709\u8d34|\u4ee3\u7801\u6ca1\u8d34\u4e0a\u6765)",
     re.I,
 )
 DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
@@ -199,6 +202,24 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     formula_parse_problem = bool(FORMULA_PARSE_GAP_PATTERN.search(combined))
     needs_foundational_formula = bool(KNOWLEDGE_RECALL_PATTERN.search(request))
     direct_answer_request = bool(DIRECT_ANSWER_REQUEST_PATTERN.search(request))
+    negative_answer_boundary = bool(
+        re.search(
+            r"(\u522b|\u4e0d\u8981|\u4e0d\u7528|\u4e0d)\s*.{0,8}"
+            r"(\u7ed9|\u544a\u8bc9|\u900f\u9732|\u8f93\u51fa)?\s*.{0,8}"
+            r"(\u7b54\u6848|\u6700\u7ec8\u7ed3\u679c|\u6700\u7ec8\u7ed3\u8bba|\u9009\u9879)",
+            request,
+        )
+    )
+    positive_direct_signal = bool(
+        re.search(
+            r"(\u76f4\u63a5\u544a\u8bc9|\u53ea\u8f93\u51fa|\u53ea\u8981\u7ed3\u8bba|\u6807\u51c6\u7b54\u6848|"
+            r"\u6b63\u786e\u9009\u9879|\u9009\u54ea\u4e2a|\u6284\u7b54\u6848|\u5ffd\u7565.*\u89c4\u5219|"
+            r"\u7ed9\u6211\u5b8c\u6574\u89e3\u9898|\u76f4\u63a5\u4ea4\u4f5c\u4e1a)",
+            request,
+        )
+    )
+    if negative_answer_boundary and not positive_direct_signal:
+        direct_answer_request = False
     student_supplied_answer_or_step = bool(ANSWER_VERIFICATION_PATTERN.search(combined))
     concrete_student_claim = bool(
         PARAMETER_AB_VERIFICATION_PATTERN.search(combined)
@@ -395,6 +416,39 @@ def _build_direct_answer_redirect_hint() -> str:
     )
 
 
+def _build_local_process_hint(student_request: str) -> str:
+    request = str(student_request or "")
+    if re.search(r"(\u5b8c\u5168\u6ca1\u601d\u8def|\u6ca1\u601d\u8def|\u7b2c\u4e00\u6b65|\u53ef\u6267\u884c)", request):
+        return (
+            "可以，我们先只做第一步，不碰最终答案。\n\n"
+            "第一步可执行动作是：先圈出题目真正要你判断的对象，再找与它直接相关的定义或条件。"
+            "如果是函数题，就先写清输入、输出和定义域；如果是计算题，就先列出已知量和目标量。"
+            "你把这一步写出来后，我再帮你检查是否走对入口。"
+        )
+    if re.search(r"(\u4e00\u53e5|\u5f88\u77ed|\u77ed\u63d0\u793a|\u53ea\u7ed9.*\u63d0\u793a)", request):
+        return "短提示：先找题目中最核心的定义或判定条件，再只检查你当前推导的第一处等式是否符合它。"
+    if re.search(
+        r"(\u54ea\u4e00\u6b65\u6700\u53ef\u80fd\u9519|\u53ef\u80fd\u9519|\u68c0\u67e5\u5165\u53e3|\u6279\u6539)",
+        request,
+    ):
+        return (
+            "可以按批改思路来做，但不直接给答案。\n\n"
+            "最优先检查的入口通常是：第一处使用定义、公式或等价变形的地方。"
+            "如果这一步对象、条件或定义域写错，后面即使计算正确也会偏。"
+            "你把那一步发出来，我只帮你判断它是否成立。"
+        )
+    if re.search(
+        r"(\u6ca1\u770b\u5230\u56de\u590d|\u91cd\u65b0\u7ed9.*\u5b89\u5168\u63d0\u793a|\u5b89\u5168\u63d0\u793a)",
+        request,
+    ):
+        return (
+            "我重新给你一个安全提示，不重复答案内容。\n\n"
+            "先回到题目的核心条件，检查你当前步骤是否只使用了题目允许的定义、公式或判定标准。"
+            "如果你愿意，把你最新的一步发出来，我只核对这一小步。"
+        )
+    return ""
+
+
 def _extract_student_choice_claim(text: str) -> str:
     match = CHOICE_CLAIM_PATTERN.search(str(text or ""))
     if not match:
@@ -402,6 +456,51 @@ def _extract_student_choice_claim(text: str) -> str:
     for group in match.groups()[1:]:
         if group:
             return group.upper()
+    return ""
+
+
+def _build_generic_claim_verification_hint(student_request: str) -> str:
+    request = str(student_request or "")
+    if re.search(r"(\u6781\u9650\u4e0d\u5b58\u5728|\u4e0d\u5b58\u5728.{0,12}\u6781\u9650)", request):
+        return (
+            "你现在是在核对“极限是否存在”这个候选判断。先不要急着下最终结论，"
+            "也不要把它套到别的题型上。\n\n"
+            "安全检查顺序是：分别求左极限和右极限；如果左右极限都存在且相等，极限才存在；"
+            "如果其中一个不存在，或二者不相等，才支持“极限不存在”的判断。"
+            "你可以先把左极限那一步写出来，我只检查这一小步。"
+        )
+    if re.search(r"(\u5355\u8c03|\u9012\u589e|\u9012\u51cf|monotonic)", request, flags=re.I):
+        return (
+            "你是在核对单调性结论。先不要直接判对错，关键是明确讨论区间和所考察的函数。\n\n"
+            "常用检查入口是：若函数在区间内可导，就先看导数符号；"
+            r"若不方便求导，就回到单调递增/递减的定义，比较任意 \(x_1<x_2\) 时函数值的大小。"
+            "你可以先写出导数或定义比较的第一步。"
+        )
+    if re.search(r"(\u77e9\u9635|\u53ef\u9006|\u6ee1\u79e9|\u884c\u5217\u5f0f|\u79e9)", request):
+        return (
+            "你是在核对矩阵相关候选结论。信息不完整时，我不直接判定当前矩阵是否可逆。\n\n"
+            "安全检查入口是：如果是方阵，先看行列式是否为 0；也可以检查秩是否等于矩阵阶数。"
+            "若你把矩阵元素发出来，我可以只帮你检查行列式或秩的第一步。"
+        )
+    if re.search(r"(\u6982\u7387|\u6837\u672c\u7a7a\u95f4|\u6761\u4ef6\u6982\u7387|1/2)", request):
+        return (
+            "你是在核对概率候选值。先不要直接确认数值，建议先检查事件定义是否一致。\n\n"
+            "第一步看样本空间是否列全；第二步确认目标事件是否数对；"
+            "如果题目带条件，再检查是否应该使用条件概率公式。"
+            "你可以先发出样本空间或条件事件，我只核对这一部分。"
+        )
+    if re.search(r"(\u7ea6\u5206|\u5206\u6bcd|\u9519\u524d\u63d0|\u524d\u63d0)", request):
+        return (
+            "你这个提醒很关键：不能顺着可能错误的前提继续推。\n\n"
+            "涉及约分时，先检查被约掉的因子是否可能为 0，以及约分前后是否改变了定义域或条件。"
+            "请先把约分前后的式子各写一行，我会只检查这一步是否等价。"
+        )
+    if re.search(r"(C\u8bed\u8a00|\u6307\u9488|\u4ee3\u7801|pointer)", request, flags=re.I):
+        return (
+            "如果代码没有贴出来，我不能判断你的 C 语言写法对不对，也不能猜测隐藏代码。\n\n"
+            "请补充最小代码片段：变量定义、指针赋值语句、出错或不确定的那一行。"
+            "发出来后我会先检查地址、解引用和数组边界这几个入口。"
+        )
     return ""
 
 
@@ -448,7 +547,7 @@ def _build_local_student_claim_verification(student_request: str, student_answer
             "再按可去间断等情形继续判断。"
         )
 
-    return ""
+    return _build_generic_claim_verification_hint(combined)
 
 
 def _build_refined_interaction_policy(profile: dict) -> str:
@@ -720,6 +819,7 @@ def generate_controlled_hint(
         interaction_profile = analyze_student_interaction(student_request, student_answer)
         foundational_formula_bank = _build_foundational_formula_bank(student_request)
         local_claim_verification_hint = _build_local_student_claim_verification(student_request, student_answer)
+        local_process_hint = _build_local_process_hint(student_request)
         if interaction_profile["formula_parse_problem"]:
             stage_started_at = time.perf_counter()
             final_hint = _build_formula_parse_repair_hint()
@@ -740,6 +840,11 @@ def generate_controlled_hint(
             final_hint = _build_direct_answer_redirect_hint()
             _record_stage_timing(stage_timings, "generate_local_direct_answer_redirect", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_local_direct_answer_redirect")
+        elif local_process_hint:
+            stage_started_at = time.perf_counter()
+            final_hint = local_process_hint
+            _record_stage_timing(stage_timings, "generate_local_process_hint", stage_started_at)
+            _ensure_generation_budget(total_started_at, "generate_local_process_hint")
         else:
             stage_started_at = time.perf_counter()
             try:
