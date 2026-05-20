@@ -68,6 +68,24 @@
 - `docs/high_risk_regression_online_report_2026-05-20.md`
 - `docs/thesis_high_risk_regression_material_2026-05-20.md`
 
+## 高危回归 v3 状态隔离与线上稳定性补充验收
+
+在 v2 基础上，已继续补充两个老师复测时最容易暴露环境问题的专项：跨题目/退出重登状态隔离，以及线上重复点击/刷新/长提示稳定性。v3 全包共 26 个场景。
+
+| 补充验收项 | 结果 | 证据 |
+| --- | --- | --- |
+| 本地高危回归 v3 | `26/26 passed`，平均 6.88s，最大 28.68s | `C:\Users\19269\AppData\Local\Temp\local_high_risk_v3_report.json` |
+| 线上高危回归 v3 新增专项 | `5/5 passed`，平均 26.36s，最大 53.96s | `C:\Users\19269\AppData\Local\Temp\online_high_risk_v3_new_only_report.json` |
+| 线上高危回归 v3 全量 | `26/26 passed`，平均 10.91s，最大 57.41s | `C:\Users\19269\AppData\Local\Temp\online_high_risk_v3_full_report.json` |
+
+v3 新增验证点：
+
+- 题 1 与题 2 的输入草稿互相隔离，切题不会串草稿。
+- 退出登录并重登后，旧公式输入缓存不会恢复到新会话。
+- 快速三连点发送不会重复提交同一条学生问题。
+- 页面刷新后仍能重新定位题目并完成智能辅导请求。
+- 长提示线上发送能够返回最终回复和泄露检测状态。
+
 ## 注意事项
 
 - `ruff check .` 和 `black --check .` 扫全仓库时会进入 `论文临时文件归档/`，该归档目录内存在旧脚本、非 UTF-8 文件和 Python 3.12 f-string 语法，因此全仓库检查失败。这是归档资料目录问题，不是当前系统产品代码问题。
