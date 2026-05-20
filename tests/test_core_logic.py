@@ -725,15 +725,24 @@ def test_session_state_manager_initializes_and_resets_state():
     assert state[SessionKey.PAGE_MODE] == PageMode.HOME
     assert state[SessionKey.QUIZ_QUEUE] == []
     assert state[SessionKey.ROUTE_LOADING_ACTION] is None
+    assert state[SessionKey.COMPOSER_STORAGE_NAMESPACE] == ""
 
     set_authenticated_user("student001", UserRole.STUDENT, state)
     assert state[SessionKey.LOGGED_IN] is True
     assert state[SessionKey.CURRENT_USER] == "student001"
+    first_namespace = state[SessionKey.COMPOSER_STORAGE_NAMESPACE]
+    assert first_namespace.startswith("student001:")
 
     reset_login_session(state)
     assert state[SessionKey.LOGGED_IN] is False
     assert state[SessionKey.CURRENT_USER] is None
     assert state[SessionKey.PAGE_MODE] == PageMode.HOME
+    assert state[SessionKey.COMPOSER_STORAGE_NAMESPACE] == ""
+
+    set_authenticated_user("student001", UserRole.STUDENT, state)
+    second_namespace = state[SessionKey.COMPOSER_STORAGE_NAMESPACE]
+    assert second_namespace.startswith("student001:")
+    assert second_namespace != first_namespace
 
 
 def test_session_state_repair_recovers_blank_page_states():
@@ -751,6 +760,20 @@ def test_session_state_repair_recovers_blank_page_states():
     assert state[SessionKey.PAGE_MODE] == PageMode.HOME
     assert state[SessionKey.IS_GRADING] is False
     assert state[SessionKey.GRADING_STARTED] is False
+
+
+def test_session_state_repair_backfills_composer_storage_namespace():
+    state = {
+        SessionKey.LOGGED_IN: True,
+        SessionKey.CURRENT_USER: "student001",
+        SessionKey.USER_ROLE: UserRole.STUDENT,
+        SessionKey.PAGE_MODE: PageMode.HOME,
+    }
+
+    changed = repair_session_state(state)
+
+    assert changed is True
+    assert state[SessionKey.COMPOSER_STORAGE_NAMESPACE].startswith("student001:")
 
 
 def test_route_transition_state_is_explicit_and_clearable():

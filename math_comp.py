@@ -15,10 +15,10 @@ else:
     _component_func = components.declare_component("math_input_inline_formula_box_v32", path=build_dir)
 
 
-def math_input(default_value="", key=None):
+def math_input(default_value="", key=None, storage_key=None):
     return _component_func(
         default_value=default_value,
-        storage_key=str(key or ""),
+        storage_key=str(storage_key or key or ""),
         key=key,
         default=default_value,
     )

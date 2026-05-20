@@ -903,9 +903,16 @@ def render_controlled_hint_panel(data: dict, record_learning_interaction):
         unsafe_allow_html=True,
     )
     with st.container(border=True):
+        widget_key = math_widget(qid, st.session_state[math_widget_version_key])
+        composer_storage_namespace = (
+            st.session_state.get(SessionKey.COMPOSER_STORAGE_NAMESPACE)
+            or st.session_state.get(SessionKey.CURRENT_USER)
+            or "anonymous"
+        )
         composer_value = math_input(
             default_value=st.session_state.get(composer_input_key, ""),
-            key=math_widget(qid, st.session_state[math_widget_version_key]),
+            key=widget_key,
+            storage_key=f"{composer_storage_namespace}:{widget_key}",
         )
 
         if composer_value is not None:

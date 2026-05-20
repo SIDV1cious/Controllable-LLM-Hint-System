@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import MutableMapping
 from typing import Any
+from uuid import uuid4
 
 import streamlit as st
 
@@ -33,6 +34,7 @@ SESSION_DEFAULTS: dict[str, Any] = {
     SessionKey.ROUTE_LOADING_ACTION: None,
     SessionKey.ROUTE_LOADING_PAYLOAD: {},
     SessionKey.ROUTE_LOADING_ICON: "🔄",
+    SessionKey.COMPOSER_STORAGE_NAMESPACE: "",
 }
 
 VALID_PAGE_MODES = {
@@ -65,6 +67,11 @@ def init_session_state(target: MutableMapping[str, Any] | None = None) -> None:
             state[key] = value.copy() if isinstance(value, (dict, list)) else value
 
 
+def _new_composer_storage_namespace(username: str | None) -> str:
+    user_part = str(username or "anonymous").strip() or "anonymous"
+    return f"{user_part}:{uuid4().hex}"
+
+
 def repair_session_state(target: MutableMapping[str, Any] | None = None) -> bool:
     state = _state(target)
     previous_version = state.get(SessionKey.APP_STATE_VERSION)
@@ -93,6 +100,12 @@ def repair_session_state(target: MutableMapping[str, Any] | None = None) -> bool
     if not state.get(SessionKey.CURRENT_USER):
         reset_login_session(state)
         return True
+
+    if not state.get(SessionKey.COMPOSER_STORAGE_NAMESPACE):
+        state[SessionKey.COMPOSER_STORAGE_NAMESPACE] = _new_composer_storage_namespace(
+            state.get(SessionKey.CURRENT_USER)
+        )
+        changed = True
 
     role = state.get(SessionKey.USER_ROLE)
     if role not in {UserRole.ADMIN, UserRole.STUDENT}:
@@ -150,6 +163,7 @@ def set_authenticated_user(
     state[SessionKey.LOGGED_IN] = True
     state[SessionKey.CURRENT_USER] = username
     state[SessionKey.USER_ROLE] = role
+    state[SessionKey.COMPOSER_STORAGE_NAMESPACE] = _new_composer_storage_namespace(username)
     state[SessionKey.PAGE_MODE] = PageMode.ADMIN if role == UserRole.ADMIN else PageMode.HOME
 
 

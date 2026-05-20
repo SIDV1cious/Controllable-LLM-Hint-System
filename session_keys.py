@@ -24,6 +24,7 @@ class SessionKey:
     ROUTE_LOADING_ACTION = "route_loading_action"
     ROUTE_LOADING_PAYLOAD = "route_loading_payload"
     ROUTE_LOADING_ICON = "route_loading_icon"
+    COMPOSER_STORAGE_NAMESPACE = "composer_storage_namespace"
 
 
 def answer_input(index: int) -> str:

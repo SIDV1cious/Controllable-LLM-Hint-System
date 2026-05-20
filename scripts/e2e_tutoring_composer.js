@@ -681,9 +681,17 @@ async function loginIfNeeded(page) {
     );
   }
 
+  await loginWithAccount(page, ACTIVE_STUDENT_ACCOUNT);
+}
+
+async function loginWithAccount(page, account) {
+  if (!account?.username || !account?.password) {
+    throw new Error("A student account with username and password is required for login.");
+  }
+
   const context = await appContext(page);
-  await context.locator('input[aria-label="账号/学号"]').first().fill(USERNAME);
-  await context.locator('input[aria-label="密码"]').first().fill(PASSWORD);
+  await context.locator('input[aria-label="账号/学号"]').first().fill(account.username);
+  await context.locator('input[aria-label="密码"]').first().fill(account.password);
   await context.getByRole("button", { name: "进入系统" }).click();
   await waitUntil(
     page,
@@ -693,6 +701,21 @@ async function loginIfNeeded(page) {
       text.includes("作答结果"),
     60000
   );
+}
+
+async function logoutIfNeeded(page) {
+  const text = await bodyText(page);
+  if (text.includes("进入系统") && !text.includes("当前账号")) return;
+  let clicked = await clickVisibleButtonContaining(page, "退出登录");
+  if (!clicked && text.includes("返回大厅开启新课程")) {
+    const returnedHome = await clickVisibleButtonContaining(page, "返回大厅开启新课程");
+    if (returnedHome) {
+      await waitUntil(page, (body) => body.includes("课程学习大厅") || body.includes("当前账号"), 60000);
+      clicked = await clickVisibleButtonContaining(page, "退出登录");
+    }
+  }
+  if (!clicked) throw new Error("Logout button was not found.");
+  await waitUntil(page, (body) => body.includes("进入系统"), 45000);
 }
 
 async function enterCourseIfNeeded(page) {
@@ -3821,6 +3844,111 @@ const scenarios = [
       assertIncludes(state.serializedText, "切题后回来仍然保留", "Composer value was lost after question switch");
     },
   },
+  {
+    id: "high_risk_question_draft_isolation",
+    type: "page-state",
+    category: "high_risk_state_isolation",
+    priority: "p0",
+    runLevel: "high_risk",
+    tags: ["high_risk", "high_risk_v3", "state_isolation"],
+    risk: "question-draft-should-be-scoped-by-question",
+    caretCase: "question-draft-isolation",
+    expectedOrder: "question drafts remain scoped",
+    run: async (page) => {
+      const q1Marker = `E2E_Q1_DRAFT_${Date.now()}`;
+      const q2Marker = `E2E_Q2_DRAFT_${Date.now()}`;
+
+      await clickQuestionButton(page, 1);
+      await waitUntil(page, (text) => text.includes("请求智能辅导") || text.includes("请在下方输入"), 30000);
+      let frame = await clearComposerWithRetry(page);
+      await typeInComposer(frame, q1Marker, 0);
+      await forceComposerFlush(page, frame);
+
+      await clickQuestionButton(page, 2);
+      await waitUntil(page, (text) => text.includes("请求智能辅导") || text.includes("请在下方输入"), 30000);
+      await page.waitForTimeout(900);
+      frame = await getComponentFrame(page);
+      let state = await readComposerState(frame);
+      if ((state.serializedText || "").includes(q1Marker)) {
+        throw new Error("Question 1 composer draft leaked into question 2.");
+      }
+
+      frame = await clearComposerWithRetry(page);
+      await typeInComposer(frame, q2Marker, 0);
+      await forceComposerFlush(page, frame);
+
+      await clickQuestionButton(page, 1);
+      await waitUntil(page, (text) => text.includes("请求智能辅导") || text.includes("请在下方输入"), 30000);
+      await page.waitForTimeout(900);
+      frame = await getComponentFrame(page);
+      state = await readComposerState(frame);
+      if (!(state.serializedText || "").includes(q1Marker) || (state.serializedText || "").includes(q2Marker)) {
+        throw new Error(`Question 1 draft isolation failed: ${JSON.stringify(state.serializedText || "")}`);
+      }
+
+      await clickQuestionButton(page, 2);
+      await waitUntil(page, (text) => text.includes("请求智能辅导") || text.includes("请在下方输入"), 30000);
+      await page.waitForTimeout(900);
+    },
+    assert: async (state) => {
+      assertIncludes(state.serializedText, "E2E_Q2_DRAFT_", "Question 2 draft was not restored");
+      if ((state.serializedText || "").includes("E2E_Q1_DRAFT_")) {
+        throw new Error(`Question 1 draft appeared in question 2: ${state.serializedText}`);
+      }
+    },
+  },
+  {
+    id: "high_risk_logout_relogin_cache_isolation",
+    type: "page-state",
+    category: "high_risk_state_isolation",
+    priority: "p0",
+    runLevel: "high_risk",
+    tags: ["high_risk", "high_risk_v3", "state_isolation"],
+    risk: "logout-or-account-switch-should-not-restore-old-composer-cache",
+    caretCase: "logout-relogin-cache-isolation",
+    expectedOrder: "logout clears stale composer cache",
+    run: async (page, componentFrame) => {
+      const staleMarker = `E2E_STALE_CACHE_${Date.now()}`;
+      await typeInComposer(componentFrame, staleMarker, 0);
+      await forceComposerFlush(page, componentFrame);
+      await page.waitForTimeout(900);
+
+      await logoutIfNeeded(page);
+      const switchAccount =
+        STUDENT_ACCOUNT_POOL.find((account) => account.username !== ACTIVE_STUDENT_ACCOUNT?.username) ||
+        ACTIVE_STUDENT_ACCOUNT;
+      await loginWithAccount(page, switchAccount);
+      await enterCourseIfNeeded(page);
+      await completeQuizIfNeeded(page);
+      await selectReviewQuestion(page);
+      await page.waitForTimeout(1200);
+
+      let frame = await getComponentFrame(page);
+      let state = await readComposerState(frame);
+      if ((state.serializedText || "").includes(staleMarker)) {
+        throw new Error("Composer cache survived logout/account switch.");
+      }
+
+      if (switchAccount?.username !== ACTIVE_STUDENT_ACCOUNT?.username) {
+        await logoutIfNeeded(page);
+        await loginWithAccount(page, ACTIVE_STUDENT_ACCOUNT);
+        await enterCourseIfNeeded(page);
+        await completeQuizIfNeeded(page);
+        await selectReviewQuestion(page);
+        await page.waitForTimeout(1200);
+        frame = await getComponentFrame(page);
+        state = await readComposerState(frame);
+        if ((state.serializedText || "").includes(staleMarker)) {
+          throw new Error("Composer cache returned after switching back to the original account.");
+        }
+      }
+    },
+    assert: async (state) => {
+      if ((state.serializedText || "").includes("E2E_STALE_CACHE_")) {
+        throw new Error(`Stale composer cache was restored after relogin: ${state.serializedText}`);
+      }
+    },
+  },
 ];
 
 function makeGeneratedScenario(base) {
@@ -4454,7 +4582,7 @@ function evaluateSemanticExpectations(text, expectations) {
   return checks;
 }
 
-function makeHighRiskRealSendScenario({ id, markerPrefix, prompt, expectations, risk }) {
+function makeHighRiskRealSendScenario({ id, markerPrefix, prompt, expectations, risk, sendOptions = {} }) {
   return {
     id,
     type: "send",
@@ -4472,6 +4600,7 @@ function makeHighRiskRealSendScenario({ id, markerPrefix, prompt, expectations, 
       const sendMeta = await sendPromptAndWait(page, {
         expectedPrompt: marker,
         finalTimeout: expectations.finalTimeout || REAL_SEND_TIMEOUT_MS,
+        ...sendOptions,
       });
       const replyTail = tailAfterMarker(sendMeta.final_text, marker);
       const semanticChecks = evaluateSemanticExpectations(replyTail, expectations);
@@ -4495,6 +4624,36 @@ function makeHighRiskRealSendScenario({ id, markerPrefix, prompt, expectations, 
       }
 
       return semanticMeta;
+    },
+    assert: async () => {},
+  };
+}
+
+function makeHighRiskOperationalSendScenario({ id, markerPrefix, risk, action, sendOptions = {} }) {
+  return {
+    id,
+    type: "send",
+    category: "high_risk_operational",
+    priority: "p0",
+    runLevel: "high_risk",
+    tags: ["high_risk", "online_high_risk", "high_risk_v3", "operational_stability"],
+    realSend: true,
+    realSendScope: "high_risk",
+    risk,
+    skipFinalComposerRead: true,
+    run: async (page, frame) => {
+      const marker = `${markerPrefix}_${Date.now()}`;
+      await action(page, frame, marker);
+      const extraSendOptions =
+        typeof sendOptions === "function" ? sendOptions(marker) : sendOptions;
+      const sendMeta = await sendPromptAndWait(page, {
+        expectedPrompt: marker,
+        ...extraSendOptions,
+      });
+      return {
+        ...sendMeta,
+        final_reply_excerpt: compactExcerpt(tailAfterMarker(sendMeta.final_text, marker)),
+      };
     },
     assert: async () => {},
   };
@@ -4835,6 +4994,45 @@ const generatedHighRiskRealSendScenarios = [
       rejectAny: [
         { name: "claims_unproven_fact", terms: ["你已经证明", "你已经得到最终", "因此答案是"] },
       ],
+    },
+  }),
+  makeHighRiskOperationalSendScenario({
+    id: "high_risk_stability_triple_click_no_duplicate",
+    markerPrefix: "E2E_HR_TRIPLE_CLICK",
+    risk: "rapid-repeat-click-should-submit-once",
+    action: async (_page, frame, marker) => {
+      await typeInComposer(frame, `重复点击发送稳定性 ${marker} 请给我启发式提示，不要直接给答案。`, 0);
+    },
+    sendOptions: {
+      clickTimes: 3,
+    },
+  }),
+  makeHighRiskOperationalSendScenario({
+    id: "high_risk_stability_reload_then_send",
+    markerPrefix: "E2E_HR_RELOAD",
+    risk: "page-reload-before-send-should-not-break-session-or-composer",
+    action: async (page, _frame, marker) => {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await loginIfNeeded(page);
+      await enterCourseIfNeeded(page);
+      await completeQuizIfNeeded(page);
+      await selectReviewQuestion(page);
+      const freshFrame = await clearComposerWithRetry(page);
+      await typeInComposer(freshFrame, `刷新页面后继续请求智能辅导 ${marker} 只给下一步检查点。`, 0);
+    },
+  }),
+  makeHighRiskOperationalSendScenario({
+    id: "high_risk_stability_long_prompt_no_timeout_or_duplicate",
+    markerPrefix: "E2E_HR_LONG_STABILITY",
+    risk: "long-prompt-should-complete-with-status-without-duplicate-submit",
+    action: async (_page, frame, marker) => {
+      const text =
+        `线上长提示稳定性 ${marker} ` +
+        "我只需要启发式提示，不要直接给答案；请先判断我的当前思路，再给一个安全检查点。".repeat(18);
+      await typeInComposer(frame, text, 0);
+    },
+    sendOptions: {
+      finalTimeout: REAL_SEND_TIMEOUT_MS + 30000,
     },
   }),
 ];
@@ -5531,11 +5729,11 @@ function assertScenarioInventory() {
     const duplicateIds = allIds.filter((id, index) => allIds.indexOf(id) !== index);
     throw new Error(`Duplicate E2E scenario ids: ${JSON.stringify([...new Set(duplicateIds)])}`);
   }
-  if (scenarios.length !== 181) {
-    throw new Error(`Expected 181 non-real input scenarios, got ${scenarios.length}.`);
+  if (scenarios.length !== 183) {
+    throw new Error(`Expected 183 non-real input scenarios, got ${scenarios.length}.`);
   }
-  if (realSendScenarios.length !== 177) {
-    throw new Error(`Expected 177 real-send scenarios, got ${realSendScenarios.length}.`);
+  if (realSendScenarios.length !== 180) {
+    throw new Error(`Expected 180 real-send scenarios, got ${realSendScenarios.length}.`);
   }
 }
 
