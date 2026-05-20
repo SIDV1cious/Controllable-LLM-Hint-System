@@ -4,6 +4,7 @@ import pandas as pd
 
 import controlled_generation_service as controlled_generation
 import controlled_hint_ui
+import leakage_detection_service as leakage_detection
 from admin_content_repository import (
     build_course_name_list,
     make_question_delete_label,
@@ -153,6 +154,31 @@ def test_heuristic_leakage_check_allows_student_supplied_answer_reference():
     assert result["reason"] == "local_student_supplied_answer_reference"
 
 
+def test_leakage_detection_reason_hides_reference_answer_not_supplied_by_student(monkeypatch):
+    def fake_chat_completion_text(*args, **kwargs):
+        return json.dumps(
+            {
+                "is_leaking": False,
+                "score": 0,
+                "reason": "该提示未直接给出a=2、b=-2的答案，只要求学生列条件。",
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(leakage_detection, "chat_completion_text", fake_chat_completion_text)
+
+    result = leakage_detection.evaluate_hint_leakage(
+        {"id": 1, "content": "题目", "answer": "a=2,b=-2", "solution": "解析"},
+        "请先列出影响极限的系数条件。",
+        student_context="这两个参数是不是一个正一个负？",
+    )
+
+    assert result["is_leaking"] is False
+    assert "a=2" not in result["reason"]
+    assert "b=-2" not in result["reason"]
+    assert "参考" in result["reason"]
+
+
 def test_local_hint_plan_detects_recall_and_verification_intents():
     plan = json.loads(
         controlled_generation.build_local_hint_plan(
@@ -243,26 +269,12 @@ def test_generate_controlled_hint_treats_brain_blank_as_formula_recall(monkeypat
 
 
 def test_generate_controlled_hint_handles_formula_placeholder_as_input_repair(monkeypatch):
-    observed = {}
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
 
-    def fake_generate_student_hint(
-        question_data,
-        student_answer,
-        is_correct,
-        student_request,
-        hint_plan,
-        system_prompt,
-        hint_strength,
-    ):
-        observed["plan"] = json.loads(hint_plan)
-        return "我看到你的公式像是小方框或占位内容，说明公式没有完整传上来。请重新输入或补全公式。"
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("formula parse repair should not guess through LLM generation")
 
-    monkeypatch.setattr(controlled_generation, "generate_student_hint", fake_generate_student_hint)
-    monkeypatch.setattr(
-        controlled_generation,
-        "evaluate_hint_leakage",
-        lambda *args, **kwargs: {"is_leaking": False, "score": 0, "reason": "local_safe"},
-    )
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
 
     result = controlled_generation.generate_controlled_hint(
         {"id": 1, "content": "题目", "answer": "", "solution": ""},
@@ -271,9 +283,10 @@ def test_generate_controlled_hint_handles_formula_placeholder_as_input_repair(mo
         "我公式框里只剩一个小方框 □，请继续讲。",
     )
 
-    assert observed["plan"]["interaction_intent"] == "formula_parse_repair"
     assert result["generation_status"] == "success"
-    assert "重新输入" in result["hint"] or "补全公式" in result["hint"]
+    assert "重新发送" in result["hint"] or "补全" in result["hint"]
+    assert "猜公式" in result["hint"]
+    assert "generate_local_formula_repair_hint" in result["stage_timings"]
 
 
 def test_generate_controlled_hint_locally_verifies_parameter_claim(monkeypatch):
@@ -297,6 +310,28 @@ def test_generate_controlled_hint_locally_verifies_parameter_claim(monkeypatch):
     assert "常数项" in result["hint"]
     assert "generate_local_claim_verification" in result["stage_timings"]
     assert result["rewrite_count"] == 0
+
+
+def test_generate_controlled_hint_locally_guides_discontinuity_checkpoint(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("boundary continuity checkpoint should use local verifier")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "我觉得 x=1 是间断点，因为左右极限可能不一样。请先帮我设计核对步骤。",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "左极限" in result["hint"]
+    assert "右极限" in result["hint"]
+    assert "函数值" in result["hint"]
+    assert "generate_local_claim_verification" in result["stage_timings"]
 
 
 def test_generate_controlled_hint_locally_verifies_negative_one_limit_claim(monkeypatch):

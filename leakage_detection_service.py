@@ -187,6 +187,46 @@ def _normalize_llm_result(parsed: dict[str, Any]) -> LeakageEvaluation:
     }
 
 
+def _sanitize_reason_reference_answer(
+    reason: str,
+    reference_answer: str,
+    student_context: str = "",
+) -> str:
+    sanitized = str(reason or "")
+    answer = str(reference_answer or "").strip()
+    if not sanitized or not answer or _answer_already_in_student_context(answer, student_context):
+        return sanitized[:255]
+
+    if CHOICE_ANSWER_PATTERN.match(answer):
+        choice = re.escape(answer.upper())
+        patterns = [
+            rf"正确\s*选项\s*是?\s*{choice}",
+            rf"答案\s*是?\s*{choice}",
+            rf"选项\s*{choice}",
+        ]
+        for pattern in patterns:
+            sanitized = re.sub(pattern, "参考选项", sanitized, flags=re.I)
+        return sanitized[:255]
+
+    answer_variants = {
+        answer,
+        answer.replace(",", "，"),
+        answer.replace(",", "、"),
+        re.sub(r"\s+", "", answer),
+    }
+    for variant in sorted(answer_variants, key=len, reverse=True):
+        if variant:
+            sanitized = sanitized.replace(variant, "参考答案")
+
+    for assignment in re.findall(r"[A-Za-z]\s*=\s*[-+]?\s*\d+(?:\.\d+)?", answer):
+        name, value = assignment.split("=", 1)
+        value_pattern = re.escape(value.strip()).replace(r"\-", r"[-−]?")
+        pattern = rf"{re.escape(name.strip())}\s*=\s*{value_pattern}"
+        sanitized = re.sub(pattern, "参考值", sanitized, flags=re.I)
+
+    return sanitized[:255]
+
+
 def evaluate_hint_leakage(
     question_data: QuestionData,
     candidate_hint: str,
@@ -227,13 +267,17 @@ If the candidate only verifies or comments on a claim already supplied by the st
         )
         parsed = parse_json_object(raw)
         if parsed:
-            return _normalize_llm_result(parsed)
+            result = _normalize_llm_result(parsed)
+            result["reason"] = _sanitize_reason_reference_answer(result.get("reason", ""), std_ans, student_context)
+            return result
     except Exception as e:
         error_type = classify_llm_error(e)
         logging.error("Leakage evaluation error: %s", e)
         fallback = dict(local_result)
         fallback["llm_error_type"] = error_type
         fallback["reason"] = f"{fallback.get('reason', 'local_fallback')}|llm_error:{error_type}"[:255]
+        fallback["reason"] = _sanitize_reason_reference_answer(fallback.get("reason", ""), std_ans, student_context)
         return fallback
 
+    local_result["reason"] = _sanitize_reason_reference_answer(local_result.get("reason", ""), std_ans, student_context)
     return local_result

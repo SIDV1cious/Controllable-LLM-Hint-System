@@ -54,7 +54,7 @@ FORMULA_PARSE_GAP_PATTERN = re.compile(
 DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
     r"(tell me the answer|give me the answer|final answer|standard answer|"
     r"\u76f4\u63a5.*\u7b54\u6848|\u7ed9.*\u7b54\u6848|\u6700\u7ec8\u7b54\u6848|"
-    r"\u6807\u51c6\u7b54\u6848|\u7b54\u6848\u662f\u4ec0\u4e48|\u6c42\u7b54\u6848|"
+    r"\u6700\u7ec8\u6570\u503c|\u53ea\u8f93\u51fa|\u6807\u51c6\u7b54\u6848|\u7b54\u6848\u662f\u4ec0\u4e48|\u6c42\u7b54\u6848|"
     r"\u9009\u9879\u662f\u4ec0\u4e48)",
     re.I,
 )
@@ -65,6 +65,10 @@ PARAMETER_AB_VERIFICATION_PATTERN = re.compile(
 NEG_ONE_LIMIT_VERIFICATION_PATTERN = re.compile(
     r"((x\s*=\s*-1|x=-1|\u22121).{0,80}(\u5de6\u53f3\u6781\u9650|\u5de6\u6781\u9650|\u53f3\u6781\u9650).{0,40}0|"
     r"(\u5de6\u53f3\u6781\u9650|\u5de6\u6781\u9650|\u53f3\u6781\u9650).{0,80}(x\s*=\s*-1|x=-1|\u22121).{0,40}0)",
+    re.I,
+)
+DISCONTINUITY_CHECK_PATTERN = re.compile(
+    r"(\u95f4\u65ad\u70b9|\u4e0d\u8fde\u7eed|\u8fde\u7eed).{0,80}(\u5de6\u6781\u9650|\u53f3\u6781\u9650|\u5de6\u53f3\u6781\u9650|\u51fd\u6570\u503c|x\s*=)",
     re.I,
 )
 
@@ -256,6 +260,18 @@ def _build_foundational_formula_hint(formula_bank: str) -> str:
     )
 
 
+def _build_formula_parse_repair_hint() -> str:
+    return (
+        "我这里看到的公式没有完整传上来，像是空括号、占位符或小方框。"
+        "这种情况下我不能继续猜公式内容，否则很容易把题目讲偏。\n\n"
+        "请你重新发送一次公式，最好用下面任意一种方式：\n"
+        "- 直接用文字写出完整表达式；\n"
+        "- 重新插入公式框并确认每个空位都填上；\n"
+        "- 如果是矩阵、分段函数或多重积分，请把每个元素、条件、上下限和微分变量都补全。\n\n"
+        "等公式完整显示后，我再按你当前这道题继续给下一步提示。"
+    )
+
+
 def _build_local_student_claim_verification(student_request: str, student_answer: str = "") -> str:
     combined = f"{student_answer}\n{student_request}"
     compact = re.sub(r"\s+", "", combined)
@@ -278,6 +294,16 @@ def _build_local_student_claim_verification(student_request: str, student_answer
             "$x^{2n}\\to0$，表达式趋向 $1+x$，再令 $x\\to-1^+$ 也得到 0。\n\n"
             "下一步不要重新怀疑这个左右极限结论，而是继续检查函数在 $x=-1$ 处的函数值，"
             "再用“左右极限是否等于函数值”来判断连续性。"
+        )
+
+    if DISCONTINUITY_CHECK_PATTERN.search(compact):
+        return (
+            "你现在是在核对分段点或端点处是否连续/间断。先不要急着给最终结论，"
+            "也不要把当前判断强行套到别的题型上。\n\n"
+            "安全的核对步骤是：先分别计算该点的左极限和右极限，再查看函数在该点是否有定义，"
+            "最后比较“左极限、右极限、函数值”三者是否一致。"
+            "如果左右极限不相等，通常就是跳跃类间断；如果左右极限相等但不等于函数值或函数值不存在，"
+            "再按可去间断等情形继续判断。"
         )
 
     return ""
@@ -552,7 +578,12 @@ def generate_controlled_hint(
         interaction_profile = analyze_student_interaction(student_request, student_answer)
         foundational_formula_bank = _build_foundational_formula_bank(student_request)
         local_claim_verification_hint = _build_local_student_claim_verification(student_request, student_answer)
-        if interaction_profile["needs_foundational_formula"] and foundational_formula_bank:
+        if interaction_profile["formula_parse_problem"]:
+            stage_started_at = time.perf_counter()
+            final_hint = _build_formula_parse_repair_hint()
+            _record_stage_timing(stage_timings, "generate_local_formula_repair_hint", stage_started_at)
+            _ensure_generation_budget(total_started_at, "generate_local_formula_repair_hint")
+        elif interaction_profile["needs_foundational_formula"] and foundational_formula_bank:
             stage_started_at = time.perf_counter()
             final_hint = _build_foundational_formula_hint(foundational_formula_bank)
             _record_stage_timing(stage_timings, "generate_local_formula_hint", stage_started_at)
