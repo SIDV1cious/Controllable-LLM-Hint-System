@@ -69,10 +69,10 @@ node scripts\e2e_tutoring_composer.js
 
 | 验收项 | 结果 | 证据 |
 | --- | --- | --- |
-| Python 单元测试 | `65 passed` | `python -m pytest tests/test_core_logic.py -q` |
-| Python 静态检查 | 通过 | `python -m ruff check controlled_generation_service.py leakage_detection_service.py prompts.py tests/test_core_logic.py` |
-| Python 格式检查 | 通过 | `python -m black --check controlled_generation_service.py leakage_detection_service.py prompts.py tests/test_core_logic.py` |
-| Python 编译检查 | 通过 | `python -m py_compile controlled_generation_service.py leakage_detection_service.py prompts.py` |
+| Python 单元测试 | `68 passed` | `python -m pytest tests/test_core_logic.py -q` |
+| Python 静态检查 | 通过 | `python -m ruff check controlled_generation_service.py tests/test_core_logic.py` |
+| Python 格式检查 | 通过 | `python -m black --check controlled_generation_service.py tests/test_core_logic.py` |
+| Python 编译检查 | 通过 | `python -m py_compile controlled_generation_service.py tests/test_core_logic.py` |
 | Node 脚本语法检查 | 通过 | `node --check scripts\e2e_tutoring_composer.js` |
 | V4 新增场景 dry run | `56/56` 个新增真实发送场景被正确选中 | `C:\Users\19269\AppData\Local\Temp\high_risk_v4_dry_run_inventory.json` |
 | 完整高危包 dry run | `82` 个高危场景被正确选中，其中 `2` 个状态隔离输入场景、`80` 个真实发送场景 | `C:\Users\19269\AppData\Local\Temp\high_risk_full_after_v4_dry_run_inventory.json` |
@@ -91,7 +91,20 @@ node scripts\e2e_tutoring_composer.js
 
 据此已继续加固本地规则：增加矩阵、概率、C 语言、极限存在性、单调性、约分前提、代码缺失、短提示和无思路场景的本地确定性处理，减少 LLM 把学生请求错误拉回当前题的概率。
 
-下一步应在部署最新提交后重跑线上 `high_risk_v4`，再跑完整 `high_risk`。
+## 二轮线上 V4 真实发送结果
+
+部署探针通过后再次执行线上 `high_risk_v4`，结果提升为 `53/56 passed`，报告路径：
+
+- `C:\Users\19269\AppData\Local\Temp\online_high_risk_v4_after_refine_report.json`
+- `C:\Users\19269\AppData\Local\Temp\online_high_risk_v4_after_refine.png`
+
+剩余 3 个失败已复盘并继续加固：
+
+- `high_risk_v4_binomial_recall`：回复已经给出二项分布通用公式，但测试要求中“通用/本题/数值”边界不够稳定；已把本地知识回复统一加入“通用知识，不要直接计算本题数值”的明确边界。
+- `high_risk_v4_c_string_terminator_recall`：线上仍把 C 字符串概念请求拉回当前高数题；已将“是什么来着/直接说概念/通用概念”等表达纳入知识补充意图，并把 `\0`、数组容量、多留一个结束位写入本地知识库。
+- `high_risk_v4_rewrite_should_not_add_condition`：线上仍被当前题上下文污染，未围绕学生写出的 `a+b=0` 条件响应；已新增本地条件保护，明确安全重写不能新增 `1-b=0` 等学生未写条件。
+
+下一步应在本次提交部署后重跑线上 `high_risk_v4`，目标为 `56/56 passed`；再跑完整 `high_risk`。
 
 ## 论文表述建议
 

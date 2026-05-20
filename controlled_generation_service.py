@@ -35,7 +35,9 @@ KNOWLEDGE_RECALL_PATTERN = re.compile(
     r"\u516c\u5f0f|\u5b9a\u4e49|\u5b9a\u7406|\u6cf0\u52d2|\u5c55\u5f00|"
     r"\u7b49\u4ef7\u65e0\u7a77\u5c0f|\u5e38\u7528\u8fd1\u4f3c|\u8fd1\u4f3c\u5f0f|\u77e5\u8bc6\u70b9|"
     r"\u516c\u5f0f\u8868|\u600e\u4e48\u5224\u65ad|\u5224\u5b9a\u6807\u51c6|\u8fd9\u4e2a\u53eb\u5565|"
-    r"\u8fd9\u4e2a\u53eb\u4ec0\u4e48|\u5e38\u89c1\u89c4\u5219|\u57fa\u672c\u89c4\u5219|\u901a\u7528\u7ed3\u8bba)",
+    r"\u8fd9\u4e2a\u53eb\u4ec0\u4e48|\u662f\u4ec0\u4e48\u6765\u7740|\u76f4\u63a5\u8bf4\u6982\u5ff5|"
+    r"\u76f4\u63a5\u7ed9\u6982\u5ff5|\u901a\u7528\u6982\u5ff5|\u57fa\u7840\u6982\u5ff5|"
+    r"\u5e38\u89c1\u89c4\u5219|\u57fa\u672c\u89c4\u5219|\u901a\u7528\u7ed3\u8bba)",
     re.I,
 )
 ANSWER_VERIFICATION_PATTERN = re.compile(
@@ -378,7 +380,7 @@ def _build_foundational_formula_bank(student_request: str) -> str:
         items.extend(
             [
                 r"C 语言中数组名在多数表达式里会退化为首元素地址，但数组本身不是可修改的指针变量。",
-                r"字符串以空字符 \(\backslash0\) 作为结束标志，字符数组容量要预留这个结束位。",
+                r"字符串以空字符 `\0`（也写作 \(\\0\)）作为结束标志，字符数组容量要多留一个位置预留这个结束位。",
                 r"指针变量保存地址，\(*p\) 访问指向位置的值，\(&x\) 取得变量地址。",
             ]
         )
@@ -388,8 +390,9 @@ def _build_foundational_formula_bank(student_request: str) -> str:
 def _build_foundational_formula_hint(formula_bank: str) -> str:
     bullets = "\n".join(f"- {line}" for line in formula_bank.splitlines() if line.strip())
     return (
-        "可以。这个属于通用基础公式，直接记下来再用，不需要硬靠回想。\n\n"
+        "可以。这个属于通用基础公式/概念，直接记下来再用，不需要硬靠回想。\n\n"
         f"{bullets}\n\n"
+        "上面只是通用知识，不要直接拿它替你计算本题数值或写完整答案。"
         "接下来先做一个安全的小判断：看本题需要保留到几阶，再把对应展开代入到你当前那一步。"
         "我先不替你把整题算完，这样还能保留你自己完成关键推理的空间。"
     )
@@ -507,6 +510,16 @@ def _build_generic_claim_verification_hint(student_request: str) -> str:
 def _build_local_student_claim_verification(student_request: str, student_answer: str = "") -> str:
     combined = f"{student_answer}\n{student_request}"
     compact = re.sub(r"\s+", "", combined)
+
+    if re.search(r"a\+b=0", compact, flags=re.I) and re.search(
+        r"(\u4e0d\u65b0\u589e|\u65b0\u589e|\u6ca1\u5199|\u91cd\u5199|1-b=0|1-b)", compact
+    ):
+        return (
+            "你这里已经明确写出的条件是 $a+b=0$，安全重写时应该保留这个已给条件，"
+            "不能为了规避泄露而新增 $1-b=0$、常数项也必须为 0 之类你没有写出的条件。\n\n"
+            "更稳妥的核对方式是：只围绕已出现的条件检查它在当前推导中的来源和作用。"
+            "如果后续确实需要额外条件，也必须先说明它来自题目哪一步，而不是由重写过程擅自添加。"
+        )
 
     if PARAMETER_AB_VERIFICATION_PATTERN.search(compact):
         return (

@@ -320,6 +320,51 @@ def test_generate_controlled_hint_uses_local_bank_for_derivative_recall(monkeypa
     assert "generate_local_formula_hint" in result["stage_timings"]
 
 
+def test_generate_controlled_hint_uses_local_bank_for_c_string_recall(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("C string concept recall should use local formula bank")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "C语言字符串为什么要多留一个位置？那个结束符是什么来着？请直接说概念。",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "字符串" in result["hint"]
+    assert r"\0" in result["hint"]
+    assert "容量" in result["hint"]
+    assert "多留一个位置" in result["hint"]
+    assert "generate_local_formula_hint" in result["stage_timings"]
+
+
+def test_generate_controlled_hint_keeps_binomial_recall_generic(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("binomial formula recall should use local formula bank")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "二项分布的概率公式是什么？我只需要通用公式，不要帮我算本题数值。",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "二项分布" in result["hint"]
+    assert "通用" in result["hint"]
+    assert "不要直接拿它替你计算本题数值" in result["hint"]
+    assert "generate_local_formula_hint" in result["stage_timings"]
+
+
 def test_generate_controlled_hint_handles_formula_placeholder_as_input_repair(monkeypatch):
     monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
 
@@ -362,6 +407,29 @@ def test_generate_controlled_hint_locally_verifies_parameter_claim(monkeypatch):
     assert "常数项" in result["hint"]
     assert "generate_local_claim_verification" in result["stage_timings"]
     assert result["rewrite_count"] == 0
+
+
+def test_generate_controlled_hint_preserves_student_written_condition(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("condition preservation should use local verifier")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "", "solution": ""},
+        "",
+        False,
+        "我只写了条件 a+b=0。请不要为了安全重写而新增 1-b=0 之类我没写的条件。",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "a+b=0" in result["hint"]
+    assert "条件" in result["hint"]
+    assert "不能" in result["hint"]
+    assert "新增" in result["hint"]
+    assert "generate_local_claim_verification" in result["stage_timings"]
 
 
 def test_generate_controlled_hint_locally_guides_discontinuity_checkpoint(monkeypatch):
