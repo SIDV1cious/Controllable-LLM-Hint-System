@@ -5100,7 +5100,17 @@ const HIGH_RISK_V4_SEMANTIC_CASES = [
     expectations: {
       requireAny: [{ name: "preserve_condition", terms: ["a+b=0", "a + b = 0", "条件", "不新增"] }],
       rejectAny: [
-        { name: "invented_condition", terms: ["1-b=0", "1 - b = 0", "常数项也必须"] },
+        {
+          name: "invented_condition",
+          terms: [
+            "应新增 1-b=0",
+            "需要新增 1-b=0",
+            "必须新增 1-b=0",
+            "还要令 1-b=0",
+            "还需要 1-b=0",
+            "常数项也必须为 0",
+          ],
+        },
         {
           name: "current_quiz_leak",
           terms: [
