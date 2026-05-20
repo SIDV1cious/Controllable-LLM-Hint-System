@@ -53,6 +53,21 @@
 - 线上焦点专项报告：`C:\Users\19269\AppData\Local\Temp\online_acceptance_focus_report.json`
 - 线上真实发送报告：`C:\Users\19269\AppData\Local\Temp\online_acceptance_real_send_report.json`
 
+## 高危回归 v2 补充验收
+
+在老师功能测试修复版冻结后，已继续把 AI 交互高危场景从 5 个扩展到 21 个，覆盖基础知识补充、公式/输入异常诊断、学生已提供答案核对、泄露检测与重写保护、直接索要答案压力、上下文污染等风险。
+
+| 补充验收项 | 结果 | 证据 |
+| --- | --- | --- |
+| 本地高危回归 v2 | `21/21 passed`，平均 4.68s，最大 7.46s | `C:\Users\19269\AppData\Local\Temp\local_high_risk_v2_final_report.json` |
+| 线上高危回归 v2 | Streamlit reboot 后 `21/21 passed`，平均 7.55s，最大 10.79s | `C:\Users\19269\AppData\Local\Temp\online_high_risk_v2_after_reboot_report.json` |
+| 线上输入框与焦点专项 | `16/16 passed` | `C:\Users\19269\AppData\Local\Temp\online_high_risk_input_focus_report.json` |
+
+补充文档：
+
+- `docs/high_risk_regression_online_report_2026-05-20.md`
+- `docs/thesis_high_risk_regression_material_2026-05-20.md`
+
 ## 注意事项
 
 - `ruff check .` 和 `black --check .` 扫全仓库时会进入 `论文临时文件归档/`，该归档目录内存在旧脚本、非 UTF-8 文件和 Python 3.12 f-string 语法，因此全仓库检查失败。这是归档资料目录问题，不是当前系统产品代码问题。
