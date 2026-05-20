@@ -556,11 +556,10 @@ def test_generate_controlled_hint_locally_handles_missing_code_context(monkeypat
     )
 
     assert result["generation_status"] == "success"
-    assert "重新发送" in result["hint"] or "补全" in result["hint"] or "代码" in result["hint"]
-    assert (
-        "generate_local_formula_repair_hint" in result["stage_timings"]
-        or "generate_local_claim_verification" in result["stage_timings"]
-    )
+    assert "代码" in result["hint"]
+    assert "最小代码片段" in result["hint"]
+    assert "不能猜" in result["hint"]
+    assert "generate_local_formula_repair_hint" in result["stage_timings"]
 
 
 def test_generate_controlled_hint_does_not_treat_no_answer_request_as_direct_answer(monkeypatch):

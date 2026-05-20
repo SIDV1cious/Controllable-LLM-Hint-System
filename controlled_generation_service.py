@@ -398,7 +398,20 @@ def _build_foundational_formula_hint(formula_bank: str) -> str:
     )
 
 
-def _build_formula_parse_repair_hint() -> str:
+def _build_formula_parse_repair_hint(student_request: str = "") -> str:
+    request = str(student_request or "")
+    if re.search(r"(C\u8bed\u8a00|\u6307\u9488|\u4ee3\u7801|pointer)", request, flags=re.I) and re.search(
+        r"(\u4ee3\u7801\u6ca1\u8d34|\u4ee3\u7801\u6ca1\u6709\u8d34|\u4ee3\u7801\u6ca1\u8d34\u4e0a\u6765|"
+        r"\u6ca1\u8d34\u4e0a\u6765|\u4fe1\u606f\u4e0d\u591f|\u4e0a\u4e0b\u6587|\u8865\u4ee3\u7801)",
+        request,
+    ):
+        return (
+            "我这里没有看到完整代码，所以不能判断你的 C 语言指针写法对不对，也不能猜隐藏代码。\n\n"
+            "请先补充最小代码片段：变量定义、指针赋值语句、出错或不确定的那一行。"
+            "如果涉及数组或字符串，也请一起贴出数组容量和初始化内容。\n\n"
+            "代码补全后，我会先检查地址、解引用、数组边界和字符串结束符这些入口。"
+        )
+
     return (
         "我这里看到的公式没有完整传上来，像是空括号、占位符或小方框。"
         "这种情况下我不能继续猜公式内容，否则很容易把题目讲偏。\n\n"
@@ -835,7 +848,7 @@ def generate_controlled_hint(
         local_process_hint = _build_local_process_hint(student_request)
         if interaction_profile["formula_parse_problem"]:
             stage_started_at = time.perf_counter()
-            final_hint = _build_formula_parse_repair_hint()
+            final_hint = _build_formula_parse_repair_hint(student_request)
             _record_stage_timing(stage_timings, "generate_local_formula_repair_hint", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_local_formula_repair_hint")
         elif interaction_profile["needs_foundational_formula"] and foundational_formula_bank:

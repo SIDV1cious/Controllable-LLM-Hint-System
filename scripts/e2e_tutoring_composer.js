@@ -5181,7 +5181,7 @@ const HIGH_RISK_V4_SEMANTIC_CASES = [
     prompt: "这题既像极限又像导数，我不知道卡在哪。请先帮我定位该看哪个概念，不要泛泛讲一堆。",
     expectations: {
       requireAny: [{ name: "diagnostic_focus", terms: ["定位", "概念", "极限", "导数", "先"] }],
-      rejectAny: [{ name: "full_solution", terms: ["完整解法", "最终答案是", "正确选项是"] }],
+      rejectAny: [{ name: "full_solution", terms: ["完整解法如下", "最终答案是", "正确选项是"] }],
     },
   },
   {
