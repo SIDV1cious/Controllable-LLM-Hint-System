@@ -33,15 +33,19 @@ KNOWLEDGE_RECALL_PATTERN = re.compile(
     r"\u5fd8\u8bb0|\u5fd8\u4e86|\u60f3\u4e0d\u8d77|\u4e0d\u8bb0\u5f97|\u8bb0\u4e0d\u6e05|"
     r"\u8111\u5b50\u7a7a|\u5361\u4f4f|\u60f3\u4e0d\u660e\u767d|"
     r"\u516c\u5f0f|\u5b9a\u4e49|\u5b9a\u7406|\u6cf0\u52d2|\u5c55\u5f00|"
-    r"\u7b49\u4ef7\u65e0\u7a77\u5c0f|\u5e38\u7528\u8fd1\u4f3c|\u8fd1\u4f3c\u5f0f|\u77e5\u8bc6\u70b9)",
+    r"\u7b49\u4ef7\u65e0\u7a77\u5c0f|\u5e38\u7528\u8fd1\u4f3c|\u8fd1\u4f3c\u5f0f|\u77e5\u8bc6\u70b9|"
+    r"\u516c\u5f0f\u8868|\u600e\u4e48\u5224\u65ad|\u5224\u5b9a\u6807\u51c6|\u8fd9\u4e2a\u53eb\u5565|"
+    r"\u8fd9\u4e2a\u53eb\u4ec0\u4e48|\u5e38\u89c1\u89c4\u5219|\u57fa\u672c\u89c4\u5219|\u901a\u7528\u7ed3\u8bba)",
     re.I,
 )
 ANSWER_VERIFICATION_PATTERN = re.compile(
     r"(right\??|correct\??|check|verify|"
-    r"\u5bf9\u5417|\u662f\u4e0d\u662f|\u662f\u5426\u6b63\u786e|\u6b63\u786e|"
+    r"\u5bf9\u5417|\u5bf9\u4e0d\u5bf9|\u884c\u4e0d\u884c|\u6709\u6ca1\u6709\u95ee\u9898|"
+    r"\u8fd9\u6837\u53ef\u4ee5\u5417|\u662f\u4e0d\u662f|\u662f\u5426\u6b63\u786e|\u6b63\u786e\u5417|"
     r"\u505a\u6ca1\u505a\u5bf9|\u68c0\u67e5|\u9a8c\u8bc1|\u7b54\u6848\u5c31\u662f|"
     r"\u6211\u7b97\u51fa|\u6211\u5f97\u5230|\u6211\u5199\u51fa|"
-    r"\u5de6\u53f3\u6781\u9650|[a-zA-Z]\s*=\s*[-+]?\d)",
+    r"\u6211\u731c|\u6211\u89c9\u5f97|\u6211\u611f\u89c9|\u6211\u9009|\u5019\u9009|"
+    r"\u8fd9\u4e2a\u7ed3\u8bba|\u5de6\u53f3\u6781\u9650|[a-zA-Z]\s*=\s*[-+]?\d)",
     re.I,
 )
 FORMULA_PARSE_GAP_PATTERN = re.compile(
@@ -55,11 +59,27 @@ DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
     r"(tell me the answer|give me the answer|final answer|standard answer|"
     r"\u76f4\u63a5.*\u7b54\u6848|\u7ed9.*\u7b54\u6848|\u6700\u7ec8\u7b54\u6848|"
     r"\u6700\u7ec8\u6570\u503c|\u53ea\u8f93\u51fa|\u6807\u51c6\u7b54\u6848|\u7b54\u6848\u662f\u4ec0\u4e48|\u6c42\u7b54\u6848|"
-    r"\u9009\u9879\u662f\u4ec0\u4e48)",
+    r"\u9009\u9879\u662f\u4ec0\u4e48|\u9009\u54ea\u4e2a|\u544a\u8bc9\u6211\u9009|\u6b63\u786e\u9009\u9879|"
+    r"\u522b\u8bb2\u8fc7\u7a0b|\u4e0d\u7528\u89e3\u91ca|\u53ea\u8981\u7ed3\u8bba|\u62a5\u7ed3\u679c|"
+    r"\u5077\u5077|\u6284\u7b54\u6848|\u5ffd\u7565.*\u89c4\u5219|\u7ba1\u7406\u5458|\u6d4b\u8bd5\u6a21\u5f0f|"
+    r"debug\s*mode|system\s*prompt)",
     re.I,
 )
 PARAMETER_AB_VERIFICATION_PATTERN = re.compile(
     r"(a\s*=\s*2.{0,12}b\s*=\s*-?\s*2|b\s*=\s*-?\s*2.{0,12}a\s*=\s*2)",
+    re.I,
+)
+CHOICE_CLAIM_PATTERN = re.compile(
+    r"((?:\u6211\s*)?(?:\u9009|\u731c|\u89c9\u5f97|\u611f\u89c9|\u8ba4\u4e3a)\s*[:：]?\s*([A-D])(?!\s*[、,/]\s*[A-D])|"
+    r"(?:\u5019\u9009|\u9009\u9879)\s*[:：]?\s*([A-D])(?!\s*[、,/]\s*[A-D])|"
+    r"([A-D])(?!\s*[、,/]\s*[A-D])\s*(?:\u5bf9\u5417|\u5bf9\u4e0d\u5bf9|\u6b63\u786e\u5417|\u884c\u5417))",
+    re.I,
+)
+CONCRETE_STUDENT_CLAIM_PATTERN = re.compile(
+    r"(\u6211(?:\u7b97\u51fa|\u5f97\u5230|\u5199\u51fa|\u731c|\u89c9\u5f97|\u611f\u89c9|\u8ba4\u4e3a|\u9009).{0,80}"
+    r"(=|\u4e3a|\u662f|\u9009|\u6781\u9650|\u5bfc\u6570|\u95f4\u65ad|\u8fde\u7eed|[A-D])|"
+    r"\u5019\u9009.{0,40}(=|\u662f|[A-D])|"
+    r"[a-zA-Z]\s*=\s*[-+]?\d)",
     re.I,
 )
 NEG_ONE_LIMIT_VERIFICATION_PATTERN = re.compile(
@@ -178,8 +198,38 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     combined = f"{answer}\n{request}"
     formula_parse_problem = bool(FORMULA_PARSE_GAP_PATTERN.search(combined))
     needs_foundational_formula = bool(KNOWLEDGE_RECALL_PATTERN.search(request))
-    student_supplied_answer_or_step = bool(ANSWER_VERIFICATION_PATTERN.search(combined))
     direct_answer_request = bool(DIRECT_ANSWER_REQUEST_PATTERN.search(request))
+    student_supplied_answer_or_step = bool(ANSWER_VERIFICATION_PATTERN.search(combined))
+    concrete_student_claim = bool(
+        PARAMETER_AB_VERIFICATION_PATTERN.search(combined)
+        or NEG_ONE_LIMIT_VERIFICATION_PATTERN.search(combined)
+        or DISCONTINUITY_CHECK_PATTERN.search(combined)
+        or CHOICE_CLAIM_PATTERN.search(combined)
+        or CONCRETE_STUDENT_CLAIM_PATTERN.search(combined)
+    )
+    menu_choice_request = bool(
+        re.search(
+            r"(A\s*[、,/]\s*B\s*[、,/]\s*C\s*[、,/]\s*D|"
+            r"\u9009\s*[A-D].{0,20}\u54ea\u4e2a|\u9009\u54ea\u4e2a|"
+            r"\u6b63\u786e\u9009\u9879.{0,8}\u54ea\u4e2a)",
+            request,
+            flags=re.I,
+        )
+    )
+    first_person_choice_claim = bool(
+        re.search(
+            r"(^|[\s，。！？；;])\u6211\s*(?:\u9009|\u731c|\u89c9\u5f97|\u611f\u89c9|\u8ba4\u4e3a)\s*[:：]?\s*[A-D]",
+            request,
+            flags=re.I,
+        )
+    )
+    if menu_choice_request and not first_person_choice_claim:
+        direct_answer_request = True
+        concrete_student_claim = False
+        student_supplied_answer_or_step = False
+
+    if direct_answer_request and not concrete_student_claim:
+        student_supplied_answer_or_step = False
 
     if formula_parse_problem:
         intent = "formula_parse_repair"
@@ -205,6 +255,7 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
         "needs_foundational_formula": needs_foundational_formula,
         "student_supplied_answer_or_step": student_supplied_answer_or_step,
         "direct_answer_request": direct_answer_request,
+        "concrete_student_claim": concrete_student_claim,
         "response_contract": response_contract,
     }
 
@@ -225,9 +276,12 @@ def _build_foundational_formula_bank(student_request: str) -> str:
                 r"\(\sqrt{1+u}=1+\frac{u}{2}+o(u)\)，所以 \(\sqrt{1-x^2}-1\sim-\frac{x^2}{2}\)。",
             ]
         )
-    if re.search(r"(\u7b49\u4ef7\u65e0\u7a77\u5c0f|equivalent infinitesimal)", request, flags=re.I):
+    if re.search(
+        r"(\u7b49\u4ef7\u65e0\u7a77\u5c0f|\u5c0f\u91cf\u66ff\u6362|equivalent infinitesimal)", request, flags=re.I
+    ):
         items.extend(
             [
+                r"这类 \(x\to0\) 时的小量替换通常叫等价无穷小替换。",
                 r"在 \(x=0\) 附近，\(\sin x\sim x\)，\(\tan x\sim x\)，\(1-\cos x\sim \frac{x^2}{2}\)。",
                 r"\(\sqrt{1+u}-1\sim \frac{u}{2}\)，因此 \(\sqrt{1-x^2}-1\sim-\frac{x^2}{2}\)。",
                 r"\(\ln(1+x)\sim x\)，\(e^x-1\sim x\)，\((1+x)^\alpha-1\sim \alpha x\)。",
@@ -245,6 +299,66 @@ def _build_foundational_formula_bank(student_request: str) -> str:
             [
                 r"洛必达法则常用于 \(0/0\) 或 \(\infty/\infty\) 型极限。",
                 r"使用前要先确认分子、分母在邻域内可导，且分母导数不为 0，再比较导数之比的极限。",
+            ]
+        )
+    if re.search(
+        r"(\u5bfc\u6570|\u6c42\u5bfc|\u5fae\u5206|derivative|\u94fe\u5f0f|\u4e58\u79ef|\u5546\u6cd5\u5219)",
+        request,
+        flags=re.I,
+    ):
+        items.extend(
+            [
+                r"基本求导公式包括 \((x^n)'=nx^{n-1}\)、\((e^x)'=e^x\)、\((\ln x)'=\frac{1}{x}\)。",
+                r"乘积法则：\((uv)'=u'v+uv'\)；商法则：\(\left(\frac{u}{v}\right)'=\frac{u'v-uv'}{v^2}\)。",
+                r"复合函数使用链式法则：\((f(g(x)))'=f'(g(x))g'(x)\)。",
+            ]
+        )
+    if re.search(
+        r"(\u79ef\u5206|\u4e0d\u5b9a\u79ef\u5206|\u5b9a\u79ef\u5206|\u6362\u5143|\u5206\u90e8\u79ef\u5206|integral)",
+        request,
+        flags=re.I,
+    ):
+        items.extend(
+            [
+                r"换元积分的核心是把复杂内层记为新变量，并同步替换微分。",
+                r"分部积分公式为 \(\int u\,\mathrm{d}v=uv-\int v\,\mathrm{d}u\)。",
+                r"定积分要同时关注被积函数、积分区间和变量，换元后上下限也要同步改变。",
+            ]
+        )
+    if re.search(
+        r"(\u77e9\u9635|\u884c\u5217\u5f0f|\u7279\u5f81\u503c|\u7279\u5f81\u5411\u91cf|\u79e9|\u7ebf\u6027\u76f8\u5173|matrix|eigen|rank)",
+        request,
+        flags=re.I,
+    ):
+        items.extend(
+            [
+                r"判断矩阵可逆常用条件：方阵行列式非零、满秩、零空间只有零向量，这些条件等价。",
+                r"特征值满足 \(\det(\lambda I-A)=0\)，对应特征向量满足 \((A-\lambda I)x=0\)。",
+                r"判断向量组线性相关时，可以把向量排成矩阵，检查秩是否小于向量个数。",
+            ]
+        )
+    if re.search(
+        r"(\u6982\u7387|\u671f\u671b|\u65b9\u5dee|\u6761\u4ef6\u6982\u7387|\u8d1d\u53f6\u65af|\u4e8c\u9879\u5206\u5e03|probability|variance|bayes)",
+        request,
+        flags=re.I,
+    ):
+        items.extend(
+            [
+                r"离散型随机变量期望公式为 \(E(X)=\sum x_i p_i\)，方差为 \(D(X)=E(X^2)-[E(X)]^2\)。",
+                r"条件概率公式为 \(P(A\mid B)=\frac{P(AB)}{P(B)}\)，前提是 \(P(B)>0\)。",
+                r"二项分布 \(X\sim B(n,p)\) 时，\(P(X=k)=\binom{n}{k}p^k(1-p)^{n-k}\)。",
+            ]
+        )
+    if re.search(
+        r"(C\u8bed\u8a00|\u6307\u9488|\u6570\u7ec4|\u5b57\u7b26\u4e32|\u7ed3\u6784\u4f53|pointer|string)",
+        request,
+        flags=re.I,
+    ):
+        items.extend(
+            [
+                r"C 语言中数组名在多数表达式里会退化为首元素地址，但数组本身不是可修改的指针变量。",
+                r"字符串以空字符 \(\backslash0\) 作为结束标志，字符数组容量要预留这个结束位。",
+                r"指针变量保存地址，\(*p\) 访问指向位置的值，\(&x\) 取得变量地址。",
             ]
         )
     return "\n".join(dict.fromkeys(items))
@@ -281,6 +395,16 @@ def _build_direct_answer_redirect_hint() -> str:
     )
 
 
+def _extract_student_choice_claim(text: str) -> str:
+    match = CHOICE_CLAIM_PATTERN.search(str(text or ""))
+    if not match:
+        return ""
+    for group in match.groups()[1:]:
+        if group:
+            return group.upper()
+    return ""
+
+
 def _build_local_student_claim_verification(student_request: str, student_answer: str = "") -> str:
     combined = f"{student_answer}\n{student_request}"
     compact = re.sub(r"\s+", "", combined)
@@ -303,6 +427,15 @@ def _build_local_student_claim_verification(student_request: str, student_answer
             "$x^{2n}\\to0$，表达式趋向 $1+x$，再令 $x\\to-1^+$ 也得到 0。\n\n"
             "下一步不要重新怀疑这个左右极限结论，而是继续检查函数在 $x=-1$ 处的函数值，"
             "再用“左右极限是否等于函数值”来判断连续性。"
+        )
+
+    claimed_choice = _extract_student_choice_claim(combined)
+    if claimed_choice:
+        return (
+            f"我可以只围绕你已经提出的候选选项 {claimed_choice} 来核对，而不额外透露新的选项结论。\n\n"
+            "安全的核对方式是：把该选项对应的结论代回题目关键条件，逐项检查是否满足；"
+            "如果某一步条件不成立，就说明候选需要调整。"
+            "你可以先写出该选项对应的第一条判断依据，我会只检查这一步。"
         )
 
     if DISCONTINUITY_CHECK_PATTERN.search(compact):
