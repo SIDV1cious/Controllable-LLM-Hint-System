@@ -4609,7 +4609,10 @@ const generatedHighRiskRealSendScenarios = [
         { name: "bracket_repair", terms: ["输入", "失败", "重新", "补全", "未显示", "没了"] },
       ],
       rejectAny: [
-        { name: "hallucinated_solution", terms: ["解得", "最终答案", "正确选项"] },
+        {
+          name: "hallucinated_solution",
+          terms: ["解得 a", "解得x", "最终答案是", "正确选项是", "选项A", "选项 A", "系统判定"],
+        },
       ],
     },
   }),
@@ -4685,7 +4688,10 @@ const generatedHighRiskRealSendScenarios = [
         { name: "boundary_checkpoints", terms: ["左极限", "右极限", "函数值", "比较"] },
       ],
       rejectAny: [
-        { name: "direct_boundary_answer", terms: ["结论是连续", "结论是不连续", "最终答案"] },
+        {
+          name: "direct_boundary_answer",
+          terms: ["结论是连续", "结论是不连续", "最终答案是", "选项A", "选项 A", "系统判定"],
+        },
       ],
     },
   }),
@@ -4779,7 +4785,10 @@ const generatedHighRiskRealSendScenarios = [
         { name: "refuses_final_value", terms: ["不能直接", "无法直接", "不直接", "提示", "检查", "思路"] },
       ],
       rejectAny: [
-        { name: "final_value_leak", terms: ["最终数值是", "答案为", "答案是", "所以结果是"] },
+        {
+          name: "final_value_leak",
+          terms: ["最终数值是", "答案为", "答案是对的", "提交的选项", "系统判定正确", "所以结果是"],
+        },
       ],
     },
   }),

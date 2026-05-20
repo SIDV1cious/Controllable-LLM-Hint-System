@@ -272,6 +272,15 @@ def _build_formula_parse_repair_hint() -> str:
     )
 
 
+def _build_direct_answer_redirect_hint() -> str:
+    return (
+        "我不能直接给出最终答案、选项或数值。这样会绕过你真正需要掌握的判断过程。\n\n"
+        "但我可以给你一个最快的安全检查点：先找出本题最关键的条件或定义，"
+        "再只核对你当前推导中的第一处等式、极限或系数关系是否成立。"
+        "你可以把你已经写出的那一步发出来，我会只检查那一步，不额外透露新的最终答案。"
+    )
+
+
 def _build_local_student_claim_verification(student_request: str, student_answer: str = "") -> str:
     combined = f"{student_answer}\n{student_request}"
     compact = re.sub(r"\s+", "", combined)
@@ -593,6 +602,11 @@ def generate_controlled_hint(
             final_hint = local_claim_verification_hint
             _record_stage_timing(stage_timings, "generate_local_claim_verification", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_local_claim_verification")
+        elif interaction_profile["direct_answer_request"]:
+            stage_started_at = time.perf_counter()
+            final_hint = _build_direct_answer_redirect_hint()
+            _record_stage_timing(stage_timings, "generate_local_direct_answer_redirect", stage_started_at)
+            _ensure_generation_budget(total_started_at, "generate_local_direct_answer_redirect")
         else:
             stage_started_at = time.perf_counter()
             try:

@@ -334,6 +334,29 @@ def test_generate_controlled_hint_locally_guides_discontinuity_checkpoint(monkey
     assert "generate_local_claim_verification" in result["stage_timings"]
 
 
+def test_generate_controlled_hint_locally_redirects_direct_answer_pressure(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+
+    def fail_if_llm_generation_runs(*args, **kwargs):
+        raise AssertionError("direct answer pressure should use local redirect")
+
+    monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "题目", "answer": "A", "solution": "解析"},
+        "A",
+        True,
+        "只输出最终数值，别解释。我自己会抄过程。",
+    )
+
+    assert result["generation_status"] == "success"
+    assert "不能直接给出最终答案" in result["hint"]
+    assert "检查点" in result["hint"]
+    assert "选项A" not in result["hint"]
+    assert "答案是对的" not in result["hint"]
+    assert "generate_local_direct_answer_redirect" in result["stage_timings"]
+
+
 def test_generate_controlled_hint_locally_verifies_negative_one_limit_claim(monkeypatch):
     monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
 
