@@ -93,6 +93,34 @@ INDIRECT_ANSWER_CHANNEL_PATTERN = re.compile(
     r".{0,35}(\u7b54\u6848|\u6b63\u786e\u7b54\u6848|\u6b63\u786e\u9009\u9879|\u9009\u9879))",
     re.I,
 )
+PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN = re.compile(
+    r"(\u5df2\u63d0\u4ea4.{0,20}(\u4f5c\u7b54|\u7b54\u6848|\u9009\u9879)|"
+    r"\u5f53\u524d.{0,12}(\u4f5c\u7b54|\u7b54\u6848|\u9009\u9879)|"
+    r"\u6211\u7684.{0,16}(\u4f5c\u7b54|\u7b54\u6848|\u9009\u9879).{0,24}"
+    r"(\u5bf9|\u9519|\u6b63\u786e|\u4e0d\u6b63\u786e|\u79bb\u8c31|\u63a5\u8fd1|\u5f97\u5206|\u6ee1\u5206)|"
+    r"(\u5982\u679c|\u8981\u662f).{0,24}"
+    r"(\u9009\u5bf9|\u9009\u9519|\u5bf9\u4e86|\u9519\u4e86|\u6b63\u786e|\u4e0d\u6b63\u786e).{0,36}"
+    r"(\u5938\u6211|\u63d0\u9192|\u9f13\u52b1|\u5b89\u6170|\u56de\u590d|\u8bf4|\u8868\u793a)|"
+    r"(\u5938\u6211|\u9f13\u52b1|\u5b89\u6170).{0,36}"
+    r"(\u5df2\u63d0\u4ea4|\u4f5c\u7b54|\u7b54\u6848|\u9009\u9879|\u7ed3\u679c)|"
+    r"(\u79bb\u8c31|\u63a5\u8fd1).{0,24}"
+    r"(\u6b63\u786e\u7b54\u6848|\u6807\u51c6\u7b54\u6848|\u7b54\u6848|\u9009\u9879)|"
+    r"(full\s*score|score\s*only|praise\s*me|encourage\s*me|comfort\s*me))",
+    re.I,
+)
+PRIVATE_CONFIRMATION_OUTPUT_PATTERN = re.compile(
+    r"(\u4f60.{0,8}(\u5df2\u7ecf)?\u9009(\u5bf9|\u9519)|"
+    r"\u4f60\u9009\u62e9\u4e86.{0,16}(\u7cfb\u7edf|\u4e0d\u6b63\u786e|\u6b63\u786e|\u9519)|"
+    r"\u4f60\u7684.{0,12}(\u7b54\u6848|\u4f5c\u7b54|\u9009\u9879).{0,16}"
+    r"(\u6b63\u786e|\u4e0d\u6b63\u786e|\u9519|\u5bf9)|"
+    r"\u7cfb\u7edf(\u5224\u65ad|\u5224\u5b9a).{0,24}"
+    r"(\u6b63\u786e|\u4e0d\u6b63\u786e|\u9519|\u5bf9)|"
+    r"\u6b63\u786e\u9009\u9879.{0,8}[A-D]|"
+    r"\u7b54\u6848\s*(?:\u662f)?\s*[A-D]\b|"
+    r"(correct\s+option|correct\s+answer)\s+(?:is\s+)?[A-D]\b|"
+    r"\u5f97\u6ee1\u5206|\u4e0d\u5f97\u5206|\u5f97\u5206.{0,8}\d+)",
+    re.I,
+)
 PARAMETER_AB_VERIFICATION_PATTERN = re.compile(
     r"(a\s*=\s*2.{0,12}b\s*=\s*-?\s*2|b\s*=\s*-?\s*2.{0,12}a\s*=\s*2)",
     re.I,
@@ -158,6 +186,11 @@ def _build_result(
     generation_error: str = "",
     generation_strategy: str = "fast_path",
     timeout_stage: str = "",
+    interaction_intent: str = "",
+    private_answer_confirmed: int = 0,
+    side_channel_detected: int = 0,
+    context_drift_risk: int = 0,
+    math_consistency_risk: int = 0,
 ) -> ControlledHintResult:
     return {
         "hint": format_math(hint),
@@ -172,6 +205,11 @@ def _build_result(
         "generation_strategy": generation_strategy,
         "timeout_stage": timeout_stage,
         "stage_timings": dict(stage_timings),
+        "interaction_intent": str(interaction_intent or "")[:64],
+        "private_answer_confirmed": int(bool(private_answer_confirmed)),
+        "side_channel_detected": int(bool(side_channel_detected)),
+        "context_drift_risk": int(bool(context_drift_risk)),
+        "math_consistency_risk": int(bool(math_consistency_risk)),
     }
 
 
@@ -220,6 +258,36 @@ def get_dynamic_system_prompt() -> str:
     return SYSTEM_INSTRUCTION
 
 
+def _allows_explicit_claim_verification(profile: dict) -> bool:
+    return bool(
+        profile.get("interaction_intent") == "student_answer_verification" and profile.get("concrete_student_claim")
+    )
+
+
+def _build_interaction_observability(profile: dict, final_hint: str = "") -> dict:
+    private_confirmation_output = bool(PRIVATE_CONFIRMATION_OUTPUT_PATTERN.search(str(final_hint or "")))
+    private_answer_confirmed = private_confirmation_output and _allows_explicit_claim_verification(profile)
+    return {
+        "interaction_intent": str(profile.get("interaction_intent", "")),
+        "private_answer_confirmed": int(private_answer_confirmed),
+        "side_channel_detected": int(
+            bool(profile.get("indirect_answer_channel") or profile.get("private_answer_confirmation_request"))
+        ),
+        "context_drift_risk": int(
+            bool(profile.get("private_answer_confirmation_request") and not profile.get("concrete_student_claim"))
+        ),
+        "math_consistency_risk": 0,
+    }
+
+
+def _guard_private_answer_confirmation(final_hint: str, profile: dict) -> tuple[str, bool]:
+    if _allows_explicit_claim_verification(profile):
+        return final_hint, False
+    if PRIVATE_CONFIRMATION_OUTPUT_PATTERN.search(str(final_hint or "")):
+        return _build_direct_answer_redirect_hint(), True
+    return final_hint, False
+
+
 def analyze_student_interaction(student_request: str, student_answer: str = "") -> dict:
     request = str(student_request or "")
     answer = str(student_answer or "")
@@ -228,6 +296,7 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     needs_foundational_formula = bool(KNOWLEDGE_RECALL_PATTERN.search(request))
     direct_answer_request = bool(DIRECT_ANSWER_REQUEST_PATTERN.search(request))
     indirect_answer_channel = bool(INDIRECT_ANSWER_CHANNEL_PATTERN.search(request))
+    private_answer_confirmation_request = bool(PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN.search(request))
     direct_answer_request = direct_answer_request or indirect_answer_channel
     negative_answer_boundary = bool(
         re.search(
@@ -249,14 +318,15 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     )
     if negative_answer_boundary and not (positive_direct_signal or indirect_answer_channel):
         direct_answer_request = False
-    student_supplied_answer_or_step = bool(ANSWER_VERIFICATION_PATTERN.search(combined))
+    verification_signal = bool(ANSWER_VERIFICATION_PATTERN.search(request))
     concrete_student_claim = bool(
-        PARAMETER_AB_VERIFICATION_PATTERN.search(combined)
-        or NEG_ONE_LIMIT_VERIFICATION_PATTERN.search(combined)
-        or DISCONTINUITY_CHECK_PATTERN.search(combined)
-        or CHOICE_CLAIM_PATTERN.search(combined)
-        or CONCRETE_STUDENT_CLAIM_PATTERN.search(combined)
+        PARAMETER_AB_VERIFICATION_PATTERN.search(request)
+        or NEG_ONE_LIMIT_VERIFICATION_PATTERN.search(request)
+        or DISCONTINUITY_CHECK_PATTERN.search(request)
+        or CHOICE_CLAIM_PATTERN.search(request)
+        or CONCRETE_STUDENT_CLAIM_PATTERN.search(request)
     )
+    student_supplied_answer_or_step = verification_signal and concrete_student_claim
     menu_choice_request = bool(
         re.search(
             r"(A\s*[、,/]\s*B\s*[、,/]\s*C\s*[、,/]\s*D|"
@@ -276,6 +346,10 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     if menu_choice_request and not first_person_choice_claim:
         direct_answer_request = True
         concrete_student_claim = False
+        student_supplied_answer_or_step = False
+
+    if private_answer_confirmation_request and not concrete_student_claim:
+        direct_answer_request = True
         student_supplied_answer_or_step = False
 
     if direct_answer_request and not concrete_student_claim:
@@ -306,6 +380,7 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
         "student_supplied_answer_or_step": student_supplied_answer_or_step,
         "direct_answer_request": direct_answer_request,
         "indirect_answer_channel": indirect_answer_channel,
+        "private_answer_confirmation_request": private_answer_confirmation_request,
         "concrete_student_claim": concrete_student_claim,
         "response_contract": response_contract,
     }
@@ -549,7 +624,7 @@ def _build_generic_claim_verification_hint(student_request: str) -> str:
 
 
 def _build_local_student_claim_verification(student_request: str, student_answer: str = "") -> str:
-    combined = f"{student_answer}\n{student_request}"
+    combined = str(student_request or "")
     compact = re.sub(r"\s+", "", combined)
 
     if re.search(r"a\+b=0", compact, flags=re.I) and re.search(
@@ -607,11 +682,12 @@ def _build_local_student_claim_verification(student_request: str, student_answer
 def _build_refined_interaction_policy(profile: dict) -> str:
     return f"""### Refined Tutoring Policy
 The original answer-blocking rule protects against revealing NEW final answers. Apply these refinements:
-1. If the student already supplied a conclusion, option, value, equation, or limit result, you MAY verify that submitted claim using the private reference. Do not introduce any additional final answer the student did not state.
+1. You MAY verify a conclusion, option, value, equation, or limit result only when it appears explicitly in the current visible student request. A private/current submitted answer is diagnostic context only; never confirm or quote it just because it exists in system state.
 2. If the student says they forgot a formula, definition, Taylor expansion, equivalent infinitesimal, or theorem, you MUST directly state the general knowledge item. Do not merely ask them to recall it. Do not substitute it through the whole current problem or finish the solution.
 3. If the visible formula is missing, empty, or appears as {{}}, first say that the formula was not captured and ask the student to resend it. Do not hallucinate the hidden expression.
 4. Diagnose the student's actual question first. Avoid generic step lists when the student is asking for validation, formula recall, or input repair.
 5. Preserve mathematical correctness. Never invent extra equations, conditions, or zero constraints that are not implied by the problem.
+6. If the student asks for praise, comfort, score, closeness, full marks, or any other signal about a private/current submitted answer without stating the claim in the request, redirect to a safe method checkpoint instead of confirming whether it is right or wrong.
 
 Current interaction profile:
 {json.dumps(profile, ensure_ascii=False)}"""
@@ -648,6 +724,11 @@ def build_local_hint_plan(
         "needs_foundational_formula": interaction_profile["needs_foundational_formula"],
         "student_supplied_answer_or_step": interaction_profile["student_supplied_answer_or_step"],
         "direct_answer_request": interaction_profile["direct_answer_request"],
+        "private_answer_confirmation_request": interaction_profile["private_answer_confirmation_request"],
+        "side_channel_detected": bool(
+            interaction_profile["indirect_answer_channel"] or interaction_profile["private_answer_confirmation_request"]
+        ),
+        "explicit_student_claim_this_turn": interaction_profile["concrete_student_claim"],
         "student_answer_present": bool(str(student_answer or "").strip()),
         "student_request": str(student_request or "")[:300],
         "allowed_hint_level": hint_strength,
@@ -657,7 +738,7 @@ def build_local_hint_plan(
         ),
         "foundational_formula_bank": foundational_formula_bank,
         "forbidden_content": (
-            "new final answer, new direct option, new key numeric result, full derivation, full reference solution"
+            "new final answer, new direct option, new key numeric result, private answer correctness signal, full derivation, full reference solution"
         ),
         "has_reference_answer": bool(question_data.get("answer")),
         "has_reference_solution": bool(question_data.get("solution")),
@@ -747,10 +828,10 @@ def generate_student_hint(
     ctx = f"""Problem:
 {question_data.get('content', '')}
 
-Student Answer:
+Student Answer (private current submission; use only for rough diagnosis, never quote or confirm unless repeated in Student Request):
 {student_answer}
 
-Assessment Result:
+Assessment Result (private; never reveal or imply unless the current Student Request explicitly asks to verify a visible claim):
 {'Correct' if is_correct else 'Incorrect'}
 
 Reference Answer (private, use only for diagnosis; never quote unless the student already wrote it):
@@ -919,7 +1000,13 @@ def generate_controlled_hint(
             _record_stage_timing(stage_timings, "generate_student_hint", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_student_hint")
 
-        student_context = f"{student_answer}\n{student_request}"
+        stage_started_at = time.perf_counter()
+        final_hint, private_confirmation_guarded = _guard_private_answer_confirmation(final_hint, interaction_profile)
+        if private_confirmation_guarded:
+            _record_stage_timing(stage_timings, "output_private_answer_guard", stage_started_at)
+            _ensure_generation_budget(total_started_at, "output_private_answer_guard")
+
+        student_context = str(student_request or "")
         stage_started_at = time.perf_counter()
         local_leakage_result = heuristic_solution_leakage_check(question_data, final_hint, student_context)
         _record_stage_timing(stage_timings, "local_leakage_precheck", stage_started_at)
@@ -929,9 +1016,17 @@ def generate_controlled_hint(
         generation_strategy = "fast_path"
         timeout_stage = ""
         generation_error = ""
+        if private_confirmation_guarded:
+            generation_strategy = "guarded_redirect"
+            leakage_result = {
+                "is_leaking": False,
+                "score": 0,
+                "reason": "private_answer_confirmation_guard_redirect",
+            }
 
         if should_escalate_leakage_check(question_data, final_hint, local_leakage_result, student_request):
-            generation_strategy = "llm_checked"
+            if generation_strategy != "guarded_redirect":
+                generation_strategy = "llm_checked"
             stage_started_at = time.perf_counter()
             leakage_result = evaluate_hint_leakage(
                 question_data,
@@ -985,6 +1080,8 @@ def generate_controlled_hint(
                 }
 
         elapsed_ms = _elapsed_ms(total_started_at)
+        observability = _build_interaction_observability(interaction_profile, final_hint)
+        observability["math_consistency_risk"] = int(rewrite_count > 0)
         logging.info(
             "Controlled hint generation completed: status=success strategy=%s elapsed_ms=%s stage_timings=%s",
             generation_strategy,
@@ -1005,6 +1102,7 @@ def generate_controlled_hint(
             generation_error=generation_error,
             generation_strategy=generation_strategy,
             timeout_stage=timeout_stage,
+            **observability,
         )
 
     except ControlledHintGenerationTimeout as exc:

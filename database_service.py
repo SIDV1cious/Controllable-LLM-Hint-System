@@ -22,11 +22,18 @@ LEAKAGE_OBSERVABILITY_COLUMN_DDL = [
     "ALTER TABLE interaction_logs ADD COLUMN generation_strategy VARCHAR(32) DEFAULT 'fast_path'",
     "ALTER TABLE interaction_logs ADD COLUMN timeout_stage VARCHAR(32)",
     "ALTER TABLE interaction_logs ADD COLUMN stage_timings TEXT",
+    "ALTER TABLE interaction_logs ADD COLUMN interaction_intent VARCHAR(64)",
+    "ALTER TABLE interaction_logs ADD COLUMN private_answer_confirmed TINYINT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN side_channel_detected TINYINT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN context_drift_risk TINYINT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN math_consistency_risk TINYINT DEFAULT 0",
 ]
 
 LEAKAGE_OBSERVABILITY_INDEX_DDL = [
     "ALTER TABLE interaction_logs ADD INDEX idx_interaction_hint_strength (hint_strength)",
     "ALTER TABLE interaction_logs ADD INDEX idx_interaction_pedagogical_intent (pedagogical_intent)",
+    "ALTER TABLE interaction_logs ADD INDEX idx_interaction_intent (interaction_intent)",
+    "ALTER TABLE interaction_logs ADD INDEX idx_interaction_side_channel (side_channel_detected)",
 ]
 
 

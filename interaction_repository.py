@@ -37,6 +37,11 @@ def build_interaction_payload(
     generation_strategy: str = "fast_path",
     timeout_stage: str = "",
     stage_timings: dict | str | None = None,
+    interaction_intent: str = "",
+    private_answer_confirmed: int = 0,
+    side_channel_detected: int = 0,
+    context_drift_risk: int = 0,
+    math_consistency_risk: int = 0,
 ) -> dict:
     rewrite_total = _safe_non_negative_int(rewrite_count)
     if isinstance(stage_timings, str):
@@ -64,6 +69,11 @@ def build_interaction_payload(
         "generation_strategy": (generation_strategy or "fast_path")[:32],
         "timeout_stage": (timeout_stage or "")[:32],
         "stage_timings": stage_timings_text[:4096],
+        "interaction_intent": (interaction_intent or "")[:64],
+        "private_answer_confirmed": int(bool(_safe_non_negative_int(private_answer_confirmed))),
+        "side_channel_detected": int(bool(_safe_non_negative_int(side_channel_detected))),
+        "context_drift_risk": int(bool(_safe_non_negative_int(context_drift_risk))),
+        "math_consistency_risk": int(bool(_safe_non_negative_int(math_consistency_risk))),
         "time": now_shanghai(),
     }
 
@@ -81,11 +91,13 @@ def insert_interaction_log(payload: dict) -> None:
                     "pedagogical_intent, hint_safety_status, request_char_count, "
                     "formula_fragment_count, generation_elapsed_ms, rewrite_triggered, "
                     "generation_status, generation_error, generation_strategy, timeout_stage, "
-                    "stage_timings, created_at) "
+                    "stage_timings, interaction_intent, private_answer_confirmed, "
+                    "side_channel_detected, context_drift_risk, math_consistency_risk, created_at) "
                     "VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, "
                     ":strength, :intent, :status, :request_chars, :formula_count, :elapsed_ms, "
                     ":rewrite_flag, :generation_status, :generation_error, :generation_strategy, "
-                    ":timeout_stage, :stage_timings, :time)"
+                    ":timeout_stage, :stage_timings, :interaction_intent, :private_answer_confirmed, "
+                    ":side_channel_detected, :context_drift_risk, :math_consistency_risk, :time)"
                 ),
                 payload,
             )

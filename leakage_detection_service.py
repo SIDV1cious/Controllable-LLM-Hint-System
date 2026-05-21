@@ -105,7 +105,9 @@ def heuristic_leakage_check(
             rf"\b{choice}\b",
             rf"\({choice}\)",
             rf"选{choice}",
+            rf"选项\s*{choice}",
             rf"选择{choice}",
+            rf"选择\s*{choice}",
             rf"答案.{0,4}{choice}",
             rf"正确.{0,4}{choice}",
         ]

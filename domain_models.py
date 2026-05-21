@@ -34,3 +34,8 @@ class ControlledHintResult(TypedDict, total=False):
     generation_strategy: str
     timeout_stage: str
     stage_timings: dict[str, int]
+    interaction_intent: str
+    private_answer_confirmed: int
+    side_channel_detected: int
+    context_drift_risk: int
+    math_consistency_risk: int

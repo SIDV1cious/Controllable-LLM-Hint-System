@@ -69,13 +69,20 @@ CREATE TABLE IF NOT EXISTS interaction_logs (
     generation_strategy VARCHAR(32) DEFAULT 'fast_path',
     timeout_stage VARCHAR(32),
     stage_timings TEXT,
+    interaction_intent VARCHAR(64),
+    private_answer_confirmed TINYINT NOT NULL DEFAULT 0,
+    side_channel_detected TINYINT NOT NULL DEFAULT 0,
+    context_drift_risk TINYINT NOT NULL DEFAULT 0,
+    math_consistency_risk TINYINT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     INDEX idx_interaction_student (student_id),
     INDEX idx_interaction_question (question_id),
     INDEX idx_interaction_created_at (created_at),
     INDEX idx_interaction_leakage (is_leaking_answer, leakage_score),
     INDEX idx_interaction_hint_strength (hint_strength),
-    INDEX idx_interaction_pedagogical_intent (pedagogical_intent)
+    INDEX idx_interaction_pedagogical_intent (pedagogical_intent),
+    INDEX idx_interaction_intent (interaction_intent),
+    INDEX idx_interaction_side_channel (side_channel_detected)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS system_configs (

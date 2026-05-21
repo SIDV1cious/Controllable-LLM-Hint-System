@@ -93,6 +93,11 @@ def record_learning_interaction(
     generation_strategy: str = "fast_path",
     timeout_stage: str = "",
     stage_timings: dict | str | None = None,
+    interaction_intent: str = "",
+    private_answer_confirmed: int = 0,
+    side_channel_detected: int = 0,
+    context_drift_risk: int = 0,
+    math_consistency_risk: int = 0,
 ) -> None:
     try:
         payload = build_interaction_payload(
@@ -116,6 +121,11 @@ def record_learning_interaction(
             generation_strategy=generation_strategy,
             timeout_stage=timeout_stage,
             stage_timings=stage_timings,
+            interaction_intent=interaction_intent,
+            private_answer_confirmed=private_answer_confirmed,
+            side_channel_detected=side_channel_detected,
+            context_drift_risk=context_drift_risk,
+            math_consistency_risk=math_consistency_risk,
         )
         insert_interaction_log(payload)
         clear_student_interaction_log_cache()

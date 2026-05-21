@@ -743,6 +743,11 @@ def _render_pending_assistant_response(
                 generation_strategy=generation_strategy,
                 timeout_stage=timeout_stage,
                 stage_timings=controlled.get("stage_timings", {}),
+                interaction_intent=controlled.get("interaction_intent", ""),
+                private_answer_confirmed=controlled.get("private_answer_confirmed", 0),
+                side_channel_detected=controlled.get("side_channel_detected", 0),
+                context_drift_risk=controlled.get("context_drift_risk", 0),
+                math_consistency_risk=controlled.get("math_consistency_risk", 0),
                 **build_hint_request_observability(
                     last_query,
                     generation_elapsed_ms,
@@ -783,6 +788,11 @@ def _render_pending_assistant_response(
                 generation_strategy="fallback",
                 timeout_stage="",
                 stage_timings={},
+                interaction_intent="generation_failed",
+                private_answer_confirmed=0,
+                side_channel_detected=0,
+                context_drift_risk=0,
+                math_consistency_risk=0,
                 **build_hint_request_observability(last_query, generation_elapsed_ms, 0),
             )
     return True
