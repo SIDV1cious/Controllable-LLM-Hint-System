@@ -110,11 +110,17 @@ PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN = re.compile(
 )
 PRIVATE_CONFIRMATION_OUTPUT_PATTERN = re.compile(
     r"(\u4f60.{0,8}(\u5df2\u7ecf)?\u9009(\u5bf9|\u9519)|"
+    r"\u770b\u5230\u4f60.{0,12}(\u9009\u62e9\u4e86|\u9009\u4e86).{0,12}"
+    r"(\u9009\u9879|\u7b54\u6848)?\s*[A-D]\b|"
+    r"\u4f60.{0,12}(\u9009\u62e9\u4e86|\u9009\u4e86|\u9009\u7684\u662f|\u9009\u62e9\u7684).{0,12}"
+    r"(\u7b54\u6848|\u4f5c\u7b54|\u9009\u9879)?\s*(?:\u662f)?\s*[A-D]\b|"
     r"\u4f60\u9009\u62e9\u4e86.{0,16}(\u7cfb\u7edf|\u4e0d\u6b63\u786e|\u6b63\u786e|\u9519)|"
     r"\u4f60\u7684.{0,12}(\u7b54\u6848|\u4f5c\u7b54|\u9009\u9879).{0,16}"
     r"(\u6b63\u786e|\u4e0d\u6b63\u786e|\u9519|\u5bf9)|"
     r"\u7cfb\u7edf(\u5224\u65ad|\u5224\u5b9a).{0,24}"
     r"(\u6b63\u786e|\u4e0d\u6b63\u786e|\u9519|\u5bf9)|"
+    r"(\u79bb|\u63a5\u8fd1|\u504f\u79bb).{0,16}"
+    r"(\u6b63\u786e\u7b54\u6848|\u6807\u51c6\u7b54\u6848|\u6b63\u786e\u65b9\u5411)|"
     r"\u6b63\u786e\u9009\u9879.{0,8}[A-D]|"
     r"\u7b54\u6848\s*(?:\u662f)?\s*[A-D]\b|"
     r"(correct\s+option|correct\s+answer)\s+(?:is\s+)?[A-D]\b|"

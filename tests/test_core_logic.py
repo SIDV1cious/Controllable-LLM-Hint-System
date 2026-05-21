@@ -641,6 +641,41 @@ def test_generate_controlled_hint_guards_unrequested_private_confirmation_output
     assert "output_private_answer_guard" in result["stage_timings"]
 
 
+def test_generate_controlled_hint_guards_private_choice_quote_output(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_local_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "generate_student_hint",
+        lambda *args, **kwargs: (
+            "\u540c\u5b66\u4f60\u597d\uff0c\u770b\u5230\u4f60\u9009\u62e9\u4e86"
+            "\u9009\u9879A\uff0c\u8bf4\u660e\u4f60\u5df2\u7ecf\u8ba4\u771f\u601d\u8003\u3002"
+        ),
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "evaluate_hint_leakage",
+        lambda *args, **kwargs: {"is_leaking": False, "score": 0, "reason": "safe_after_guard"},
+    )
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "\u9898\u76ee", "answer": "A", "solution": "\u89e3\u6790"},
+        "A",
+        True,
+        "\u8bf7\u7ed9\u6211\u4e00\u4e2a\u4e0b\u4e00\u6b65\u63d0\u793a",
+    )
+
+    assert result["generation_status"] == "success"
+    assert result["generation_strategy"] == "guarded_redirect"
+    assert result["private_answer_confirmed"] == 0
+    assert "\u9009\u9879A" not in result["hint"]
+    assert "output_private_answer_guard" in result["stage_timings"]
+
+
 def test_generate_controlled_hint_keeps_student_claim_check_under_binary_pressure(monkeypatch):
     monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
 
