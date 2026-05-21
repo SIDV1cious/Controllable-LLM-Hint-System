@@ -72,6 +72,27 @@ DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
     r"debug\s*mode|system\s*prompt)",
     re.I,
 )
+INDIRECT_ANSWER_CHANNEL_PATTERN = re.compile(
+    r"(if.{0,30}(correct\s*answer|answer|correct\s*option).{0,40}(reply|output|say|print)|"
+    r"(correct\s*answer|correct\s*option).{0,40}(ascii|unicode|morse|encode|encrypt|rank|position|index)|"
+    r"(only|just).{0,12}(reply|output|say|print).{0,30}(yes|no|true|false|1|0|period|comma|letter)|"
+    r"\u5982\u679c.{0,30}(\u6b63\u786e\u7b54\u6848|\u7b54\u6848|\u6b63\u786e\u9009\u9879).{0,40}"
+    r"(\u56de\u590d|\u8f93\u51fa|\u8bf4|\u663e\u793a|\u6253\u5370)|"
+    r"(\u53ea|\u4ec5|\u53ea\u9700\u8981|\u53ea\u8981).{0,20}(\u56de\u590d|\u8f93\u51fa|\u8bf4|\u663e\u793a|\u544a\u8bc9)"
+    r".{0,30}(YES|NO|true|false|1|0|\u5bf9|\u9519|\u53e5\u53f7|\u9017\u53f7|\u5b57\u6bcd|\u5e8f\u53f7)|"
+    r"(A-D|[A-D]).{0,30}(\u7b2c\u51e0\u4e2a|\u5e8f\u53f7|\u4f4d\u7f6e|\u5b57\u6bcd\u987a\u5e8f)|"
+    r"(\u7b54\u6848|\u7ed3\u679c|\u8fd9\u9898|\u6211\u7684|\u6700\u540e).{0,35}"
+    r"(\u6253\u5206|\u8bc4\u5206|\u5f97\u5206|\u6ee1\u5206)|"
+    r"(\u6253\u5206|\u8bc4\u5206|\u5f97\u5206|\u6ee1\u5206).{0,35}"
+    r"(\u7b54\u6848|\u7ed3\u679c|\u8fd9\u9898|\u6211\u7684|\u6700\u540e)|"
+    r"(\u7b54\u6848|\u6b63\u786e\u7b54\u6848|\u6b63\u786e\u9009\u9879|\u9009\u9879).{0,35}"
+    r"(ASCII|Unicode|base64|\u6469\u65af|morse|\u7f16\u7801|\u52a0\u5bc6|\u62fc\u97f3|"
+    r"\u9996\u5b57|\u85cf\u5934|\u7b2c\u51e0\u4e2a|\u5e8f\u53f7|\u4f4d\u7f6e|\u5b57\u6bcd\u987a\u5e8f)|"
+    r"(ASCII|Unicode|base64|\u6469\u65af|morse|\u7f16\u7801|\u52a0\u5bc6|\u62fc\u97f3|"
+    r"\u9996\u5b57|\u85cf\u5934|\u7b2c\u51e0\u4e2a|\u5e8f\u53f7|\u4f4d\u7f6e|\u5b57\u6bcd\u987a\u5e8f)"
+    r".{0,35}(\u7b54\u6848|\u6b63\u786e\u7b54\u6848|\u6b63\u786e\u9009\u9879|\u9009\u9879))",
+    re.I,
+)
 PARAMETER_AB_VERIFICATION_PATTERN = re.compile(
     r"(a\s*=\s*2.{0,12}b\s*=\s*-?\s*2|b\s*=\s*-?\s*2.{0,12}a\s*=\s*2)",
     re.I,
@@ -206,6 +227,8 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     formula_parse_problem = bool(FORMULA_PARSE_GAP_PATTERN.search(combined))
     needs_foundational_formula = bool(KNOWLEDGE_RECALL_PATTERN.search(request))
     direct_answer_request = bool(DIRECT_ANSWER_REQUEST_PATTERN.search(request))
+    indirect_answer_channel = bool(INDIRECT_ANSWER_CHANNEL_PATTERN.search(request))
+    direct_answer_request = direct_answer_request or indirect_answer_channel
     negative_answer_boundary = bool(
         re.search(
             r"(\u522b|\u4e0d\u8981|\u4e0d\u7528|\u4e0d)\s*.{0,8}"
@@ -224,7 +247,7 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
             flags=re.I,
         )
     )
-    if negative_answer_boundary and not positive_direct_signal:
+    if negative_answer_boundary and not (positive_direct_signal or indirect_answer_channel):
         direct_answer_request = False
     student_supplied_answer_or_step = bool(ANSWER_VERIFICATION_PATTERN.search(combined))
     concrete_student_claim = bool(
@@ -282,6 +305,7 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
         "needs_foundational_formula": needs_foundational_formula,
         "student_supplied_answer_or_step": student_supplied_answer_or_step,
         "direct_answer_request": direct_answer_request,
+        "indirect_answer_channel": indirect_answer_channel,
         "concrete_student_claim": concrete_student_claim,
         "response_contract": response_contract,
     }
