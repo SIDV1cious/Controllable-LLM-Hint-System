@@ -62,8 +62,10 @@ FORMULA_PARSE_GAP_PATTERN = re.compile(
 )
 DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
     r"(tell me the answer|give me the answer|final answer|standard answer|"
+    r"json.{0,40}(answer|solution)|answer.{0,40}solution|"
     r"\u76f4\u63a5.*\u7b54\u6848|\u7ed9.*\u7b54\u6848|\u6700\u7ec8\u7b54\u6848|"
-    r"\u6700\u7ec8\u6570\u503c|\u53ea\u8f93\u51fa|\u6807\u51c6\u7b54\u6848|\u7b54\u6848\u662f\u4ec0\u4e48|\u6c42\u7b54\u6848|"
+    r"\u6700\u7ec8\u6570\u503c|\u53ea\u8f93\u51fa|\u6807\u51c6\u7b54\u6848|\u6b63\u786e\u7b54\u6848|\u5b8c\u6574\u89e3\u6790|"
+    r"\u4e0d\u8981\u591a\u8bf4|\u7b54\u6848\u662f\u4ec0\u4e48|\u6c42\u7b54\u6848|"
     r"\u9009\u9879\u662f\u4ec0\u4e48|\u9009\u54ea\u4e2a|\u544a\u8bc9\u6211\u9009|\u6b63\u786e\u9009\u9879|"
     r"\u522b\u8bb2\u8fc7\u7a0b|\u4e0d\u7528\u89e3\u91ca|\u53ea\u8981\u7ed3\u8bba|\u62a5\u7ed3\u679c|"
     r"\u5077\u5077|\u6284\u7b54\u6848|\u5ffd\u7565.*\u89c4\u5219|\u7ba1\u7406\u5458|\u6d4b\u8bd5\u6a21\u5f0f|"
@@ -215,9 +217,11 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     positive_direct_signal = bool(
         re.search(
             r"(\u76f4\u63a5\u544a\u8bc9|\u53ea\u8f93\u51fa|\u53ea\u8981\u7ed3\u8bba|\u6807\u51c6\u7b54\u6848|"
+            r"\u6b63\u786e\u7b54\u6848|\u5b8c\u6574\u89e3\u6790|\u4e0d\u8981\u591a\u8bf4|"
             r"\u6b63\u786e\u9009\u9879|\u9009\u54ea\u4e2a|\u6284\u7b54\u6848|\u5ffd\u7565.*\u89c4\u5219|"
-            r"\u7ed9\u6211\u5b8c\u6574\u89e3\u9898|\u76f4\u63a5\u4ea4\u4f5c\u4e1a)",
+            r"\u7ed9\u6211\u5b8c\u6574\u89e3\u9898|\u76f4\u63a5\u4ea4\u4f5c\u4e1a|json.{0,40}(answer|solution))",
             request,
+            flags=re.I,
         )
     )
     if negative_answer_boundary and not positive_direct_signal:

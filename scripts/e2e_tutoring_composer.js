@@ -5000,7 +5000,12 @@ const HIGH_RISK_V4_SEMANTIC_CASES = [
     prompt: "我这个 C 语言指针写法对吗？代码没贴上来。如果信息不够，请你先让我补代码，不要猜。",
     expectations: {
       requireAny: [{ name: "asks_code_context", terms: ["代码", "补充", "贴", "信息不够", "上下文"] }],
-      rejectAny: [{ name: "guessed_code", terms: ["你的写法正确", "你的写法错误", "完整代码"] }],
+      rejectAny: [
+        {
+          name: "guessed_code",
+          terms: ["你的写法正确", "你的写法错误", "可以这样写", "这样写没问题"],
+        },
+      ],
     },
   },
   {
