@@ -129,6 +129,27 @@ PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN = re.compile(
     r"(full\s*score|score\s*only|praise\s*me|encourage\s*me|comfort\s*me))",
     re.I,
 )
+PRIVATE_ANSWER_CONFIRMATION_PHRASES = (
+    "\u63d0\u4ea4\u7684\u4f5c\u7b54\u662f\u5426\u5408\u7406",
+    "\u63d0\u4ea4\u7684\u4f5c\u7b54\u5408\u7406",
+    "\u63d0\u4ea4\u7b54\u6848\u662f\u5426\u5b89\u5168",
+    "\u63d0\u4ea4\u7b54\u6848\u5b89\u5168",
+    "\u80fd\u4e0d\u80fd\u653e\u5fc3\u5f80\u4e0b\u5199",
+    "\u653e\u5fc3\u5f80\u4e0b\u5199",
+    "\u5927\u65b9\u5411\u504f\u6ca1\u504f",
+    "\u8fd9\u6761\u8def\u6709\u6ca1\u6709\u8d70\u504f",
+    "\u5f53\u524d\u4f5c\u7b54\u9700\u4e0d\u9700\u8981\u6539",
+    "\u8fd9\u4e2a\u80fd\u4e0d\u80fd\u4ea4",
+    "\u7ed3\u679c\u80fd\u62ff\u51e0\u5206",
+    "\u7b54\u6848\u6846\u91cc\u7684\u7ed3\u679c\u8d28\u91cf",
+)
+PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES = (
+    "submitted answer is reasonable",
+    "safe to submit",
+    "direction is off track",
+    "need to change my current answer",
+    "first letter of each sentence",
+)
 PRIVATE_CONFIRMATION_OUTPUT_PATTERN = re.compile(
     r"(\u4f60.{0,8}(\u5df2\u7ecf)?\u9009(\u5bf9|\u9519)|"
     r"\u770b\u5230\u4f60.{0,12}(\u9009\u62e9\u4e86|\u9009\u4e86).{0,12}"
@@ -141,7 +162,13 @@ PRIVATE_CONFIRMATION_OUTPUT_PATTERN = re.compile(
     r"\u9009\s*[A-D].{0,10}(\u8bf4\u660e|\u8868\u793a|\u610f\u5473)|"
     r"\u4f60\u9009\u62e9\u4e86.{0,16}(\u7cfb\u7edf|\u4e0d\u6b63\u786e|\u6b63\u786e|\u9519)|"
     r"\u4f60\u7684.{0,12}(\u7b54\u6848|\u4f5c\u7b54|\u9009\u9879).{0,16}"
-    r"(\u6b63\u786e|\u4e0d\u6b63\u786e|\u9519|\u5bf9)|"
+    r"(\u6b63\u786e|\u4e0d\u6b63\u786e|\u9519|\u5bf9|\u5408\u7406|\u4e0d\u5408\u7406)|"
+    r"\u4f60\u63d0\u4ea4\u7684.{0,16}(\u4f5c\u7b54|\u7b54\u6848|\u7ed3\u679c).{0,20}"
+    r"(\u5408\u7406|\u4e0d\u5408\u7406|\u6b63\u786e|\u4e0d\u6b63\u786e|\u9519|\u5bf9)|"
+    r"\u9009\u9879\s*[A-D].{0,24}(\u4e0d\u6b63\u786e|\u6b63\u786e|\u9519|\u5bf9|\u9519\u8bef)|"
+    r"\u4f60.{0,10}(\u9009\u62e9|\u9009).{0,8}[A-D].{0,24}"
+    r"(\u4e0d\u6b63\u786e|\u6b63\u786e|\u9519|\u5bf9|\u504f|\u8bf4\u660e|\u9700\u8981)|"
+    r"\u4f60.{0,12}(\u65b9\u5411|\u601d\u8def|\u60f3\u6cd5).{0,20}(\u504f|\u8d70\u504f|\u6709\u4e9b\u504f|\u6b63\u786e|\u4e0d\u6b63\u786e)|"
     r"\u7cfb\u7edf(\u5224\u65ad|\u5224\u5b9a).{0,24}"
     r"(\u6b63\u786e|\u4e0d\u6b63\u786e|\u9519|\u5bf9)|"
     r"(\u79bb|\u63a5\u8fd1|\u504f\u79bb).{0,16}"
@@ -334,6 +361,31 @@ def _guard_private_answer_confirmation(final_hint: str, profile: dict) -> tuple[
     return final_hint, False
 
 
+def _has_private_answer_confirmation_phrase(student_request: str) -> bool:
+    request = str(student_request or "")
+    lowered = request.lower()
+    if any(phrase in request for phrase in PRIVATE_ANSWER_CONFIRMATION_PHRASES):
+        return True
+    if any(phrase in lowered for phrase in PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES):
+        return True
+    if "\u63d0\u4ea4" in request and any(
+        term in request
+        for term in (
+            "\u5408\u7406",
+            "\u5b89\u5168",
+            "\u80fd\u4e0d\u80fd\u4ea4",
+            "\u9700\u4e0d\u9700\u8981\u6539",
+            "\u62ff\u51e0\u5206",
+        )
+    ):
+        return True
+    if "\u6697\u793a" in request and any(
+        term in request for term in ("\u504f", "\u9760\u8c31", "\u5bf9\u9519", "\u65b9\u5411")
+    ):
+        return True
+    return False
+
+
 def analyze_student_interaction(student_request: str, student_answer: str = "") -> dict:
     request = str(student_request or "")
     answer = str(student_answer or "")
@@ -342,7 +394,9 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     needs_foundational_formula = bool(KNOWLEDGE_RECALL_PATTERN.search(request))
     direct_answer_request = bool(DIRECT_ANSWER_REQUEST_PATTERN.search(request))
     indirect_answer_channel = bool(INDIRECT_ANSWER_CHANNEL_PATTERN.search(request))
-    private_answer_confirmation_request = bool(PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN.search(request))
+    private_answer_confirmation_request = bool(
+        PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN.search(request) or _has_private_answer_confirmation_phrase(request)
+    )
     direct_answer_request = direct_answer_request or indirect_answer_channel
     negative_answer_boundary = bool(
         re.search(

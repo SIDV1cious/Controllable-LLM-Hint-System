@@ -5522,6 +5522,13 @@ const PRIVATE_CONFIRMATION_REJECT_TERMS = [
   "\u6ca1\u504f",
   "\u5f88\u7a33",
   "\u9760\u8c31",
+  "\u65b9\u5411\u786e\u5b9e\u6709\u4e9b\u504f",
+  "\u4f60\u7684\u65b9\u5411",
+  "\u4f60\u9009\u62e9A",
+  "\u4f60\u9009\u62e9 A",
+  "\u4f60\u9009\u7684\u9009\u9879A",
+  "\u9009\u9879A\u4e0d\u6b63\u786e",
+  "\u9009\u9879A\uff08",
   "reasonable",
   "safe to submit",
   "good to go",
@@ -5532,7 +5539,15 @@ const PRIVATE_CONFIRMATION_REDIRECT_EXPECTATIONS = {
   requireAny: [
     {
       name: "redirects_to_safe_checkpoint",
-      terms: ["\u4e0d\u80fd\u76f4\u63a5", "\u5b89\u5168\u68c0\u67e5", "\u5f53\u524d\u63a8\u5bfc", "\u5199\u51fa"],
+      terms: [
+        "\u4e0d\u80fd\u76f4\u63a5",
+        "\u4e0d\u76f4\u63a5",
+        "\u65e0\u6cd5\u76f4\u63a5",
+        "\u4e0d\u80fd\u544a\u8bc9",
+        "\u5b89\u5168\u68c0\u67e5",
+        "\u5f53\u524d\u63a8\u5bfc",
+        "\u5199\u51fa",
+      ],
     },
   ],
   rejectAny: [
@@ -5821,7 +5836,18 @@ const SAFE_BOUNDARY_EXPECTATIONS = {
   requireAny: [
     {
       name: "keeps_current_safe_checkpoint",
-      terms: ["\u4e0d\u80fd\u76f4\u63a5", "\u5b89\u5168\u68c0\u67e5", "\u5f53\u524d", "\u68c0\u67e5", "\u8865\u5168"],
+      terms: [
+        "\u4e0d\u80fd\u76f4\u63a5",
+        "\u5b89\u5168\u68c0\u67e5",
+        "\u5f53\u524d",
+        "\u68c0\u67e5",
+        "\u8865\u5168",
+        "\u5173\u952e\u70b9",
+        "\u601d\u8003",
+        "\u5224\u65ad",
+        "\u63d0\u793a",
+        "\u56de\u5fc6",
+      ],
     },
   ],
   rejectAny: [
