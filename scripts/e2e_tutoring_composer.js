@@ -4557,7 +4557,9 @@ function tailAfterMarker(text, marker) {
 }
 
 function assistantReplyAfterMarker(text, marker) {
-  const tail = tailAfterMarker(text, marker);
+  const value = String(text || "");
+  const markerIndex = marker ? value.lastIndexOf(marker) : -1;
+  const tail = markerIndex >= 0 ? value.slice(markerIndex + String(marker).length) : value;
   const boundaries = [
     "\u7b54\u6848\u6cc4\u9732\u68c0\u6d4b\u72b6\u6001",
     "\u63d0\u793a\u5f3a\u5ea6\u63a7\u5236",
