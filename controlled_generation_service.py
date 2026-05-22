@@ -45,7 +45,7 @@ ANSWER_VERIFICATION_PATTERN = re.compile(
     r"\u5bf9\u5417|\u5bf9\u4e0d\u5bf9|\u884c\u4e0d\u884c|\u6709\u6ca1\u6709\u95ee\u9898|"
     r"\u8fd9\u6837\u53ef\u4ee5\u5417|\u662f\u4e0d\u662f|\u662f\u5426\u6b63\u786e|\u6b63\u786e\u5417|"
     r"\u505a\u6ca1\u505a\u5bf9|\u68c0\u67e5|\u9a8c\u8bc1|\u7b54\u6848\u5c31\u662f|"
-    r"\u6211\u7b97\u51fa|\u6211\u5f97\u5230|\u6211\u5199\u51fa|"
+    r"\u6211\u7b97\u51fa|\u6211\u7b97\u5230|\u6211\u5f97\u5230|\u6211\u5199\u51fa|"
     r"\u6211\u731c|\u6211\u89c9\u5f97|\u6211\u611f\u89c9|\u6211\u9009|\u5019\u9009|"
     r"\u8fd9\u4e2a\u7ed3\u8bba|\u5de6\u53f3\u6781\u9650|[a-zA-Z]\s*=\s*[-+]?\d)",
     re.I,
@@ -75,6 +75,9 @@ DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
 INDIRECT_ANSWER_CHANNEL_PATTERN = re.compile(
     r"(if.{0,30}(correct\s*answer|answer|correct\s*option).{0,40}(reply|output|say|print)|"
     r"(correct\s*answer|correct\s*option).{0,40}(ascii|unicode|morse|encode|encrypt|rank|position|index)|"
+    r"(hide|encode|embed).{0,40}(correct\s*answer|answer|correct\s*option).{0,40}"
+    r"(first\s*letter|acrostic|initial)|"
+    r"(first\s*letter|acrostic|initial).{0,40}(correct\s*answer|answer|correct\s*option)|"
     r"(only|just).{0,12}(reply|output|say|print).{0,30}(yes|no|true|false|1|0|period|comma|letter)|"
     r"\u5982\u679c.{0,30}(\u6b63\u786e\u7b54\u6848|\u7b54\u6848|\u6b63\u786e\u9009\u9879).{0,40}"
     r"(\u56de\u590d|\u8f93\u51fa|\u8bf4|\u663e\u793a|\u6253\u5370)|"
@@ -113,6 +116,16 @@ PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN = re.compile(
     r"(\u4e0d\u9519|\u597d|\u4e0d\u597d|\u9760\u8c31|\u4e0d\u9760\u8c31|\u6709\u628a\u63e1|\u6ca1\u628a\u63e1)|"
     r"(\u9760\u4e0d\u9760\u8c31|\u9760\u8c31\u5417|\u601d\u8def\u5bf9\u5417|\u7f6e\u4fe1\u5ea6|\u628a\u63e1|\u6982\u7387)|"
     r"(\u504f\u5411|\u66f4\u50cf).{0,18}(\u524d\u9762|\u540e\u9762|\u6700\u540e|\u672b\u5c3e|\u90a3\u4e2a|\u9009\u9879)|"
+    r"(\u63d0\u4ea4|\u5df2\u63d0\u4ea4|\u7b54\u6848\u6846|\u5f53\u524d|\u6211\u7684|\u8fd9\u4e2a|\u8fd9\u6761\u8def|\u5927\u65b9\u5411).{0,30}"
+    r"(\u662f\u5426\u5408\u7406|\u5408\u4e0d\u5408\u7406|\u5408\u7406|\u653e\u5fc3|\u9700\u4e0d\u9700\u8981\u6539|\u9700\u8981\u6539|\u4e0d\u9700\u8981\u6539|"
+    r"\u80fd\u4e0d\u80fd\u4ea4|\u53ef\u4ee5\u4ea4|\u80fd\u4e0d\u80fd\u7ed9\u5206|\u62ff\u51e0\u5206|\u8d70\u504f|\u504f\u6ca1\u504f|"
+    r"\u6709\u6ca1\u6709\u504f|\u9760\u4e0d\u9760\u8c31|\u662f\u4e0d\u662f\u7a33|\u7a33\u4e0d\u7a33|\u80fd\u4e0d\u80fd\u7ee7\u7eed|\u8d28\u91cf|\u600e\u4e48\u6837)|"
+    r"(\u522b|\u4e0d\u8981|\u4e0d\u7528).{0,16}(\u6b63\u786e|\u9519\u8bef|\u5bf9\u9519|\u7b54\u6848).{0,35}"
+    r"(\u5408\u7406|\u653e\u5fc3|\u5f80\u4e0b\u5199|\u7ee7\u7eed|\u8d70\u504f|\u504f\u6ca1\u504f|\u80fd\u4e0d\u80fd\u4ea4|\u9700\u4e0d\u9700\u8981\u6539|\u7ed9\u5206|\u62ff\u5206)|"
+    r"(\u5982\u679c|\u82e5).{0,20}(\u6ca1\u95ee\u9898|\u6b63\u786e|\u5bf9).{0,20}(\u7ee7\u7eed|\u5f80\u540e\u8bb2|\u63d0\u9192)|"
+    r"(\u8bed\u6c14|\u6697\u793a).{0,24}(\u9760\u8c31|\u6b63\u786e|\u5bf9|\u9519|\u8d70\u504f|\u65b9\u5411)|"
+    r"(reasonable|safe\s+to\s+submit|good\s+to\s+go|off\s+track|need\s+to\s+change|submitted\s+answer|"
+    r"current\s+answer|grade\s+this|score\s+this|first\s+letter\s+of\s+each\s+sentence)|"
     r"(full\s*score|score\s*only|praise\s*me|encourage\s*me|comfort\s*me))",
     re.I,
 )
@@ -142,6 +155,15 @@ PRIVATE_CONFIRMATION_OUTPUT_PATTERN = re.compile(
     r"(\u9760\u8c31|\u4e0d\u9760\u8c31|\u4e0d\u9519|\u6709\u95ee\u9898|\u7f6e\u4fe1\u5ea6|\u628a\u63e1|\u504f\u5411)|"
     r"(\u7f6e\u4fe1\u5ea6|\u628a\u63e1).{0,16}(\u9ad8|\u4f4e|\u8f83\u9ad8|\u8f83\u4f4e|\d+%)|"
     r"(\u504f\u5411|\u66f4\u63a5\u8fd1).{0,16}(\u524d\u9762|\u540e\u9762|\u6700\u540e|\u6807\u51c6\u7b54\u6848|\u6b63\u786e\u7b54\u6848)|"
+    r"\u4f60.{0,12}(\u53ef\u4ee5\u653e\u5fc3|\u653e\u5fc3\u7ee7\u7eed|\u4e0d\u9700\u8981\u4fee\u6539|\u4e0d\u9700\u8981\u6539|\u65e0\u9700\u4fee\u6539)|"
+    r"(\u4f60.{0,12})?(\u63d0\u4ea4\u7684)?(\u4f5c\u7b54|\u7b54\u6848|\u7ed3\u679c|\u60f3\u6cd5|\u601d\u8def|\u65b9\u5411|\u8fd9\u6761\u8def).{0,20}"
+    r"(\u5408\u7406|\u5f88\u7a33|\u9760\u8c31|\u6ca1\u6709\u8d70\u504f|\u6ca1\u8d70\u504f|\u6ca1\u6709\u504f|\u6ca1\u504f|"
+    r"\u4e0d\u9700\u8981\u4fee\u6539|\u4e0d\u9700\u8981\u6539|\u65e0\u9700\u4fee\u6539|\u53ef\u4ee5\u4ea4|\u80fd\u62ff\u5206|\u80fd\u7ed9\u5206|\u53ef\u4ee5\u7ed9\u5206|\u57fa\u672c\u80fd\u62ff\u5206)|"
+    r"(\u53ef\u4ee5\u7ee7\u7eed|\u53ef\u4ee5\u5f80\u540e\u8bb2|\u8fd9\u4e2a\u53ef\u4ee5\u4ea4|\u8fd9\u6761\u8def\u6ca1\u6709\u8d70\u504f)|"
+    r"(\u6279\u6539|\u8001\u5e08).{0,20}(\u80fd\u62ff\u5206|\u80fd\u7ed9\u5206|\u53ef\u4ee5\u7ed9\u5206)|"
+    r"(your\s+(answer|submission|submitted\s+answer|current\s+answer).{0,24}(correct|wrong|reasonable|safe)|"
+    r"safe\s+to\s+submit|good\s+to\s+go|no\s+need\s+to\s+change|not\s+off\s+track|"
+    r"is\s+not\s+off\s+track|this\s+is\s+safe\s+to\s+submit)|"
     r"(\u7b11\u8138|\u54ed\u8138|\u7eff\u8272\u8bed\u6c14|\u7ea2\u8272\u8bed\u6c14))",
     re.I,
 )
@@ -156,7 +178,7 @@ CHOICE_CLAIM_PATTERN = re.compile(
     re.I,
 )
 CONCRETE_STUDENT_CLAIM_PATTERN = re.compile(
-    r"(\u6211(?:\u7b97\u51fa|\u5f97\u5230|\u5199\u51fa|\u731c|\u89c9\u5f97|\u611f\u89c9|\u8ba4\u4e3a|\u9009).{0,80}"
+    r"(\u6211(?:\u7b97\u51fa|\u7b97\u5230|\u5f97\u5230|\u5199\u51fa|\u731c|\u89c9\u5f97|\u611f\u89c9|\u8ba4\u4e3a|\u9009).{0,80}"
     r"(=|\u4e3a|\u662f|\u9009|\u6781\u9650|\u5bfc\u6570|\u95f4\u65ad|\u8fde\u7eed|[A-D])|"
     r"\u5019\u9009.{0,40}(=|\u662f|[A-D])|"
     r"[a-zA-Z]\s*=\s*[-+]?\d)",
