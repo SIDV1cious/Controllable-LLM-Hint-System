@@ -53,7 +53,7 @@ def build_interaction_payload(
         stage_timings_text = json.dumps(stage_timings or {}, ensure_ascii=False, sort_keys=True)
     return {
         "qid": question_id,
-        "sid": student_id,
+        "sid": str(student_id or "")[:64],
         "qry": user_query,
         "rsp": ai_response,
         "leak": is_leaking_answer,

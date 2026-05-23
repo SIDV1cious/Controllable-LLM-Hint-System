@@ -1,3 +1,4 @@
+ALTER TABLE interaction_logs MODIFY COLUMN student_id VARCHAR(64) NOT NULL;
 ALTER TABLE interaction_logs ADD COLUMN leakage_score INT DEFAULT 0;
 ALTER TABLE interaction_logs ADD COLUMN rewrite_count INT DEFAULT 0;
 ALTER TABLE interaction_logs ADD COLUMN leakage_reason VARCHAR(255);

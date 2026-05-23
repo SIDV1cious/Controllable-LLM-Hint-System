@@ -1418,7 +1418,8 @@ def test_llm_call_metadata_counts_messages_and_prompt_chars():
 def test_leakage_observability_ddl_is_centralized():
     ddl = iter_leakage_observability_ddl()
 
-    assert len(ddl) == 30
+    assert len(ddl) == 31
+    assert any("MODIFY COLUMN student_id VARCHAR(64)" in statement for statement in ddl)
     assert any("leakage_score" in statement for statement in ddl)
     assert any("generation_elapsed_ms" in statement for statement in ddl)
     assert any("generation_status" in statement for statement in ddl)
@@ -1441,6 +1442,7 @@ def test_manual_observability_migration_matches_runtime_private_signal_columns()
 
     for column in [
         "interaction_intent",
+        "MODIFY COLUMN student_id VARCHAR(64)",
         "private_answer_confirmed",
         "side_channel_detected",
         "private_progress_signal_request",
@@ -1638,7 +1640,7 @@ def test_public_question_id_mapping_is_stable():
 def test_interaction_payload_truncates_observability_fields():
     payload = build_interaction_payload(
         question_id=1001,
-        student_id="student001",
+        student_id="student001" * 20,
         user_query="【辅导】请提示下一步",
         ai_response="先回到定义。",
         leakage_reason="x" * 300,
@@ -1665,7 +1667,7 @@ def test_interaction_payload_truncates_observability_fields():
     )
 
     assert payload["qid"] == 1001
-    assert payload["sid"] == "student001"
+    assert len(payload["sid"]) == 64
     assert len(payload["reason"]) == 255
     assert len(payload["strength"]) == 32
     assert len(payload["intent"]) == 64
