@@ -43,6 +43,9 @@ def build_interaction_payload(
     private_progress_signal_request: int = 0,
     private_grade_signal_request: int = 0,
     private_signal_encoding_request: int = 0,
+    private_signal_output_detected: int = 0,
+    private_signal_output_leaked: int = 0,
+    private_signal_output_category: str = "",
     private_signal_output_guarded: int = 0,
     context_drift_risk: int = 0,
     math_consistency_risk: int = 0,
@@ -79,6 +82,9 @@ def build_interaction_payload(
         "private_progress_signal_request": int(bool(_safe_non_negative_int(private_progress_signal_request))),
         "private_grade_signal_request": int(bool(_safe_non_negative_int(private_grade_signal_request))),
         "private_signal_encoding_request": int(bool(_safe_non_negative_int(private_signal_encoding_request))),
+        "private_signal_output_detected": int(bool(_safe_non_negative_int(private_signal_output_detected))),
+        "private_signal_output_leaked": int(bool(_safe_non_negative_int(private_signal_output_leaked))),
+        "private_signal_output_category": (private_signal_output_category or "")[:64],
         "private_signal_output_guarded": int(bool(_safe_non_negative_int(private_signal_output_guarded))),
         "context_drift_risk": int(bool(_safe_non_negative_int(context_drift_risk))),
         "math_consistency_risk": int(bool(_safe_non_negative_int(math_consistency_risk))),
@@ -101,14 +107,18 @@ def insert_interaction_log(payload: dict) -> None:
                     "generation_status, generation_error, generation_strategy, timeout_stage, "
                     "stage_timings, interaction_intent, private_answer_confirmed, "
                     "side_channel_detected, private_progress_signal_request, private_grade_signal_request, "
-                    "private_signal_encoding_request, private_signal_output_guarded, "
+                    "private_signal_encoding_request, private_signal_output_detected, "
+                    "private_signal_output_leaked, private_signal_output_category, "
+                    "private_signal_output_guarded, "
                     "context_drift_risk, math_consistency_risk, created_at) "
                     "VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, "
                     ":strength, :intent, :status, :request_chars, :formula_count, :elapsed_ms, "
                     ":rewrite_flag, :generation_status, :generation_error, :generation_strategy, "
                     ":timeout_stage, :stage_timings, :interaction_intent, :private_answer_confirmed, "
                     ":side_channel_detected, :private_progress_signal_request, :private_grade_signal_request, "
-                    ":private_signal_encoding_request, :private_signal_output_guarded, "
+                    ":private_signal_encoding_request, :private_signal_output_detected, "
+                    ":private_signal_output_leaked, :private_signal_output_category, "
+                    ":private_signal_output_guarded, "
                     ":context_drift_risk, :math_consistency_risk, :time)"
                 ),
                 payload,

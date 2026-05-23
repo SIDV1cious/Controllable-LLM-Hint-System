@@ -102,6 +102,7 @@ def fetch_hint_leakage_records(conn) -> pd.DataFrame:
             "COALESCE(NULLIF(generation_strategy, ''), 'fast_path') AS generation_strategy, "
             "COALESCE(timeout_stage, '') AS timeout_stage, "
             "private_progress_signal_request, private_grade_signal_request, private_signal_encoding_request, "
+            "private_signal_output_detected, private_signal_output_leaked, private_signal_output_category, "
             "private_signal_output_guarded "
             "FROM interaction_logs WHERE user_query LIKE :pattern"
         ),
@@ -122,6 +123,9 @@ def summarize_hint_leakage_records(df: pd.DataFrame) -> dict:
             "timeout_rate": 0.0,
             "fast_path_rate": 0.0,
             "rewrite_rate": 0.0,
+            "private_signal_output_detected_rate": 0.0,
+            "private_signal_output_leaked_rate": 0.0,
+            "private_signal_output_guarded_rate": 0.0,
         }
 
     total_hints = len(df)
@@ -136,6 +140,15 @@ def summarize_hint_leakage_records(df: pd.DataFrame) -> dict:
         df.get("generation_strategy", pd.Series(["fast_path"] * total_hints)).fillna("fast_path").astype(str)
     )
     timeout_stage = df.get("timeout_stage", pd.Series([""] * total_hints)).fillna("").astype(str)
+    private_signal_output_detected = pd.to_numeric(
+        df.get("private_signal_output_detected", pd.Series([0] * total_hints)), errors="coerce"
+    ).fillna(0)
+    private_signal_output_leaked = pd.to_numeric(
+        df.get("private_signal_output_leaked", pd.Series([0] * total_hints)), errors="coerce"
+    ).fillna(0)
+    private_signal_output_guarded = pd.to_numeric(
+        df.get("private_signal_output_guarded", pd.Series([0] * total_hints)), errors="coerce"
+    ).fillna(0)
     rewrite_total = int(rewrite_count.astype(int).sum())
     rewrite_session_count = int(((rewrite_triggered.astype(int) > 0) | (rewrite_count.astype(int) > 0)).sum())
     timeout_count = int(((generation_status == "timeout") | (timeout_stage.str.strip() != "")).sum())
@@ -150,6 +163,15 @@ def summarize_hint_leakage_records(df: pd.DataFrame) -> dict:
         "timeout_rate": round(timeout_count / total_hints * 100, 1),
         "fast_path_rate": round(fast_path_count / total_hints * 100, 1),
         "rewrite_rate": round(rewrite_session_count / total_hints * 100, 1),
+        "private_signal_output_detected_rate": round(
+            private_signal_output_detected.astype(int).sum() / total_hints * 100, 1
+        ),
+        "private_signal_output_leaked_rate": round(
+            private_signal_output_leaked.astype(int).sum() / total_hints * 100, 1
+        ),
+        "private_signal_output_guarded_rate": round(
+            private_signal_output_guarded.astype(int).sum() / total_hints * 100, 1
+        ),
     }
 
 
@@ -211,6 +233,9 @@ def fetch_recent_interaction_logs(conn, limit: int = 50) -> pd.DataFrame:
                 "private_progress_signal_request AS '私有进度信号请求', "
                 "private_grade_signal_request AS '私有评分信号请求', "
                 "private_signal_encoding_request AS '私有编码信号请求', "
+                "private_signal_output_detected AS '输出信号已识别', "
+                "private_signal_output_leaked AS '输出信号仍泄漏', "
+                "private_signal_output_category AS '输出信号类别', "
                 "private_signal_output_guarded AS '输出保护触发', "
                 "generation_error AS '生成异常', leakage_reason AS '检测原因', "
                 "created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT :limit"

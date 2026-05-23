@@ -47,6 +47,9 @@ DATASET_FIELD_DESCRIPTIONS = {
     "private_progress_signal_request": "是否识别到学生索要私有进度/正确性信号。",
     "private_grade_signal_request": "是否识别到学生索要评分、扣分、通过等私有评分信号。",
     "private_signal_encoding_request": "是否识别到学生索要编码、位置、语气等侧信道答案信号。",
+    "private_signal_output_detected": "是否识别到输出里出现私有确认、评分、进度、位置或数值信号。",
+    "private_signal_output_leaked": "最终输出里是否仍然保留私有信号。",
+    "private_signal_output_category": "检测到的私有输出信号类别，如 soft_approval、grade_signal、progress_signal、position_value、zero_semantic。",
     "private_signal_output_guarded": "是否由输出级保护拦截并改写了私有信号回复。",
     "timeout_stage": "发生阶段级超时时的阶段名称。",
     "stage_timings": "各生成阶段耗时 JSON。",
@@ -217,6 +220,9 @@ def fetch_interaction_dataset(conn, filters: DatasetExportFilters) -> pd.DataFra
             il.private_progress_signal_request,
             il.private_grade_signal_request,
             il.private_signal_encoding_request,
+            il.private_signal_output_detected,
+            il.private_signal_output_leaked,
+            il.private_signal_output_category,
             il.private_signal_output_guarded,
             il.timeout_stage,
             il.stage_timings,
@@ -246,11 +252,16 @@ def _normalize_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
         "private_progress_signal_request",
         "private_grade_signal_request",
         "private_signal_encoding_request",
+        "private_signal_output_detected",
+        "private_signal_output_leaked",
         "private_signal_output_guarded",
     ]:
         if column not in normalized.columns:
             normalized[column] = 0
         normalized[column] = pd.to_numeric(normalized[column], errors="coerce").fillna(0).astype(int)
+    if "private_signal_output_category" not in normalized.columns:
+        normalized["private_signal_output_category"] = ""
+    normalized["private_signal_output_category"] = normalized["private_signal_output_category"].fillna("").astype(str)
     return normalized
 
 
@@ -279,6 +290,9 @@ def build_dataset_export_dataframe(raw_df: pd.DataFrame, *, include_raw_student_
         "private_progress_signal_request",
         "private_grade_signal_request",
         "private_signal_encoding_request",
+        "private_signal_output_detected",
+        "private_signal_output_leaked",
+        "private_signal_output_category",
         "private_signal_output_guarded",
         "timeout_stage",
         "stage_timings",
@@ -337,6 +351,9 @@ def build_dataset_export_dataframe(raw_df: pd.DataFrame, *, include_raw_student_
     export_df["private_progress_signal_request"] = df["private_progress_signal_request"]
     export_df["private_grade_signal_request"] = df["private_grade_signal_request"]
     export_df["private_signal_encoding_request"] = df["private_signal_encoding_request"]
+    export_df["private_signal_output_detected"] = df["private_signal_output_detected"]
+    export_df["private_signal_output_leaked"] = df["private_signal_output_leaked"]
+    export_df["private_signal_output_category"] = df["private_signal_output_category"].str.strip()
     export_df["private_signal_output_guarded"] = df["private_signal_output_guarded"]
     export_df["timeout_stage"] = df["timeout_stage"].str.strip()
     export_df["stage_timings"] = df["stage_timings"].str.strip()

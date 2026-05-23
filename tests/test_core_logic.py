@@ -712,6 +712,28 @@ def test_analyze_student_interaction_flags_v14_english_direct_answer_requests():
         assert profile["concrete_student_claim"] is False
 
 
+def test_analyze_student_interaction_flags_v17_soft_confirmation_requests():
+    prompts = [
+        "Would this be okay to submit?",
+        "Is this okay?",
+        "Does this look okay?",
+        "Should I submit this as is?",
+        "这步行不行？",
+        "这方向稳不稳？",
+        "能不能直接提交？",
+        "老师会不会给分？",
+    ]
+
+    for prompt in prompts:
+        profile = controlled_generation.analyze_student_interaction(prompt, "A")
+        assert profile["interaction_intent"] == "direct_answer_redirect"
+        assert profile["direct_answer_request"] is True
+        assert profile["private_answer_confirmation_request"] is True
+        assert profile["private_progress_signal_request"] is True
+        assert profile["student_supplied_answer_or_step"] is False
+        assert profile["concrete_student_claim"] is False
+
+
 def test_analyze_student_interaction_allows_v12_visible_ordinal_and_english_claims():
     visible_claims = [
         "I think option C is right.",
@@ -1036,6 +1058,32 @@ def test_private_answer_output_guard_blocks_v14_english_soft_confirmations_and_z
         assert "\u4e0d\u80fd\u76f4\u63a5" in guarded_hint
 
 
+def test_private_answer_output_guard_blocks_v17_soft_submission_approval_outputs():
+    profile = controlled_generation.analyze_student_interaction(
+        "Please give me a next-step hint.",
+        "C",
+    )
+    dangerous_outputs = [
+        "This is okay.",
+        "Looks okay to me.",
+        "You may submit it.",
+        "The proof is sound.",
+        "This should be accepted.",
+        "You can submit as is.",
+        "这步行。",
+        "方向稳。",
+        "这结果可以提交。",
+        "这证明靠谱。",
+        "老师大概率会给分。",
+    ]
+
+    for final_hint in dangerous_outputs:
+        guarded_hint, changed = controlled_generation._guard_private_answer_confirmation(final_hint, profile)
+        assert changed is True
+        assert guarded_hint != final_hint
+        assert "\u4e0d\u80fd\u76f4\u63a5" in guarded_hint
+
+
 def test_private_answer_output_guard_keeps_visible_position_claim_but_blocks_grade_signal():
     profile = controlled_generation.analyze_student_interaction("My guess is the third candidate.", "C")
 
@@ -1110,6 +1158,28 @@ def test_heuristic_leakage_check_detects_v14_english_zero_and_position_semantics
     ]
     for hint in position_cases:
         result = heuristic_leakage_check("C", hint, "")
+        assert result["is_leaking"] is True
+        assert result["score"] >= 2
+        assert result["reason"] in {"local_private_progress_signal", "local_semantic_choice_answer"}
+
+
+def test_heuristic_leakage_check_detects_v17_soft_submission_approval_outputs():
+    approval_cases = [
+        "This is okay.",
+        "Looks okay to me.",
+        "You may submit it.",
+        "The proof is sound.",
+        "This should be accepted.",
+        "You can submit as is.",
+        "这步行。",
+        "方向稳。",
+        "这结果可以提交。",
+        "这证明靠谱。",
+        "老师大概率会给分。",
+    ]
+
+    for hint in approval_cases:
+        result = heuristic_leakage_check("A", hint, "")
         assert result["is_leaking"] is True
         assert result["score"] == 2
         assert result["reason"] == "local_private_progress_signal"
@@ -1229,6 +1299,80 @@ def test_generate_controlled_hint_guards_private_choice_quote_output(monkeypatch
     assert result["private_answer_confirmed"] == 0
     assert "\u9009\u9879A" not in result["hint"]
     assert "output_private_answer_guard" in result["stage_timings"]
+
+
+def test_generate_controlled_hint_records_private_signal_output_observability(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_local_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "generate_student_hint",
+        lambda *args, **kwargs: "This is okay.",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "evaluate_hint_leakage",
+        lambda *args, **kwargs: {"is_leaking": False, "score": 0, "reason": "safe_after_guard"},
+    )
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "\u9898\u76ee", "answer": "A", "solution": "\u89e3\u6790"},
+        "A",
+        True,
+        "\u8bf7\u7ed9\u6211\u4e00\u4e2a\u4e0b\u4e00\u6b65\u63d0\u793a",
+    )
+
+    assert result["generation_status"] == "success"
+    assert result["generation_strategy"] == "guarded_redirect"
+    assert result["private_signal_output_detected"] == 1
+    assert result["private_signal_output_leaked"] == 0
+    assert result["private_signal_output_category"] == "soft_approval"
+    assert result["private_signal_output_guarded"] == 1
+    assert "This is okay" not in result["hint"]
+
+
+def test_generate_controlled_hint_reguards_after_rewrite(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_local_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "generate_student_hint",
+        lambda *args, **kwargs: "Initial hint that needs rewrite.",
+    )
+    monkeypatch.setattr(controlled_generation, "should_escalate_leakage_check", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        controlled_generation,
+        "evaluate_hint_leakage",
+        lambda *args, **kwargs: {"is_leaking": True, "score": 2, "reason": "local_private_progress_signal"},
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "rewrite_unsafe_hint",
+        lambda *args, **kwargs: "This is okay.",
+    )
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "\u9898\u76ee", "answer": "A", "solution": "\u89e3\u6790"},
+        "A",
+        True,
+        "\u8bf7\u7ed9\u6211\u4e00\u4e2a\u4e0b\u4e00\u6b65\u63d0\u793a",
+    )
+
+    assert result["generation_status"] == "success"
+    assert result["generation_strategy"] == "guarded_redirect"
+    assert result["private_signal_output_detected"] == 1
+    assert result["private_signal_output_leaked"] == 0
+    assert result["private_signal_output_guarded"] == 1
+    assert "output_private_answer_guard_after_rewrite" in result["stage_timings"]
+    assert "This is okay" not in result["hint"]
 
 
 def test_generate_controlled_hint_keeps_student_claim_check_under_binary_pressure(monkeypatch):
@@ -1686,7 +1830,7 @@ def test_llm_call_metadata_counts_messages_and_prompt_chars():
 def test_leakage_observability_ddl_is_centralized():
     ddl = iter_leakage_observability_ddl()
 
-    assert len(ddl) == 33
+    assert len(ddl) == 37
     assert any("MODIFY COLUMN student_id VARCHAR(64)" in statement for statement in ddl)
     assert any("leakage_score" in statement for statement in ddl)
     assert any("generation_elapsed_ms" in statement for statement in ddl)
@@ -1699,11 +1843,15 @@ def test_leakage_observability_ddl_is_centralized():
     assert any("private_progress_signal_request" in statement for statement in ddl)
     assert any("private_grade_signal_request" in statement for statement in ddl)
     assert any("private_signal_encoding_request" in statement for statement in ddl)
+    assert any("private_signal_output_detected" in statement for statement in ddl)
+    assert any("private_signal_output_leaked" in statement for statement in ddl)
+    assert any("private_signal_output_category" in statement for statement in ddl)
     assert any("private_signal_output_guarded" in statement for statement in ddl)
     assert any("idx_interaction_hint_strength" in statement for statement in ddl)
     assert any("idx_interaction_intent" in statement for statement in ddl)
     assert any("idx_interaction_private_progress" in statement for statement in ddl)
     assert any("idx_interaction_private_encoding" in statement for statement in ddl)
+    assert any("idx_interaction_private_output_leaked" in statement for statement in ddl)
     assert any("idx_interaction_output_guarded" in statement for statement in ddl)
 
 
@@ -1718,6 +1866,9 @@ def test_manual_observability_migration_matches_runtime_private_signal_columns()
         "private_progress_signal_request",
         "private_grade_signal_request",
         "private_signal_encoding_request",
+        "private_signal_output_detected",
+        "private_signal_output_leaked",
+        "private_signal_output_category",
         "private_signal_output_guarded",
         "context_drift_risk",
         "math_consistency_risk",
@@ -1728,6 +1879,7 @@ def test_manual_observability_migration_matches_runtime_private_signal_columns()
     assert "idx_interaction_side_channel" in migration
     assert "idx_interaction_private_progress" in migration
     assert "idx_interaction_private_encoding" in migration
+    assert "idx_interaction_private_output_leaked" in migration
     assert "idx_interaction_output_guarded" in migration
 
 
@@ -1934,6 +2086,9 @@ def test_interaction_payload_truncates_observability_fields():
         private_progress_signal_request=1,
         private_grade_signal_request=1,
         private_signal_encoding_request=1,
+        private_signal_output_detected=1,
+        private_signal_output_leaked=0,
+        private_signal_output_category="soft_approval",
         private_signal_output_guarded=1,
         context_drift_risk=1,
         math_consistency_risk=0,
@@ -1960,6 +2115,9 @@ def test_interaction_payload_truncates_observability_fields():
     assert payload["private_progress_signal_request"] == 1
     assert payload["private_grade_signal_request"] == 1
     assert payload["private_signal_encoding_request"] == 1
+    assert payload["private_signal_output_detected"] == 1
+    assert payload["private_signal_output_leaked"] == 0
+    assert payload["private_signal_output_category"] == "soft_approval"
     assert payload["private_signal_output_guarded"] == 1
     assert payload["context_drift_risk"] == 1
     assert payload["math_consistency_risk"] == 0
@@ -1999,6 +2157,10 @@ def test_dataset_export_cleans_prompt_and_anonymizes_student_id():
                 "generation_elapsed_ms": 900,
                 "rewrite_triggered": 0,
                 "private_signal_encoding_request": 1,
+                "private_signal_output_detected": 1,
+                "private_signal_output_leaked": 0,
+                "private_signal_output_category": "soft_approval",
+                "private_signal_output_guarded": 1,
                 "generation_status": "",
                 "generation_error": "",
                 "created_at": pd.Timestamp("2026-05-11 10:30:00"),
@@ -2012,6 +2174,10 @@ def test_dataset_export_cleans_prompt_and_anonymizes_student_id():
     assert export_df.loc[0, "sample_id"] == "hint-9"
     assert "student_hash" in export_df.columns
     assert export_df.loc[0, "private_signal_encoding_request"] == 1
+    assert export_df.loc[0, "private_signal_output_detected"] == 1
+    assert export_df.loc[0, "private_signal_output_leaked"] == 0
+    assert export_df.loc[0, "private_signal_output_category"] == "soft_approval"
+    assert export_df.loc[0, "private_signal_output_guarded"] == 1
     assert "student_id" not in export_df.columns
     assert export_df.loc[0, "student_hash"] == anonymize_student_id("3021244094")
     assert export_df.loc[0, "student_prompt"] == "请提示下一步"
@@ -2151,6 +2317,9 @@ def test_admin_hint_leakage_summary_and_score_distribution():
         "timeout_rate": 0.0,
         "fast_path_rate": 100.0,
         "rewrite_rate": 66.7,
+        "private_signal_output_detected_rate": 0.0,
+        "private_signal_output_leaked_rate": 0.0,
+        "private_signal_output_guarded_rate": 0.0,
     }
     assert score_counts == {0: 1, 1: 0, 2: 2, 3: 0}
     assert risk_labels[0] == "0 安全"

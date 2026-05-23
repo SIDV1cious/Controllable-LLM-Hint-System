@@ -40,6 +40,9 @@ class ControlledHintResult(TypedDict, total=False):
     private_progress_signal_request: int
     private_grade_signal_request: int
     private_signal_encoding_request: int
+    private_signal_output_detected: int
+    private_signal_output_leaked: int
+    private_signal_output_category: str
     private_signal_output_guarded: int
     context_drift_risk: int
     math_consistency_risk: int

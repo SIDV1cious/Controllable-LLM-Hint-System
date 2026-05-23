@@ -178,6 +178,349 @@ PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES = (
     "current attempt close",
     "attempt close",
 )
+PRIVATE_ANSWER_CONFIRMATION_SOFT_REQUEST_PHRASES = (
+    "would this be okay to submit",
+    "is this okay",
+    "does this look okay",
+    "should i submit this as is",
+    "can i submit",
+    "can this be submitted",
+    "look okay",
+    "looks okay",
+    "look good",
+    "looks good",
+    "good enough",
+    "acceptable",
+    "reasonable",
+    "sound",
+    "sufficient",
+    "submit as is",
+    "can submit",
+    "ready to submit",
+    "safe to submit",
+    "can hand in",
+    "should be accepted",
+    "would be accepted",
+    "accepted by a grader",
+    "grader would accept",
+    "ta would accept",
+    "teacher would accept",
+    "no major problem",
+    "nothing major is wrong",
+    "not off track",
+    "right track",
+    "need to change",
+    "redo it",
+    "start over",
+    "move on",
+    "keep going",
+    "you can submit",
+    "you may submit",
+    "you can continue",
+    "you may proceed",
+    "this is okay",
+    "this is acceptable",
+    "this is reasonable",
+    "this is sound",
+    "this is sufficient",
+    "this should be accepted",
+    "this looks okay",
+    "this looks good",
+    "the proof is sound",
+    "the direction is decent",
+    "the result is negligible",
+    "the expression tends to zero",
+    "the expression converges to zero",
+    "the expression collapses to zero",
+    "这步行不行",
+    "这方向稳不稳",
+    "能不能直接提交",
+    "这结果可以提交",
+    "老师会不会给分",
+    "会不会扣分",
+    "有没有大问题",
+    "要不要重做",
+    "靠谱不靠谱",
+    "能不能交",
+    "可不可以交",
+    "需不需要重做",
+    "能不能过",
+    "方向可以吗",
+    "思路可以吗",
+    "这个证明靠谱吗",
+    "大概率会给分",
+)
+PRIVATE_GRADE_SIGNAL_CHINESE_PHRASES = (
+    "扣分",
+    "会不会扣分",
+    "能过",
+    "能拿分",
+    "能得分",
+    "能给分",
+    "老师会给分",
+    "老师大概率会给分",
+    "会不会被判错",
+    "会不会挂",
+    "判错",
+    "批改",
+    "拿几分",
+    "有几分",
+    "会不会得分",
+)
+PRIVATE_PROGRESS_SIGNAL_CHINESE_PHRASES = (
+    "差一个符号",
+    "要不要重做",
+    "不用重做",
+    "重做",
+    "推翻重来",
+    "正确轨道",
+    "正轨",
+    "接近",
+    "走偏",
+    "偏没偏",
+    "还能继续",
+    "可以继续",
+    "往后讲",
+    "方向可以",
+    "思路可以",
+    "没大问题",
+    "问题不大",
+    "基本可以",
+)
+
+
+def _contains_any_phrase(text: str, phrases: tuple[str, ...]) -> bool:
+    normalized = re.sub(r"\s+", " ", str(text or "").lower())
+    return any(phrase.lower() in normalized for phrase in phrases)
+
+
+PRIVATE_OUTPUT_STATUS_PATTERN = re.compile(
+    r"(你.{0,12}(?:选择|选).{0,12}(?:选项)?\s*[A-D].{0,36}(?:正确|不正确|错误|错|对|需要|再斟酌|说明)|"
+    r"选项\s*[A-D].{0,28}(?:正确|不正确|错误|错|对|需要|再斟酌)|"
+    r"(?:你.{0,12})?(?:提交的)?(?:作答|答案|结果|方向|思路|这条路|当前答案).{0,32}"
+    r"(?:合理|不合理|很稳|靠谱|不靠谱|没有走偏|没走偏|走偏|不需要修改|需要修改|可以交|能交|能拿分|能给分|可以继续|放心继续|再斟酌))",
+    re.I,
+)
+PRIVATE_OUTPUT_GRADE_PHRASES = (
+    "从批改角度看能拿分",
+    "老师大概率会给分",
+    "老师大概率不会扣分",
+    "大概率会给分",
+    "老师会给分",
+    "不会扣分",
+    "会扣分",
+    "能拿分",
+    "能给分",
+    "能过",
+    "会被判错",
+    "不会被判错",
+)
+PRIVATE_OUTPUT_PROGRESS_PHRASES = (
+    "你可以放心继续",
+    "放心继续",
+    "继续往下写",
+    "继续吧",
+    "这条路没有走偏",
+    "没有走偏",
+    "没走偏",
+    "方向没有走偏",
+    "当前答案不需要修改",
+    "不需要修改",
+    "不用修改",
+    "不需要大改",
+    "方向确实有些偏",
+    "方向偏了",
+    "有些偏了",
+    "没有致命问题",
+    "有致命问题",
+    "不用重做",
+    "需要重做",
+    "主要差一个符号",
+    "差一个符号",
+    "正确轨道",
+    "已经很接近",
+    "需要再斟酌",
+    "基本稳了",
+    "proof is salvageable",
+    "current attempt is cooked",
+    "can move on",
+    "trust your current result",
+    "first wrong line",
+)
+PRIVATE_OUTPUT_SOFT_APPROVAL_PHRASES = (
+    "这个可以交",
+    "可以交",
+    "可以提交",
+    "你可以提交",
+    "这步行",
+    "方向稳",
+    "作答很合理",
+    "很合理",
+    "这证明靠谱",
+    "这个证明靠谱",
+    "证明靠谱",
+    "还行",
+)
+
+
+def _classify_private_signal_output(final_hint: str) -> str:
+    raw_hint = str(final_hint or "")
+    if PRIVATE_CONFIRMATION_OUTPUT_PATTERN.search(raw_hint):
+        return "soft_approval"
+    if PRIVATE_OUTPUT_STATUS_PATTERN.search(raw_hint) or _contains_any_phrase(
+        raw_hint, PRIVATE_OUTPUT_SOFT_APPROVAL_PHRASES
+    ):
+        return "soft_approval"
+    if _contains_any_phrase(raw_hint, PRIVATE_OUTPUT_GRADE_PHRASES):
+        return "grade_signal"
+    if _contains_any_phrase(raw_hint, PRIVATE_OUTPUT_PROGRESS_PHRASES):
+        return "progress_signal"
+
+    hint = PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN.sub("", raw_hint)
+    if _contains_any_phrase(
+        hint,
+        (
+            "accepted by a grader",
+            "accepted by the grader",
+            "partial credit",
+            "minor marks",
+            "gradeable",
+            "would pass grading",
+            "pass grading",
+            "get credit",
+            "deduct points",
+            "grade this",
+            "score this",
+            "full score",
+            "teacher would accept",
+            "grader would accept",
+            "ta would accept",
+            "老师会给分",
+            "大概率会给分",
+            "会给分",
+            "能拿分",
+            "能得分",
+            "能过",
+        ),
+    ):
+        return "grade_signal"
+    if _contains_any_phrase(
+        hint,
+        (
+            "safe enough to submit",
+            "safe to submit",
+            "good to go",
+            "right track",
+            "redo it",
+            "start over",
+            "only a sign issue",
+            "current attempt close",
+            "attempt close",
+            "off track",
+            "need to change",
+            "can continue",
+            "keep going",
+            "move on",
+            "you can continue",
+            "you may proceed",
+            "还能继续",
+            "需要重做",
+            "不用重做",
+            "方向没偏",
+            "正轨",
+            "差一个符号",
+            "主要差一个符号",
+        ),
+    ):
+        return "progress_signal"
+    if _contains_any_phrase(
+        hint,
+        (
+            "third candidate",
+            "middle choice",
+            "central option",
+            "center choice",
+            "left-side candidate",
+            "right-side candidate",
+            "second from the end",
+            "penultimate",
+            "last but one",
+            "one near the middle",
+            "one before d",
+            "the expression collapses to zero",
+            "the expression tends to zero",
+            "the expression converges to zero",
+            "the result is negligible",
+            "the proof is salvageable",
+            "third candidate",
+            "中间那个",
+            "靠后那个",
+            "前面那个",
+            "倒数第二个",
+            "化成0",
+            "变成0",
+            "归为0",
+            "趋于0",
+            "等于0",
+            "左右极限都",
+            "半分",
+            "对称",
+            "一半",
+        ),
+    ):
+        return "position_value"
+    if _contains_any_phrase(
+        hint,
+        (
+            "this is okay",
+            "this is acceptable",
+            "this is reasonable",
+            "this is sound",
+            "this is sufficient",
+            "this should be accepted",
+            "this looks okay",
+            "this looks good",
+            "looks okay",
+            "looks good",
+            "good enough",
+            "acceptable",
+            "reasonable",
+            "sound",
+            "sufficient",
+            "fine",
+            "good to go",
+            "ready to submit",
+            "submit as is",
+            "can submit",
+            "you can submit",
+            "you may submit",
+            "can hand in",
+            "safe to submit",
+            "okay to submit",
+            "look okay",
+            "look good",
+            "no major problem",
+            "nothing major is wrong",
+            "decent",
+            "基本可以",
+            "问题不大",
+            "没大问题",
+            "可以提交",
+            "能提交",
+            "能交",
+            "可直接交",
+            "放心提交",
+            "the proof is sound",
+            "方向稳",
+            "这步行",
+            "这证明靠谱",
+            "证明靠谱",
+        ),
+    ):
+        return "soft_approval"
+    return ""
+
+
 PRIVATE_GRADE_SIGNAL_TERMS = (
     "扣分",
     "能过",
@@ -406,7 +749,11 @@ PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN = re.compile(
     r"(?:cannot|can't|can\s+not|unable\s+to|not\s+able\s+to|\u4e0d\u80fd|\u65e0\u6cd5|\u4e0d\u53ef\u4ee5).{0,50}"
     r"(?:safe\s+to\s+submit|safe\s+enough\s+to\s+submit|pass\s+grading|get\s+credit|partial\s+credit|"
     r"minor\s+marks|right\s+track|accepted\s+by\s+(?:a|the)\s+grader|gradeable|salvageable|move\s+on|"
-    r"trust(?: your| my| this| the)? current result|deduct\s+points|fatal\s+flaw|redo\s+it|\u53ef\u4ee5\u4ea4|\u80fd\u62ff\u5206|\u4e0d\u7528\u91cd\u505a)",
+    r"trust(?: your| my| this| the)? current result|deduct\s+points|fatal\s+flaw|redo\s+it|\u53ef\u4ee5\u4ea4|\u80fd\u62ff\u5206|\u4e0d\u7528\u91cd\u505a|"
+    r"okay|ok|acceptable|reasonable|sound|sufficient|fine|good\s+enough|valid\s+enough|good\s+to\s+go|ready\s+to\s+submit|"
+    r"submit\s+as\s+is|can\s+submit|may\s+submit|would\s+be\s+accepted|should\s+be\s+accepted|teacher\s+would\s+accept|"
+    r"grader\s+would\s+accept|no\s+major\s+problem|nothing\s+major\s+is\s+wrong|can\s+continue|keep\s+going|move\s+on|"
+    r"\u4e0d\u884c|\u4e0d\u7a33|\u4e0d\u53ef\u4ea4|\u4e0d\u53ef\u4ee5\u4ea4|\u4e0d\u80fd\u4ea4|\u4e0d\u9700\u8981\u4fee\u6539|\u4e0d\u7528\u91cd\u505a)",
     re.I,
 )
 PRIVATE_POSITION_OR_VALUE_OUTPUT_PATTERN = re.compile(
@@ -438,12 +785,7 @@ def _has_visible_result_claim(student_request: str) -> bool:
 
 
 def _has_private_signal_output(final_hint: str) -> bool:
-    hint = PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN.sub("", str(final_hint or ""))
-    return bool(
-        PRIVATE_CONFIRMATION_OUTPUT_PATTERN.search(hint)
-        or PRIVATE_SIGNAL_OUTPUT_EXTRA_PATTERN.search(hint)
-        or PRIVATE_POSITION_OR_VALUE_OUTPUT_PATTERN.search(hint)
-    )
+    return bool(_classify_private_signal_output(final_hint))
 
 
 class ControlledHintGenerationTimeout(TimeoutError):
@@ -489,6 +831,9 @@ def _build_result(
     private_progress_signal_request: int = 0,
     private_grade_signal_request: int = 0,
     private_signal_encoding_request: int = 0,
+    private_signal_output_detected: int = 0,
+    private_signal_output_leaked: int = 0,
+    private_signal_output_category: str = "",
     private_signal_output_guarded: int = 0,
     context_drift_risk: int = 0,
     math_consistency_risk: int = 0,
@@ -512,6 +857,9 @@ def _build_result(
         "private_progress_signal_request": int(bool(private_progress_signal_request)),
         "private_grade_signal_request": int(bool(private_grade_signal_request)),
         "private_signal_encoding_request": int(bool(private_signal_encoding_request)),
+        "private_signal_output_detected": int(bool(private_signal_output_detected)),
+        "private_signal_output_leaked": int(bool(private_signal_output_leaked)),
+        "private_signal_output_category": str(private_signal_output_category or "")[:64],
         "private_signal_output_guarded": int(bool(private_signal_output_guarded)),
         "context_drift_risk": int(bool(context_drift_risk)),
         "math_consistency_risk": int(bool(math_consistency_risk)),
@@ -573,8 +921,13 @@ def _build_interaction_observability(
     profile: dict,
     final_hint: str = "",
     private_confirmation_guarded: bool = False,
+    private_signal_output_category: str = "",
+    private_signal_output_detected: int | None = None,
+    private_signal_output_leaked: int | None = None,
 ) -> dict:
-    private_confirmation_output = _has_private_signal_output(final_hint)
+    detected_category = private_signal_output_category or _classify_private_signal_output(final_hint)
+    final_category = _classify_private_signal_output(final_hint)
+    private_confirmation_output = bool(detected_category)
     private_answer_confirmed = private_confirmation_output and _allows_explicit_claim_verification(profile)
     return {
         "interaction_intent": str(profile.get("interaction_intent", "")),
@@ -591,6 +944,15 @@ def _build_interaction_observability(
         "private_progress_signal_request": int(bool(profile.get("private_progress_signal_request"))),
         "private_grade_signal_request": int(bool(profile.get("private_grade_signal_request"))),
         "private_signal_encoding_request": int(bool(profile.get("private_signal_encoding_request"))),
+        "private_signal_output_detected": int(
+            bool(private_signal_output_detected if private_signal_output_detected is not None else detected_category)
+        ),
+        "private_signal_output_leaked": int(
+            bool(private_signal_output_leaked if private_signal_output_leaked is not None else final_category)
+            and not private_confirmation_guarded
+            and not _allows_explicit_claim_verification(profile)
+        ),
+        "private_signal_output_category": str(detected_category or final_category),
         "private_signal_output_guarded": int(private_confirmation_guarded),
         "context_drift_risk": int(
             bool(
@@ -621,6 +983,8 @@ def _guard_private_answer_confirmation(final_hint: str, profile: dict) -> tuple[
 def _has_private_grade_signal_phrase(student_request: str) -> bool:
     request = str(student_request or "")
     lowered = request.lower()
+    if _contains_any_phrase(request, PRIVATE_GRADE_SIGNAL_CHINESE_PHRASES):
+        return True
     if any(term in request for term in PRIVATE_GRADE_SIGNAL_TERMS):
         return True
     if any(phrase in lowered for phrase in PRIVATE_GRADE_SIGNAL_ENGLISH_PHRASES):
@@ -637,6 +1001,8 @@ def _has_private_grade_signal_phrase(student_request: str) -> bool:
 def _has_private_progress_signal_phrase(student_request: str) -> bool:
     request = str(student_request or "")
     lowered = request.lower()
+    if _contains_any_phrase(request, PRIVATE_PROGRESS_SIGNAL_CHINESE_PHRASES):
+        return True
     if any(term in request for term in PRIVATE_PROGRESS_SIGNAL_TERMS):
         return True
     if any(phrase in lowered for phrase in PRIVATE_PROGRESS_SIGNAL_ENGLISH_PHRASES):
@@ -670,6 +1036,8 @@ def _has_private_answer_confirmation_phrase(student_request: str) -> bool:
     if any(phrase in request for phrase in PRIVATE_ANSWER_CONFIRMATION_PHRASES):
         return True
     if any(phrase in lowered for phrase in PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES):
+        return True
+    if _contains_any_phrase(request, PRIVATE_ANSWER_CONFIRMATION_SOFT_REQUEST_PHRASES):
         return True
     if _has_private_progress_signal_phrase(request):
         return True
@@ -707,18 +1075,27 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     indirect_answer_channel = bool(INDIRECT_ANSWER_CHANNEL_PATTERN.search(request))
     private_signal_encoding_request = _has_private_signal_encoding_phrase(request)
     private_grade_signal_request = _has_private_grade_signal_phrase(request)
-    private_progress_signal_request = (
-        _has_private_progress_signal_phrase(request)
-        or private_grade_signal_request
-        or private_signal_encoding_request
-        or bool(PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN.search(request))
+    soft_confirmation_hit = bool(
+        _has_private_answer_confirmation_phrase(request)
         or any(phrase in request for phrase in PRIVATE_ANSWER_CONFIRMATION_PHRASES)
         or any(phrase in request.lower() for phrase in PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES)
     )
     private_answer_confirmation_request = bool(
-        PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN.search(request) or _has_private_answer_confirmation_phrase(request)
+        PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN.search(request) or soft_confirmation_hit
     )
-    private_progress_signal_request = private_progress_signal_request or private_answer_confirmation_request
+    if (
+        direct_answer_request
+        and not soft_confirmation_hit
+        and not private_grade_signal_request
+        and not private_signal_encoding_request
+    ):
+        private_answer_confirmation_request = False
+    private_progress_signal_request = (
+        _has_private_progress_signal_phrase(request)
+        or private_grade_signal_request
+        or private_signal_encoding_request
+        or private_answer_confirmation_request
+    )
     direct_answer_request = direct_answer_request or indirect_answer_channel
     negative_answer_boundary = bool(
         re.search(
@@ -1444,6 +1821,7 @@ def generate_controlled_hint(
             _record_stage_timing(stage_timings, "generate_student_hint", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_student_hint")
 
+        initial_private_signal_output_category = _classify_private_signal_output(final_hint)
         stage_started_at = time.perf_counter()
         final_hint, private_confirmation_guarded = _guard_private_answer_confirmation(final_hint, interaction_profile)
         if private_confirmation_guarded:
@@ -1488,6 +1866,7 @@ def generate_controlled_hint(
             _ensure_generation_budget(total_started_at, "evaluate_leakage")
 
         rewrite_count = 0
+        rewrite_private_signal_output_category = ""
         if _is_rewrite_needed(leakage_result) and rewrite_count < min(1, MAX_HINT_REWRITE_ATTEMPTS):
             rewrite_count = 1
             generation_strategy = "rewritten"
@@ -1509,6 +1888,16 @@ def generate_controlled_hint(
             _record_stage_timing(stage_timings, "rewrite_hint_1", stage_started_at)
             _ensure_generation_budget(total_started_at, "rewrite_hint_1")
 
+            rewrite_private_signal_output_category = _classify_private_signal_output(final_hint)
+            stage_started_at = time.perf_counter()
+            final_hint, rewrite_guarded = _guard_private_answer_confirmation(final_hint, interaction_profile)
+            if rewrite_guarded:
+                private_confirmation_guarded = True
+                if generation_strategy == "rewritten":
+                    generation_strategy = "guarded_redirect"
+                _record_stage_timing(stage_timings, "output_private_answer_guard_after_rewrite", stage_started_at)
+                _ensure_generation_budget(total_started_at, "output_private_answer_guard_after_rewrite")
+
             stage_started_at = time.perf_counter()
             leakage_result = heuristic_solution_leakage_check(question_data, final_hint, student_context)
             _record_stage_timing(stage_timings, "local_recheck_after_rewrite", stage_started_at)
@@ -1523,11 +1912,21 @@ def generate_controlled_hint(
                     "reason": "rewrite_recheck_failed_safe_fallback",
                 }
 
+        final_private_signal_output_category = _classify_private_signal_output(final_hint)
+        private_signal_output_category = (
+            initial_private_signal_output_category
+            or rewrite_private_signal_output_category
+            or final_private_signal_output_category
+        )
+
         elapsed_ms = _elapsed_ms(total_started_at)
         observability = _build_interaction_observability(
             interaction_profile,
             final_hint,
             private_confirmation_guarded=private_confirmation_guarded,
+            private_signal_output_category=private_signal_output_category,
+            private_signal_output_detected=int(bool(private_signal_output_category)),
+            private_signal_output_leaked=int(bool(final_private_signal_output_category)),
         )
         observability["math_consistency_risk"] = int(rewrite_count > 0)
         logging.info(

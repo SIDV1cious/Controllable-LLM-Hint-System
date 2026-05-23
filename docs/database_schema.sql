@@ -75,6 +75,9 @@ CREATE TABLE IF NOT EXISTS interaction_logs (
     private_progress_signal_request TINYINT NOT NULL DEFAULT 0,
     private_grade_signal_request TINYINT NOT NULL DEFAULT 0,
     private_signal_encoding_request TINYINT NOT NULL DEFAULT 0,
+    private_signal_output_detected TINYINT NOT NULL DEFAULT 0,
+    private_signal_output_leaked TINYINT NOT NULL DEFAULT 0,
+    private_signal_output_category VARCHAR(64) NOT NULL DEFAULT '',
     private_signal_output_guarded TINYINT NOT NULL DEFAULT 0,
     context_drift_risk TINYINT NOT NULL DEFAULT 0,
     math_consistency_risk TINYINT NOT NULL DEFAULT 0,
@@ -90,6 +93,7 @@ CREATE TABLE IF NOT EXISTS interaction_logs (
     INDEX idx_interaction_private_progress (private_progress_signal_request),
     INDEX idx_interaction_private_grade (private_grade_signal_request),
     INDEX idx_interaction_private_encoding (private_signal_encoding_request),
+    INDEX idx_interaction_private_output_leaked (private_signal_output_leaked),
     INDEX idx_interaction_output_guarded (private_signal_output_guarded)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

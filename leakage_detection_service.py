@@ -13,13 +13,20 @@ NUMBER_PATTERN = re.compile(r"(?<![A-Za-z])[-+]?\d+(?:\.\d+)?(?:/\d+)?(?![A-Za-z
 HIGH_RISK_REQUEST_PATTERN = re.compile(
     r"(answer|solution|final|correct|option|choose|direct|complete|grade|grader|rubric|credit|marks|"
     r"partial\s+credit|minor\s+marks|salvageable|cooked|move\s+on|trust(?:\s+my|\s+your|\s+the|\s+this)?\s+current\s+result|"
-    r"gradeable|first\s+wrong\s+line|first\s+mismatch|答案|选项|选择|正确|直接|完整|结果|标准答案)",
+    r"gradeable|first\s+wrong\s+line|first\s+mismatch|okay\s+to\s+submit|looks?\s+okay|looks?\s+good|good\s+enough|"
+    r"acceptable|reasonable|sound|sufficient|submit\s+as\s+is|can\s+submit|ready\s+to\s+submit|safe\s+to\s+submit|"
+    r"would\s+this\s+be\s+okay\s+to\s+submit|is\s+this\s+okay|does\s+this\s+look\s+okay|should\s+i\s+submit|can\s+i\s+submit|"
+    r"答案|选项|选择|正确|直接|完整|结果|标准答案|这步行不行|这方向稳不稳|能不能直接提交|这结果可以提交|老师会不会给分|会不会扣分|有没有大问题|要不要重做|稳不稳|靠不靠谱)",
     re.I,
 )
 ANSWER_CONTEXT_PATTERN = re.compile(
     r"(answer|solution|final|correct|option|choose|grade|grader|rubric|credit|marks|"
     r"partial\s+credit|minor\s+marks|salvageable|cooked|move\s+on|trust(?:\s+my|\s+your|\s+the|\s+this)?\s+current\s+result|gradeable|"
-    r"答案|选项|选择|正确|结论|结果)",
+    r"答案|选项|选择|正确|结论|结果|okay\s+to\s+submit|looks?\s+okay|looks?\s+good|good\s+enough|acceptable|reasonable|sound|"
+    r"sufficient|submit\s+as\s+is|can\s+submit|ready\s+to\s+submit|safe\s+to\s+submit|should\s+be\s+accepted|would\s+be\s+accepted|"
+    r"accepted\s+by\s+(?:a|the)\s+grader|gradeable|pass\s+grading|get\s+credit|deduct\s+points|third\s+candidate|middle\s+choice|"
+    r"center\s+choice|one\s+before\s+D|second\s+from\s+the\s+end|collapses?\s+to\s+zero|tends?\s+to\s+zero|converges?\s+to\s+zero|"
+    r"negligible|proof\s+is\s+sound|you\s+can\s+submit|you\s+may\s+submit|move\s+on|redo\s+it|start\s+over)",
     re.I,
 )
 STEP_PATTERN = re.compile(
@@ -32,19 +39,40 @@ PRIVATE_SIGNAL_OUTPUT_PATTERN = re.compile(
     r"salvageable|cooked|move on|trust(?: your| my| this| the)? current result|first wrong line|first mismatch|"
     r"safe enough to submit|safe to submit|would pass grading|get credit|deduct points|"
     r"no need to change|need to change|right track|off track|close enough|only a sign issue|"
-    r"submission[-\s]?ready|good to go|valid enough|acceptable|reasonable|fine|passable|"
-    r"can stand as final work|may proceed|can continue|keep going|leave it as is|"
+    r"submission[-\s]?ready|good to go|valid enough|acceptable|reasonable|sound|sufficient|fine|passable|"
+    r"can stand as final work|may proceed|can continue|keep going|leave it as is|you can submit|you may submit|"
+    r"submit as is|can submit|ready to submit|safe to submit|would be accepted|should be accepted|teacher would accept|"
+    r"grader would accept|ta would accept|the proof is sound|the direction is decent|"
     r"no glaring issue|nothing major is wrong|only a small fix|small fix is needed|"
     r"left[-\s]?side\s+candidate|right[-\s]?side\s+candidate|center\s+choice|central\s+option|"
     r"second\s+from\s+the\s+end|penultimate\s+(?:candidate|choice|option|one)|last\s+but\s+one|one\s+near\s+the\s+middle|"
-    r"可以交|能交|能拿分|能给分|不需要改|不用重做|需要重做|不会扣分|会扣分|重做|可以继续|可以往后讲|还有救|这个证明还有救|这份证明还有救)",
+    r"okay|looks?\s+okay|looks?\s+good|good\s+enough|sound|sufficient|good\s+to\s+go|ready\s+to\s+submit|"
+    r"submit\s+as\s+is|can\s+submit|may\s+submit|you\s+can\s+submit|you\s+may\s+submit|should\s+be\s+accepted|"
+    r"would\s+be\s+accepted|teacher\s+would\s+accept|grader\s+would\s+accept|ta\s+would\s+accept|"
+    r"the\s+proof\s+is\s+sound|the\s+direction\s+is\s+decent|the\s+expression\s+tends?\s+to\s+zero|"
+    r"the\s+expression\s+converges?\s+to\s+zero|the\s+expression\s+collapses?\s+to\s+zero|result\s+is\s+negligible|"
+    r"可以交|能交|能拿分|能给分|不需要改|不用重做|需要重做|不会扣分|会扣分|重做|可以继续|可以往后讲|还有救|这个证明还有救|这份证明还有救|"
+    r"这步行|方向稳|这证明靠谱|证明靠谱|这结果可以提交|老师大概率会给分|大概率会给分|问题不大|没大问题|放心提交|"
+    r"能不能直接提交|能不能交|可不可以交|可以直接交)",
     re.I,
 )
 PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN = re.compile(
     r"(?:cannot|can't|can\s+not|unable\s+to|not\s+able\s+to|不能|无法|不可以).{0,50}"
     r"(?:safe\s+to\s+submit|safe\s+enough\s+to\s+submit|pass\s+grading|get\s+credit|partial\s+credit|"
     r"minor\s+marks|right\s+track|accepted\s+by\s+(?:a|the)\s+grader|gradeable|salvageable|move\s+on|"
-    r"trust(?: your| my| this| the)? current result|deduct\s+points|fatal\s+flaw|redo\s+it|可以交|能拿分|不用重做)",
+    r"trust(?: your| my| this| the)? current result|deduct\s+points|fatal\s+flaw|redo\s+it|可以交|能拿分|不用重做|"
+    r"okay|ok|acceptable|reasonable|sound|sufficient|fine|good\s+enough|valid\s+enough|good\s+to\s+go|ready\s+to\s+submit|"
+    r"submit\s+as\s+is|can\s+submit|may\s+submit|would\s+be\s+accepted|should\s+be\s+accepted|teacher\s+would\s+accept|"
+    r"grader\s+would\s+accept|ta\s+would\s+accept|no\s+major\s+problem|nothing\s+major\s+is\s+wrong|can\s+continue|keep\s+going|move\s+on|"
+    r"不行|不稳|不可交|不可以交|不能交|不需要修改|不用重做|不需要重做|不用提交|不要提交)",
+    re.I,
+)
+PRIVATE_SIGNAL_OUTPUT_EXTRA_CHINESE_PATTERN = re.compile(
+    r"(你.{0,12}(?:选择|选).{0,12}(?:选项)?\s*[A-D].{0,36}(?:正确|不正确|错误|错|对|需要|再斟酌|说明)|"
+    r"选项\s*[A-D].{0,28}(?:正确|不正确|错误|错|对|需要|再斟酌)|"
+    r"(?:你.{0,12})?(?:提交的)?(?:作答|答案|结果|方向|思路|这条路|当前答案).{0,32}"
+    r"(?:合理|不合理|很稳|靠谱|不靠谱|没有走偏|没走偏|走偏|不需要修改|需要修改|可以交|能交|能拿分|能给分|可以继续|放心继续|再斟酌)|"
+    r"从批改角度看能拿分|老师大概率会给分|大概率会给分|放心继续|继续往下写|继续吧|这个可以交|可以提交|你可以提交|这步行|方向稳|这证明靠谱)",
     re.I,
 )
 ZERO_SEMANTIC_LEAK_PATTERN = re.compile(
@@ -98,7 +126,10 @@ def _choice_semantic_already_in_student_context(choice: str, student_context: st
 
 
 def _has_private_signal_output(candidate_hint: str) -> bool:
-    hint = PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN.sub("", str(candidate_hint or ""))
+    raw_hint = str(candidate_hint or "")
+    if PRIVATE_SIGNAL_OUTPUT_EXTRA_CHINESE_PATTERN.search(raw_hint):
+        return True
+    hint = PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN.sub("", raw_hint)
     return bool(PRIVATE_SIGNAL_OUTPUT_PATTERN.search(hint))
 
 
@@ -180,11 +211,6 @@ def heuristic_leakage_check(
     if not answer:
         return {"is_leaking": False, "score": 0, "reason": "local_no_reference_answer"}
 
-    if _has_private_signal_output(hint):
-        if _answer_already_in_student_context(answer, student_context):
-            return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_private_signal_reference"}
-        return {"is_leaking": True, "score": 2, "reason": "local_private_progress_signal"}
-
     if CHOICE_ANSWER_PATTERN.match(answer):
         choice = answer.upper()
         choice_patterns = [
@@ -213,6 +239,10 @@ def heuristic_leakage_check(
             if _choice_already_in_student_context(choice, student_context):
                 return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_choice_mention"}
             return {"is_leaking": False, "score": 1, "reason": "local_choice_letter_mentioned"}
+        if _has_private_signal_output(hint):
+            if _answer_already_in_student_context(answer, student_context):
+                return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_private_signal_reference"}
+            return {"is_leaking": True, "score": 2, "reason": "local_private_progress_signal"}
         return {"is_leaking": False, "score": 0, "reason": "local_no_direct_choice_leak"}
 
     if re.fullmatch(r"0(?:\.0+)?", answer) and ZERO_SEMANTIC_LEAK_PATTERN.search(hint):
@@ -235,6 +265,11 @@ def heuristic_leakage_check(
         if answer_numbers.issubset(_numbers_from_text(student_context)):
             return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_numeric_reference"}
         return {"is_leaking": True, "score": 2, "reason": "local_key_numeric_answer"}
+
+    if _has_private_signal_output(hint):
+        if _answer_already_in_student_context(answer, student_context):
+            return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_private_signal_reference"}
+        return {"is_leaking": True, "score": 2, "reason": "local_private_progress_signal"}
 
     return {"is_leaking": False, "score": 0, "reason": "local_no_explicit_leak"}
 
@@ -275,9 +310,19 @@ def should_escalate_leakage_check(
         return False
     if HIGH_RISK_REQUEST_PATTERN.search(student_request or ""):
         return True
-    if ANSWER_CONTEXT_PATTERN.search(candidate_hint or "") and (
-        question_data.get("answer") or question_data.get("solution")
+    if re.search(
+        r"(okay\s+to\s+submit|looks?\s+okay|looks?\s+good|good\s+enough|acceptable|reasonable|sound|sufficient|"
+        r"submit\s+as\s+is|can\s+submit|ready\s+to\s+submit|safe\s+to\s+submit|would\s+this\s+be\s+okay\s+to\s+submit|"
+        r"is\s+this\s+okay|does\s+this\s+look\s+okay|should\s+i\s+submit|can\s+i\s+submit|"
+        r"这步行不行|这方向稳不稳|能不能直接提交|这结果可以提交|老师会不会给分|会不会扣分|有没有大问题|要不要重做|稳不稳|靠不靠谱)",
+        student_request or "",
+        flags=re.I,
     ):
+        return True
+    if (
+        ANSWER_CONTEXT_PATTERN.search(candidate_hint or "")
+        or PRIVATE_SIGNAL_OUTPUT_PATTERN.search(candidate_hint or "")
+    ) and (question_data.get("answer") or question_data.get("solution")):
         return True
     return False
 

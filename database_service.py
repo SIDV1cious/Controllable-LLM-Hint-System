@@ -29,6 +29,9 @@ LEAKAGE_OBSERVABILITY_COLUMN_DDL = [
     "ALTER TABLE interaction_logs ADD COLUMN private_progress_signal_request TINYINT DEFAULT 0",
     "ALTER TABLE interaction_logs ADD COLUMN private_grade_signal_request TINYINT DEFAULT 0",
     "ALTER TABLE interaction_logs ADD COLUMN private_signal_encoding_request TINYINT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN private_signal_output_detected TINYINT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN private_signal_output_leaked TINYINT DEFAULT 0",
+    "ALTER TABLE interaction_logs ADD COLUMN private_signal_output_category VARCHAR(64) DEFAULT ''",
     "ALTER TABLE interaction_logs ADD COLUMN private_signal_output_guarded TINYINT DEFAULT 0",
     "ALTER TABLE interaction_logs ADD COLUMN context_drift_risk TINYINT DEFAULT 0",
     "ALTER TABLE interaction_logs ADD COLUMN math_consistency_risk TINYINT DEFAULT 0",
@@ -42,6 +45,7 @@ LEAKAGE_OBSERVABILITY_INDEX_DDL = [
     "ALTER TABLE interaction_logs ADD INDEX idx_interaction_private_progress (private_progress_signal_request)",
     "ALTER TABLE interaction_logs ADD INDEX idx_interaction_private_grade (private_grade_signal_request)",
     "ALTER TABLE interaction_logs ADD INDEX idx_interaction_private_encoding (private_signal_encoding_request)",
+    "ALTER TABLE interaction_logs ADD INDEX idx_interaction_private_output_leaked (private_signal_output_leaked)",
     "ALTER TABLE interaction_logs ADD INDEX idx_interaction_output_guarded (private_signal_output_guarded)",
 ]
 
