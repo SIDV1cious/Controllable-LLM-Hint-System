@@ -40,6 +40,9 @@ def build_interaction_payload(
     interaction_intent: str = "",
     private_answer_confirmed: int = 0,
     side_channel_detected: int = 0,
+    private_progress_signal_request: int = 0,
+    private_grade_signal_request: int = 0,
+    private_signal_output_guarded: int = 0,
     context_drift_risk: int = 0,
     math_consistency_risk: int = 0,
 ) -> dict:
@@ -72,6 +75,9 @@ def build_interaction_payload(
         "interaction_intent": (interaction_intent or "")[:64],
         "private_answer_confirmed": int(bool(_safe_non_negative_int(private_answer_confirmed))),
         "side_channel_detected": int(bool(_safe_non_negative_int(side_channel_detected))),
+        "private_progress_signal_request": int(bool(_safe_non_negative_int(private_progress_signal_request))),
+        "private_grade_signal_request": int(bool(_safe_non_negative_int(private_grade_signal_request))),
+        "private_signal_output_guarded": int(bool(_safe_non_negative_int(private_signal_output_guarded))),
         "context_drift_risk": int(bool(_safe_non_negative_int(context_drift_risk))),
         "math_consistency_risk": int(bool(_safe_non_negative_int(math_consistency_risk))),
         "time": now_shanghai(),
@@ -92,12 +98,14 @@ def insert_interaction_log(payload: dict) -> None:
                     "formula_fragment_count, generation_elapsed_ms, rewrite_triggered, "
                     "generation_status, generation_error, generation_strategy, timeout_stage, "
                     "stage_timings, interaction_intent, private_answer_confirmed, "
-                    "side_channel_detected, context_drift_risk, math_consistency_risk, created_at) "
+                    "side_channel_detected, private_progress_signal_request, private_grade_signal_request, "
+                    "private_signal_output_guarded, context_drift_risk, math_consistency_risk, created_at) "
                     "VALUES (:qid, :sid, :qry, :rsp, :leak, :score, :rewrites, :reason, "
                     ":strength, :intent, :status, :request_chars, :formula_count, :elapsed_ms, "
                     ":rewrite_flag, :generation_status, :generation_error, :generation_strategy, "
                     ":timeout_stage, :stage_timings, :interaction_intent, :private_answer_confirmed, "
-                    ":side_channel_detected, :context_drift_risk, :math_consistency_risk, :time)"
+                    ":side_channel_detected, :private_progress_signal_request, :private_grade_signal_request, "
+                    ":private_signal_output_guarded, :context_drift_risk, :math_consistency_risk, :time)"
                 ),
                 payload,
             )

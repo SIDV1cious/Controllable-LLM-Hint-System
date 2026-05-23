@@ -162,6 +162,30 @@ PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES = (
     "current attempt close",
     "attempt close",
 )
+PRIVATE_GRADE_SIGNAL_TERMS = (
+    "扣分",
+    "能过",
+    "给我过",
+    "会不会过",
+    "判错",
+    "能拿分",
+    "拿分",
+    "能给分",
+    "给分",
+    "批改",
+    "交上去稳",
+    "会不会挂",
+    "能不能挂",
+)
+PRIVATE_GRADE_SIGNAL_ENGLISH_PHRASES = (
+    "pass grading",
+    "would pass grading",
+    "deduct points",
+    "get credit",
+    "grade this",
+    "score this",
+    "pass the grading",
+)
 PRIVATE_PROGRESS_SIGNAL_TERMS = (
     "扣分",
     "能过",
@@ -202,14 +226,34 @@ PRIVATE_SIGNAL_ENCODING_TERMS = (
     "长回复",
     "靠前",
     "靠后",
+    "靠后的",
+    "靠不靠前",
+    "前两个",
+    "后半区",
+    "后半",
     "答案靠",
     "项目符号数量",
+    "项目符号",
     "第一句话字数",
     "标点数量",
     "温柔语气",
     "严肃语气",
     "红色语气",
     "绿色语气",
+)
+PRIVATE_PROGRESS_SIGNAL_ENGLISH_PHRASES = (
+    "safe enough to submit",
+    "safe to submit",
+    "fatal flaw",
+    "right track",
+    "redo it",
+    "start over",
+    "only a sign issue",
+    "current attempt close",
+    "attempt close",
+    "off track",
+    "need to change",
+    "good to go",
 )
 PRIVATE_CONFIRMATION_OUTPUT_PATTERN = re.compile(
     r"(\u4f60.{0,8}(\u5df2\u7ecf)?\u9009(\u5bf9|\u9519)|"
@@ -330,6 +374,9 @@ def _build_result(
     interaction_intent: str = "",
     private_answer_confirmed: int = 0,
     side_channel_detected: int = 0,
+    private_progress_signal_request: int = 0,
+    private_grade_signal_request: int = 0,
+    private_signal_output_guarded: int = 0,
     context_drift_risk: int = 0,
     math_consistency_risk: int = 0,
 ) -> ControlledHintResult:
@@ -349,6 +396,9 @@ def _build_result(
         "interaction_intent": str(interaction_intent or "")[:64],
         "private_answer_confirmed": int(bool(private_answer_confirmed)),
         "side_channel_detected": int(bool(side_channel_detected)),
+        "private_progress_signal_request": int(bool(private_progress_signal_request)),
+        "private_grade_signal_request": int(bool(private_grade_signal_request)),
+        "private_signal_output_guarded": int(bool(private_signal_output_guarded)),
         "context_drift_risk": int(bool(context_drift_risk)),
         "math_consistency_risk": int(bool(math_consistency_risk)),
     }
@@ -405,7 +455,11 @@ def _allows_explicit_claim_verification(profile: dict) -> bool:
     )
 
 
-def _build_interaction_observability(profile: dict, final_hint: str = "") -> dict:
+def _build_interaction_observability(
+    profile: dict,
+    final_hint: str = "",
+    private_confirmation_guarded: bool = False,
+) -> dict:
     private_confirmation_output = bool(PRIVATE_CONFIRMATION_OUTPUT_PATTERN.search(str(final_hint or "")))
     private_answer_confirmed = private_confirmation_output and _allows_explicit_claim_verification(profile)
     return {
@@ -414,6 +468,9 @@ def _build_interaction_observability(profile: dict, final_hint: str = "") -> dic
         "side_channel_detected": int(
             bool(profile.get("indirect_answer_channel") or profile.get("private_answer_confirmation_request"))
         ),
+        "private_progress_signal_request": int(bool(profile.get("private_progress_signal_request"))),
+        "private_grade_signal_request": int(bool(profile.get("private_grade_signal_request"))),
+        "private_signal_output_guarded": int(private_confirmation_guarded),
         "context_drift_risk": int(
             bool(profile.get("private_answer_confirmation_request") and not profile.get("concrete_student_claim"))
         ),
@@ -429,6 +486,36 @@ def _guard_private_answer_confirmation(final_hint: str, profile: dict) -> tuple[
     return final_hint, False
 
 
+def _has_private_grade_signal_phrase(student_request: str) -> bool:
+    request = str(student_request or "")
+    lowered = request.lower()
+    return any(term in request for term in PRIVATE_GRADE_SIGNAL_TERMS) or any(
+        phrase in lowered for phrase in PRIVATE_GRADE_SIGNAL_ENGLISH_PHRASES
+    )
+
+
+def _has_private_progress_signal_phrase(student_request: str) -> bool:
+    request = str(student_request or "")
+    lowered = request.lower()
+    if any(term in request for term in PRIVATE_PROGRESS_SIGNAL_TERMS):
+        return True
+    return any(phrase in lowered for phrase in PRIVATE_PROGRESS_SIGNAL_ENGLISH_PHRASES)
+
+
+def _has_private_signal_encoding_phrase(student_request: str) -> bool:
+    request = str(student_request or "")
+    if any(term in request for term in PRIVATE_SIGNAL_ENCODING_TERMS):
+        return True
+    return bool(
+        re.search(
+            r"(短回复|长回复|靠前|靠后|前两个|后半区|后半|项目符号|第一句话|标点|语气).{0,24}"
+            r"(代表|暗示|表示|对应|说明)|"
+            r"(代表|暗示|表示|对应).{0,24}(靠前|靠后|前两个|后半区|后半|选项|答案)",
+            request,
+        )
+    )
+
+
 def _has_private_answer_confirmation_phrase(student_request: str) -> bool:
     request = str(student_request or "")
     lowered = request.lower()
@@ -436,9 +523,11 @@ def _has_private_answer_confirmation_phrase(student_request: str) -> bool:
         return True
     if any(phrase in lowered for phrase in PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES):
         return True
-    if any(term in request for term in PRIVATE_PROGRESS_SIGNAL_TERMS):
+    if _has_private_progress_signal_phrase(request):
         return True
-    if any(term in request for term in PRIVATE_SIGNAL_ENCODING_TERMS):
+    if _has_private_grade_signal_phrase(request):
+        return True
+    if _has_private_signal_encoding_phrase(request):
         return True
     if "\u63d0\u4ea4" in request and any(
         term in request
@@ -466,9 +555,20 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     needs_foundational_formula = bool(KNOWLEDGE_RECALL_PATTERN.search(request))
     direct_answer_request = bool(DIRECT_ANSWER_REQUEST_PATTERN.search(request))
     indirect_answer_channel = bool(INDIRECT_ANSWER_CHANNEL_PATTERN.search(request))
+    private_signal_encoding_request = _has_private_signal_encoding_phrase(request)
+    private_grade_signal_request = _has_private_grade_signal_phrase(request)
+    private_progress_signal_request = (
+        _has_private_progress_signal_phrase(request)
+        or private_grade_signal_request
+        or private_signal_encoding_request
+        or bool(PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN.search(request))
+        or any(phrase in request for phrase in PRIVATE_ANSWER_CONFIRMATION_PHRASES)
+        or any(phrase in request.lower() for phrase in PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES)
+    )
     private_answer_confirmation_request = bool(
         PRIVATE_ANSWER_CONFIRMATION_REQUEST_PATTERN.search(request) or _has_private_answer_confirmation_phrase(request)
     )
+    private_progress_signal_request = private_progress_signal_request or private_answer_confirmation_request
     direct_answer_request = direct_answer_request or indirect_answer_channel
     negative_answer_boundary = bool(
         re.search(
@@ -556,6 +656,9 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
         "direct_answer_request": direct_answer_request,
         "indirect_answer_channel": indirect_answer_channel,
         "private_answer_confirmation_request": private_answer_confirmation_request,
+        "private_progress_signal_request": private_progress_signal_request,
+        "private_grade_signal_request": private_grade_signal_request,
+        "private_signal_encoding_request": private_signal_encoding_request,
         "concrete_student_claim": concrete_student_claim,
         "response_contract": response_contract,
     }
@@ -1255,7 +1358,11 @@ def generate_controlled_hint(
                 }
 
         elapsed_ms = _elapsed_ms(total_started_at)
-        observability = _build_interaction_observability(interaction_profile, final_hint)
+        observability = _build_interaction_observability(
+            interaction_profile,
+            final_hint,
+            private_confirmation_guarded=private_confirmation_guarded,
+        )
         observability["math_consistency_risk"] = int(rewrite_count > 0)
         logging.info(
             "Controlled hint generation completed: status=success strategy=%s elapsed_ms=%s stage_timings=%s",

@@ -72,6 +72,9 @@ CREATE TABLE IF NOT EXISTS interaction_logs (
     interaction_intent VARCHAR(64),
     private_answer_confirmed TINYINT NOT NULL DEFAULT 0,
     side_channel_detected TINYINT NOT NULL DEFAULT 0,
+    private_progress_signal_request TINYINT NOT NULL DEFAULT 0,
+    private_grade_signal_request TINYINT NOT NULL DEFAULT 0,
+    private_signal_output_guarded TINYINT NOT NULL DEFAULT 0,
     context_drift_risk TINYINT NOT NULL DEFAULT 0,
     math_consistency_risk TINYINT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
@@ -82,7 +85,10 @@ CREATE TABLE IF NOT EXISTS interaction_logs (
     INDEX idx_interaction_hint_strength (hint_strength),
     INDEX idx_interaction_pedagogical_intent (pedagogical_intent),
     INDEX idx_interaction_intent (interaction_intent),
-    INDEX idx_interaction_side_channel (side_channel_detected)
+    INDEX idx_interaction_side_channel (side_channel_detected),
+    INDEX idx_interaction_private_progress (private_progress_signal_request),
+    INDEX idx_interaction_private_grade (private_grade_signal_request),
+    INDEX idx_interaction_output_guarded (private_signal_output_guarded)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS system_configs (

@@ -96,6 +96,9 @@ def record_learning_interaction(
     interaction_intent: str = "",
     private_answer_confirmed: int = 0,
     side_channel_detected: int = 0,
+    private_progress_signal_request: int = 0,
+    private_grade_signal_request: int = 0,
+    private_signal_output_guarded: int = 0,
     context_drift_risk: int = 0,
     math_consistency_risk: int = 0,
 ) -> None:
@@ -124,6 +127,9 @@ def record_learning_interaction(
             interaction_intent=interaction_intent,
             private_answer_confirmed=private_answer_confirmed,
             side_channel_detected=side_channel_detected,
+            private_progress_signal_request=private_progress_signal_request,
+            private_grade_signal_request=private_grade_signal_request,
+            private_signal_output_guarded=private_signal_output_guarded,
             context_drift_risk=context_drift_risk,
             math_consistency_risk=math_consistency_risk,
         )
