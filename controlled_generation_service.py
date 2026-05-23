@@ -146,9 +146,70 @@ PRIVATE_ANSWER_CONFIRMATION_PHRASES = (
 PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES = (
     "submitted answer is reasonable",
     "safe to submit",
+    "safe enough to submit",
     "direction is off track",
     "need to change my current answer",
     "first letter of each sentence",
+    "pass grading",
+    "would pass grading",
+    "fatal flaw",
+    "deduct points",
+    "get credit",
+    "right track",
+    "redo it",
+    "start over",
+    "only a sign issue",
+    "current attempt close",
+    "attempt close",
+)
+PRIVATE_PROGRESS_SIGNAL_TERMS = (
+    "扣分",
+    "能过",
+    "给我过",
+    "会不会过",
+    "判错",
+    "致命问题",
+    "大问题",
+    "能拿分",
+    "拿分",
+    "能给分",
+    "给分",
+    "批改",
+    "交上去稳",
+    "会不会挂",
+    "能不能挂",
+    "差一个符号",
+    "差一个正负号",
+    "要不要重做",
+    "不用重做",
+    "重做",
+    "推翻重来",
+    "正确轨道",
+    "正确路线上",
+    "接近",
+    "靠近",
+    "是不是走偏",
+    "是否走偏",
+    "方向顺",
+    "能不能继续",
+    "可不可以继续",
+    "需要大改",
+    "不需要大改",
+    "该不该",
+)
+PRIVATE_SIGNAL_ENCODING_TERMS = (
+    "短回复",
+    "长回复",
+    "靠前",
+    "靠后",
+    "答案靠",
+    "项目符号数量",
+    "第一句话字数",
+    "标点数量",
+    "温柔语气",
+    "严肃语气",
+    "红色语气",
+    "绿色语气",
 )
 PRIVATE_CONFIRMATION_OUTPUT_PATTERN = re.compile(
     r"(\u4f60.{0,8}(\u5df2\u7ecf)?\u9009(\u5bf9|\u9519)|"
@@ -190,7 +251,14 @@ PRIVATE_CONFIRMATION_OUTPUT_PATTERN = re.compile(
     r"(\u6279\u6539|\u8001\u5e08).{0,20}(\u80fd\u62ff\u5206|\u80fd\u7ed9\u5206|\u53ef\u4ee5\u7ed9\u5206)|"
     r"(your\s+(answer|submission|submitted\s+answer|current\s+answer).{0,24}(correct|wrong|reasonable|safe)|"
     r"safe\s+to\s+submit|good\s+to\s+go|no\s+need\s+to\s+change|not\s+off\s+track|"
-    r"is\s+not\s+off\s+track|this\s+is\s+safe\s+to\s+submit)|"
+    r"is\s+not\s+off\s+track|this\s+is\s+safe\s+to\s+submit|safe\s+enough\s+to\s+submit|"
+    r"pass\s+grading|would\s+pass\s+grading|get\s+credit|right\s+track|fatal\s+flaw|"
+    r"redo\s+it|start\s+over|only\s+a\s+sign\s+issue|you\s+are\s+close)|"
+    r"(\u80fd\u8fc7|\u4e0d\u4f1a\u6263\u5206|\u4f1a\u6263\u5206|\u5927\u6982\u4e0d\u4f1a\u6263\u5206|\u6ca1\u6709\u81f4\u547d\u95ee\u9898|"
+    r"\u6709\u81f4\u547d\u95ee\u9898|\u6ca1\u6709\u5927\u95ee\u9898|\u6709\u5927\u95ee\u9898|\u4e0d\u7528\u91cd\u505a|\u9700\u8981\u91cd\u505a|"
+    r"\u4e3b\u8981\u5dee\u4e00\u4e2a\u7b26\u53f7|\u5dee\u4e00\u4e2a\u7b26\u53f7|\u6b63\u786e\u8f68\u9053\u4e0a|"
+    r"\u5df2\u7ecf\u5f88\u63a5\u8fd1|\u65b9\u5411\u6ca1\u6709\u8d70\u504f|\u80fd\u62ff\u5206|\u57fa\u672c\u7a33\u4e86|"
+    r"\u4e0d\u9700\u8981\u5927\u6539|\u53ef\u4ee5\u4ea4|\u4f1a\u88ab\u5224\u9519|\u4e0d\u4f1a\u88ab\u5224\u9519)|"
     r"(\u7b11\u8138|\u54ed\u8138|\u7eff\u8272\u8bed\u6c14|\u7ea2\u8272\u8bed\u6c14))",
     re.I,
 )
@@ -368,6 +436,10 @@ def _has_private_answer_confirmation_phrase(student_request: str) -> bool:
         return True
     if any(phrase in lowered for phrase in PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES):
         return True
+    if any(term in request for term in PRIVATE_PROGRESS_SIGNAL_TERMS):
+        return True
+    if any(term in request for term in PRIVATE_SIGNAL_ENCODING_TERMS):
+        return True
     if "\u63d0\u4ea4" in request and any(
         term in request
         for term in (
@@ -458,6 +530,9 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     if formula_parse_problem:
         intent = "formula_parse_repair"
         response_contract = "Ask the student to resend or clarify the missing formula before solving it."
+    elif (private_answer_confirmation_request or indirect_answer_channel) and not concrete_student_claim:
+        intent = "direct_answer_redirect"
+        response_contract = "Do not reveal a private correctness, grade, progress, or answer signal; redirect safely."
     elif needs_foundational_formula:
         intent = "knowledge_recall"
         response_contract = "State the general formula or definition directly, then ask for one local application step."
