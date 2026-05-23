@@ -1405,6 +1405,11 @@ def test_generate_controlled_hint_locally_handles_student_choice_claim(monkeypat
 
     monkeypatch.setattr(controlled_generation, "generate_student_hint", fail_if_llm_generation_runs)
 
+    def fail_if_llm_leakage_runs(*args, **kwargs):
+        raise AssertionError("student-supplied choice claim should not escalate to LLM leakage evaluation")
+
+    monkeypatch.setattr(controlled_generation, "evaluate_hint_leakage", fail_if_llm_leakage_runs)
+
     result = controlled_generation.generate_controlled_hint(
         {"id": 1, "content": "题目", "answer": "C", "solution": "解析"},
         "",
@@ -1413,7 +1418,7 @@ def test_generate_controlled_hint_locally_handles_student_choice_claim(monkeypat
     )
 
     assert result["generation_status"] == "success"
-    assert "候选选项 A" in result["hint"]
+    assert "下一步" in result["hint"]
     assert "正确选项" not in result["hint"]
     assert "generate_local_claim_verification" in result["stage_timings"]
 

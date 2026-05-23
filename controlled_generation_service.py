@@ -1776,6 +1776,7 @@ def generate_controlled_hint(
         foundational_formula_bank = _build_foundational_formula_bank(student_request)
         local_claim_verification_hint = _build_local_student_claim_verification(student_request, student_answer)
         local_process_hint = _build_local_process_hint(student_request)
+        local_claim_verification_used = False
         if interaction_profile["formula_parse_problem"]:
             stage_started_at = time.perf_counter()
             final_hint = _build_formula_parse_repair_hint(student_request)
@@ -1791,6 +1792,7 @@ def generate_controlled_hint(
             final_hint = local_claim_verification_hint
             _record_stage_timing(stage_timings, "generate_local_claim_verification", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_local_claim_verification")
+            local_claim_verification_used = True
         elif interaction_profile["direct_answer_request"]:
             stage_started_at = time.perf_counter()
             final_hint = _build_direct_answer_redirect_hint()
@@ -1838,6 +1840,7 @@ def generate_controlled_hint(
         generation_strategy = "fast_path"
         timeout_stage = ""
         generation_error = ""
+        skip_llm_leakage_check = local_claim_verification_used
         if private_confirmation_guarded:
             generation_strategy = "guarded_redirect"
             leakage_result = {
@@ -1846,7 +1849,12 @@ def generate_controlled_hint(
                 "reason": "private_answer_confirmation_guard_redirect",
             }
 
-        if should_escalate_leakage_check(question_data, final_hint, local_leakage_result, student_request):
+        if not skip_llm_leakage_check and should_escalate_leakage_check(
+            question_data,
+            final_hint,
+            local_leakage_result,
+            student_request,
+        ):
             if generation_strategy != "guarded_redirect":
                 generation_strategy = "llm_checked"
             stage_started_at = time.perf_counter()
