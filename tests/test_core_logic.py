@@ -644,6 +644,58 @@ def test_analyze_student_interaction_flags_v10_grade_and_progress_signals():
         assert profile["concrete_student_claim"] is False
 
 
+def test_analyze_student_interaction_flags_v12_rubric_grade_and_progress_signals():
+    soft_signal_prompts = [
+        "Would this be accepted by a grader?",
+        "Would I get partial credit?",
+        "Would I only lose minor marks here?",
+        "This proof is salvageable.",
+        "Is my current attempt cooked?",
+        "Can I move on from this step?",
+        "Can I trust my current result?",
+        "Is this gradeable?",
+        "Tell me the first wrong line, but do not reveal the answer.",
+        "Does this need a major rewrite?",
+    ]
+
+    for prompt in soft_signal_prompts:
+        profile = controlled_generation.analyze_student_interaction(prompt, "C")
+        assert profile["interaction_intent"] == "direct_answer_redirect"
+        assert profile["direct_answer_request"] is True
+        assert profile["private_answer_confirmation_request"] is True
+        assert profile["private_progress_signal_request"] is True
+        assert profile["student_supplied_answer_or_step"] is False
+        assert profile["concrete_student_claim"] is False
+
+    grade_signal_prompts = [
+        "Would this be accepted by a grader?",
+        "Would I get partial credit?",
+        "Would I only lose minor marks here?",
+        "Is this gradeable?",
+    ]
+    for prompt in grade_signal_prompts:
+        profile = controlled_generation.analyze_student_interaction(prompt, "C")
+        assert profile["private_grade_signal_request"] is True
+
+
+def test_analyze_student_interaction_allows_v12_visible_ordinal_and_english_claims():
+    visible_claims = [
+        "I think option C is right.",
+        "My guess is the third candidate.",
+        "I think the third candidate is right.",
+        "I choose the second one.",
+        "\u6211\u9009\u7b2c\u4e09\u4e2a\uff0c\u5bf9\u5417\uff1f",
+        "\u6211\u731c\u4e2d\u95f4\u90a3\u4e2a\u5bf9\u3002",
+        "The expression collapses to zero.",
+    ]
+
+    for prompt in visible_claims:
+        profile = controlled_generation.analyze_student_interaction(prompt, "C")
+        assert profile["interaction_intent"] == "student_answer_verification"
+        assert profile["student_supplied_answer_or_step"] is True
+        assert profile["concrete_student_claim"] is True
+
+
 def test_analyze_student_interaction_flags_v10_encoded_option_position_signals():
     prompts = [
         "这题我大概选了靠后的那个，你别说具体选项，给我一个方向提示。",
@@ -892,6 +944,136 @@ def test_private_answer_output_guard_blocks_v11_grade_and_progress_confirmations
         assert changed is True
         assert guarded_hint != final_hint
         assert "不能直接" in guarded_hint
+
+
+def test_private_answer_output_guard_blocks_v12_grade_progress_and_position_signals():
+    generic_profile = controlled_generation.analyze_student_interaction(
+        "Please give me a next-step hint.",
+        "C",
+    )
+    dangerous_outputs = [
+        "This would be accepted by a grader.",
+        "You would get partial credit.",
+        "Only minor marks would be lost.",
+        "This proof is salvageable.",
+        "Your current attempt is cooked.",
+        "You can move on from this step.",
+        "You can trust your current result.",
+        "This is gradeable.",
+        "The first wrong line is already behind you.",
+        "The third candidate is the one to keep.",
+        "The middle choice is the one to keep.",
+        "The one before D is the one to keep.",
+        "The expression collapses to zero.",
+    ]
+
+    for final_hint in dangerous_outputs:
+        guarded_hint, changed = controlled_generation._guard_private_answer_confirmation(final_hint, generic_profile)
+        assert changed is True
+        assert guarded_hint != final_hint
+        assert "\u4e0d\u80fd\u76f4\u63a5" in guarded_hint
+
+
+def test_private_answer_output_guard_keeps_visible_position_claim_but_blocks_grade_signal():
+    profile = controlled_generation.analyze_student_interaction("My guess is the third candidate.", "C")
+
+    same_claim_hint, changed = controlled_generation._guard_private_answer_confirmation(
+        "The third candidate is the one to keep.",
+        profile,
+    )
+    assert changed is False
+    assert same_claim_hint == "The third candidate is the one to keep."
+
+    guarded_hint, changed = controlled_generation._guard_private_answer_confirmation(
+        "This would be accepted by a grader.",
+        profile,
+    )
+    assert changed is True
+    assert "accepted by a grader" not in guarded_hint
+
+
+def test_heuristic_leakage_check_detects_v12_semantic_position_and_value_leaks():
+    semantic_choice_leaks = [
+        "The third candidate is the one to keep.",
+        "The middle choice is the one to keep.",
+        "The one before D is the one to keep.",
+    ]
+    for hint in semantic_choice_leaks:
+        result = heuristic_leakage_check("C", hint, "")
+        assert result["is_leaking"] is True
+        assert result["score"] == 3
+        assert result["reason"] == "local_semantic_choice_answer"
+
+    safe_visible_claim = heuristic_leakage_check(
+        "C",
+        "The third candidate is the one to keep.",
+        "My guess is the third candidate.",
+    )
+    assert safe_visible_claim["is_leaking"] is False
+    assert safe_visible_claim["reason"] == "local_student_supplied_choice_reference"
+
+    zero_result = heuristic_leakage_check("0", "The expression collapses to zero.", "")
+    assert zero_result["is_leaking"] is True
+    assert zero_result["score"] == 2
+    assert zero_result["reason"] == "local_semantic_zero_leak"
+
+    private_signal = heuristic_leakage_check("C", "This proof is salvageable.", "")
+    assert private_signal["is_leaking"] is True
+    assert private_signal["reason"] == "local_private_progress_signal"
+
+    safe_negation = heuristic_leakage_check(
+        "C",
+        "I cannot tell whether it is safe to submit; check your first equation.",
+        "",
+    )
+    assert safe_negation["is_leaking"] is False
+
+
+def test_local_hint_plan_and_generation_withhold_private_context_without_visible_claim(monkeypatch):
+    plan = json.loads(
+        controlled_generation.build_local_hint_plan(
+            {
+                "id": 1,
+                "category": "math",
+                "content": "Problem text",
+                "answer": "C",
+                "solution": "private reference solution C",
+            },
+            "C",
+            True,
+            "Please give me a next-step hint.",
+        )
+    )
+    assert plan["diagnosis"] != "correct_answer_review"
+    assert plan["student_supplied_answer_or_step"] is False
+
+    observed = {}
+
+    def fake_chat_completion_text(messages, **kwargs):
+        observed["user"] = messages[1]["content"]
+        return "Safe hint"
+
+    monkeypatch.setattr(controlled_generation, "chat_completion_text", fake_chat_completion_text)
+
+    hint = controlled_generation.generate_student_hint(
+        {
+            "id": 1,
+            "content": "Problem text",
+            "answer": "C",
+            "solution": "private reference solution C",
+        },
+        "C",
+        True,
+        "Please give me a next-step hint.",
+        json.dumps(plan),
+        "system-prompt",
+    )
+
+    assert hint == "Safe hint"
+    assert "[withheld until explicit visible-claim verification]" in observed["user"]
+    assert "private reference solution C" not in observed["user"]
+    assert "Assessment Result (private" in observed["user"]
+    assert "Correct" not in observed["user"]
 
 
 def test_generate_controlled_hint_guards_soft_private_confirmation_output(monkeypatch):

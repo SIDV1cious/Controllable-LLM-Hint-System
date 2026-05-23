@@ -332,6 +332,80 @@ DISCONTINUITY_CHECK_PATTERN = re.compile(
     r"(\u95f4\u65ad\u70b9|\u4e0d\u8fde\u7eed|\u8fde\u7eed).{0,80}(\u5de6\u6781\u9650|\u53f3\u6781\u9650|\u5de6\u53f3\u6781\u9650|\u51fd\u6570\u503c|x\s*=)",
     re.I,
 )
+VISIBLE_CHOICE_CLAIM_PATTERN = re.compile(
+    r"("
+    r"(?:\u6211|i|my).{0,18}(?:\u9009|\u9009\u62e9|choose|pick|select|guess|think|feel|believe).{0,32}"
+    r"([A-D]|option\s*[A-D]|choice\s*[A-D]|candidate\s*[A-D]|(?:first|second|third|fourth|middle|last|one before d)|\u7b2c[1-4]|\u7b2c\u4e00|\u7b2c\u4e8c|\u7b2c\u4e09|\u7b2c\u56db|\u4e2d\u95f4)|"
+    r"(?:option|choice|candidate)\s*[A-D].{0,32}(?:is|looks|seems|should\s+be|is\s+the\s+one\s+to\s+keep|is\s+right|is\s+correct)|"
+    r"(?:the|this)\s+(?:first|second|third|fourth|middle|last)\s+(?:candidate|choice|option|one).{0,32}"
+    r"(?:is|looks|seems|should\s+be|is\s+the\s+one\s+to\s+keep|is\s+right|is\s+correct)|"
+    r"(?:\u6211|\u6211\u89c9\u5f97|\u6211\u8ba4\u4e3a|\u6211\u731c|\u6211\u9009|\u6211\u53d6)\s*"
+    r"(?:A|B|C|D|\u7b2c[1-4]\u4e2a|\u7b2c\u4e00\u4e2a|\u7b2c\u4e8c\u4e2a|\u7b2c\u4e09\u4e2a|\u7b2c\u56db\u4e2a|\u4e2d\u95f4\u90a3\u4e2a)|"
+    r"(?:\u7b2c[1-4]\u4e2a|\u7b2c\u4e00\u4e2a|\u7b2c\u4e8c\u4e2a|\u7b2c\u4e09\u4e2a|\u7b2c\u56db\u4e2a|\u4e2d\u95f4\u90a3\u4e2a|\u5f80\u524d|\u5f80\u540e).{0,24}(?:\u5bf9\u5417|\u5bf9\u4e0d\u5bf9|\u6b63\u786e\u5417|\u884c\u5417|\u662f\u5426\u6b63\u786e)"
+    r")",
+    re.I,
+)
+VISIBLE_RESULT_CLAIM_PATTERN = re.compile(
+    r"("
+    r"(?:left\s+and\s+right\s+limits?|both\s+limits?|two\s+sides?).{0,40}(?:are|equal|equals?|=)\s*0\b|"
+    r"(?:\u5de6\u53f3\u6781\u9650|\u5de6\u6781\u9650|\u53f3\u6781\u9650).{0,40}(?:\u90fd\u662f|=\s*|\u7b49\u4e8e|0\b)|"
+    r"(?:expression|result|limit|value|proof|derivation|step).{0,40}(?:collapses?|vanishes?|disappears?|goes|tends?|reduces?|simplifies?).{0,30}"
+    r"(?:to\s+zero|to\s+0|into\s+zero|into\s+0|nothing)|"
+    r"(?:\u5316\u6210|\u53d8\u6210|\u5f52\u4e3a|\u5f97\u5230|\u7b49\u4e8e|\u662f)\s*0\b|"
+    r"(?:even|balanced|symmetric).{0,20}(?:split|symmetric\s+split|balanced\s+split|half\s+and\s+half)|"
+    r"(?:1\s*/\s*2|0\.5).{0,20}(?:\u5bf9\u79f0|\u534a\u5206|\u4e00\u534a)"
+    r")",
+    re.I,
+)
+PRIVATE_SIGNAL_OUTPUT_EXTRA_PATTERN = re.compile(
+    r"("
+    r"accepted by (?:a|the) grader|partial credit|minor marks|gradeable|major rewrite|"
+    r"salvageable|cooked|move on|trust(?: your| my| this| the)? current result|first wrong line|first mismatch|"
+    r"safe enough to submit|safe to submit|would pass grading|pass grading|get credit|deduct points|"
+    r"no need to change|need to change|right track|off track|close enough|only a sign issue|"
+    r"\u53ef\u4ee5\u4ea4|\u80fd\u4ea4|\u80fd\u62ff\u5206|\u80fd\u7ed9\u5206|\u4e0d\u9700\u8981\u6539|\u4e0d\u7528\u91cd\u505a|\u9700\u8981\u91cd\u505a|\u4e0d\u4f1a\u6263\u5206|\u4f1a\u6263\u5206|\u91cd\u505a|\u53ef\u4ee5\u7ee7\u7eed|\u53ef\u4ee5\u5f80\u540e\u8bb2|"
+    r"\u8fd8\u6709\u6551|\u8fd9\u4e2a\u8bc1\u660e\u8fd8\u6709\u6551|\u8fd9\u4efd\u8bc1\u660e\u8fd8\u6709\u6551|"
+    r"\u672c\u6b21\u53ef\u4ee5\u4ea4|\u5f53\u524d\u7ed3\u679c\u53ef\u4ee5\u63d0\u4ea4|\u8fd9\u4e2a\u7ed3\u679c\u53ef\u4ee5\u4ea4"
+    r")",
+    re.I,
+)
+PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN = re.compile(
+    r"(?:cannot|can't|can\s+not|unable\s+to|not\s+able\s+to|\u4e0d\u80fd|\u65e0\u6cd5|\u4e0d\u53ef\u4ee5).{0,50}"
+    r"(?:safe\s+to\s+submit|safe\s+enough\s+to\s+submit|pass\s+grading|get\s+credit|partial\s+credit|"
+    r"minor\s+marks|right\s+track|accepted\s+by\s+(?:a|the)\s+grader|gradeable|salvageable|move\s+on|"
+    r"trust(?: your| my| this| the)? current result|deduct\s+points|fatal\s+flaw|redo\s+it|\u53ef\u4ee5\u4ea4|\u80fd\u62ff\u5206|\u4e0d\u7528\u91cd\u505a)",
+    re.I,
+)
+PRIVATE_POSITION_OR_VALUE_OUTPUT_PATTERN = re.compile(
+    r"(third\s+(?:candidate|choice|option|one)|middle\s+(?:candidate|choice|option|one)|one\s+before\s+D|"
+    r"collapses?\s+to\s+zero|vanishes?|disappears?|goes\s+to\s+zero|tends?\s+to\s+nothing|"
+    r"even\s+split|balanced\s+split|symmetric\s+split|"
+    r"\u7b2c\u4e09\u4e2a|\u4e2d\u95f4\u90a3\u4e2a|\u9760\u540e\u90a3\u4e2a|\u5316\u6210\s*0|\u53d8\u6210\s*0|\u5f52\u4e3a\s*0)",
+    re.I,
+)
+
+
+def _contains_any_pattern(text: str, patterns: tuple[re.Pattern, ...]) -> bool:
+    return any(pattern.search(text or "") for pattern in patterns)
+
+
+def _has_visible_choice_claim(student_request: str) -> bool:
+    request = str(student_request or "")
+    return bool(VISIBLE_CHOICE_CLAIM_PATTERN.search(request))
+
+
+def _has_visible_result_claim(student_request: str) -> bool:
+    request = str(student_request or "")
+    return bool(VISIBLE_RESULT_CLAIM_PATTERN.search(request))
+
+
+def _has_private_signal_output(final_hint: str) -> bool:
+    hint = PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN.sub("", str(final_hint or ""))
+    return bool(
+        PRIVATE_CONFIRMATION_OUTPUT_PATTERN.search(hint)
+        or PRIVATE_SIGNAL_OUTPUT_EXTRA_PATTERN.search(hint)
+        or PRIVATE_POSITION_OR_VALUE_OUTPUT_PATTERN.search(hint)
+    )
 
 
 class ControlledHintGenerationTimeout(TimeoutError):
@@ -460,19 +534,33 @@ def _build_interaction_observability(
     final_hint: str = "",
     private_confirmation_guarded: bool = False,
 ) -> dict:
-    private_confirmation_output = bool(PRIVATE_CONFIRMATION_OUTPUT_PATTERN.search(str(final_hint or "")))
+    private_confirmation_output = _has_private_signal_output(final_hint)
     private_answer_confirmed = private_confirmation_output and _allows_explicit_claim_verification(profile)
     return {
         "interaction_intent": str(profile.get("interaction_intent", "")),
         "private_answer_confirmed": int(private_answer_confirmed),
         "side_channel_detected": int(
-            bool(profile.get("indirect_answer_channel") or profile.get("private_answer_confirmation_request"))
+            bool(
+                profile.get("indirect_answer_channel")
+                or profile.get("private_answer_confirmation_request")
+                or profile.get("private_progress_signal_request")
+                or profile.get("private_grade_signal_request")
+                or profile.get("private_signal_encoding_request")
+            )
         ),
         "private_progress_signal_request": int(bool(profile.get("private_progress_signal_request"))),
         "private_grade_signal_request": int(bool(profile.get("private_grade_signal_request"))),
         "private_signal_output_guarded": int(private_confirmation_guarded),
         "context_drift_risk": int(
-            bool(profile.get("private_answer_confirmation_request") and not profile.get("concrete_student_claim"))
+            bool(
+                (
+                    profile.get("private_answer_confirmation_request")
+                    or profile.get("private_progress_signal_request")
+                    or profile.get("private_grade_signal_request")
+                    or profile.get("private_signal_encoding_request")
+                )
+                and not profile.get("concrete_student_claim")
+            )
         ),
         "math_consistency_risk": 0,
     }
@@ -480,8 +568,11 @@ def _build_interaction_observability(
 
 def _guard_private_answer_confirmation(final_hint: str, profile: dict) -> tuple[str, bool]:
     if _allows_explicit_claim_verification(profile):
+        hint = PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN.sub("", str(final_hint or ""))
+        if PRIVATE_SIGNAL_OUTPUT_EXTRA_PATTERN.search(hint):
+            return _build_direct_answer_redirect_hint(), True
         return final_hint, False
-    if PRIVATE_CONFIRMATION_OUTPUT_PATTERN.search(str(final_hint or "")):
+    if _has_private_signal_output(final_hint):
         return _build_direct_answer_redirect_hint(), True
     return final_hint, False
 
@@ -489,8 +580,16 @@ def _guard_private_answer_confirmation(final_hint: str, profile: dict) -> tuple[
 def _has_private_grade_signal_phrase(student_request: str) -> bool:
     request = str(student_request or "")
     lowered = request.lower()
-    return any(term in request for term in PRIVATE_GRADE_SIGNAL_TERMS) or any(
-        phrase in lowered for phrase in PRIVATE_GRADE_SIGNAL_ENGLISH_PHRASES
+    if any(term in request for term in PRIVATE_GRADE_SIGNAL_TERMS):
+        return True
+    if any(phrase in lowered for phrase in PRIVATE_GRADE_SIGNAL_ENGLISH_PHRASES):
+        return True
+    return bool(
+        re.search(
+            r"(rubric|grader|accepted by (?:a|the) grader|partial credit|minor marks|major rewrite|gradeable)",
+            lowered,
+            flags=re.I,
+        )
     )
 
 
@@ -499,7 +598,15 @@ def _has_private_progress_signal_phrase(student_request: str) -> bool:
     lowered = request.lower()
     if any(term in request for term in PRIVATE_PROGRESS_SIGNAL_TERMS):
         return True
-    return any(phrase in lowered for phrase in PRIVATE_PROGRESS_SIGNAL_ENGLISH_PHRASES)
+    if any(phrase in lowered for phrase in PRIVATE_PROGRESS_SIGNAL_ENGLISH_PHRASES):
+        return True
+    return bool(
+        re.search(
+            r"(salvageable|cooked|move on|trust(?: your| my| this| the)? current result|first wrong line|first mismatch)",
+            lowered,
+            flags=re.I,
+        )
+    )
 
 
 def _has_private_signal_encoding_phrase(student_request: str) -> bool:
@@ -528,6 +635,8 @@ def _has_private_answer_confirmation_phrase(student_request: str) -> bool:
     if _has_private_grade_signal_phrase(request):
         return True
     if _has_private_signal_encoding_phrase(request):
+        return True
+    if _has_private_grade_signal_phrase(request) or _has_private_progress_signal_phrase(request):
         return True
     if "\u63d0\u4ea4" in request and any(
         term in request
@@ -590,15 +699,16 @@ def analyze_student_interaction(student_request: str, student_answer: str = "") 
     )
     if negative_answer_boundary and not (positive_direct_signal or indirect_answer_channel):
         direct_answer_request = False
-    verification_signal = bool(ANSWER_VERIFICATION_PATTERN.search(request))
     concrete_student_claim = bool(
         PARAMETER_AB_VERIFICATION_PATTERN.search(request)
         or NEG_ONE_LIMIT_VERIFICATION_PATTERN.search(request)
         or DISCONTINUITY_CHECK_PATTERN.search(request)
         or CHOICE_CLAIM_PATTERN.search(request)
         or CONCRETE_STUDENT_CLAIM_PATTERN.search(request)
+        or _has_visible_choice_claim(request)
+        or _has_visible_result_claim(request)
     )
-    student_supplied_answer_or_step = verification_signal and concrete_student_claim
+    student_supplied_answer_or_step = concrete_student_claim
     menu_choice_request = bool(
         re.search(
             r"(A\s*[、,/]\s*B\s*[、,/]\s*C\s*[、,/]\s*D|"
@@ -982,7 +1092,10 @@ def build_local_hint_plan(
     strength_policy = get_hint_strength_policy(hint_strength)
     interaction_profile = analyze_student_interaction(student_request, student_answer)
     foundational_formula_bank = _build_foundational_formula_bank(student_request)
-    diagnosis = "correct_answer_review" if is_correct else "guide_next_step_without_answer"
+    visible_claim_review = bool(interaction_profile["student_supplied_answer_or_step"])
+    diagnosis = "guide_next_step_without_answer"
+    if is_correct and visible_claim_review:
+        diagnosis = "correct_answer_review"
     if interaction_profile["formula_parse_problem"]:
         diagnosis = "formula_or_rendering_missing"
     elif interaction_profile["needs_foundational_formula"]:
@@ -1012,11 +1125,12 @@ def build_local_hint_plan(
         "allowed_hint_level": hint_strength,
         "strength_policy": strength_policy,
         "allowed_content": (
-            "general formulas/definitions; validation of claims already written by the student; one local diagnostic clue"
+            "general formulas/definitions; validation of claims already written by the student; one local diagnostic clue; "
+            "no private grade/progress signal unless the student stated the visible claim in this turn"
         ),
         "foundational_formula_bank": foundational_formula_bank,
         "forbidden_content": (
-            "new final answer, new direct option, new key numeric result, private answer correctness signal, full derivation, full reference solution"
+            "new final answer, new direct option, new key numeric result, private answer correctness signal, private grade/progress signal, full derivation, full reference solution"
         ),
         "has_reference_answer": bool(question_data.get("answer")),
         "has_reference_solution": bool(question_data.get("solution")),
@@ -1103,20 +1217,31 @@ def generate_student_hint(
     interaction_profile = analyze_student_interaction(student_request, student_answer)
     foundational_formula_bank = _build_foundational_formula_bank(student_request)
     augmented_system_prompt = f"{system_prompt}\n\n{_build_refined_interaction_policy(interaction_profile)}"
+    allow_private_claim_review = bool(interaction_profile["student_supplied_answer_or_step"])
+    student_answer_line = (
+        student_answer if allow_private_claim_review else "[withheld until explicit visible-claim verification]"
+    )
+    assessment_result_line = (
+        ("Correct" if is_correct else "Incorrect")
+        if allow_private_claim_review
+        else "[withheld until explicit visible-claim verification]"
+    )
+    reference_answer_line = question_data.get("answer", "") if allow_private_claim_review else "[withheld]"
+    reference_solution_line = question_data.get("solution", "") if allow_private_claim_review else "[withheld]"
     ctx = f"""Problem:
 {question_data.get('content', '')}
 
-Student Answer (private current submission; use only for rough diagnosis, never quote or confirm unless repeated in Student Request):
-{student_answer}
+Student Answer (private current submission; use only if the student explicitly states a visible claim in this turn):
+{student_answer_line}
 
 Assessment Result (private; never reveal or imply unless the current Student Request explicitly asks to verify a visible claim):
-{'Correct' if is_correct else 'Incorrect'}
+{assessment_result_line}
 
 Reference Answer (private, use only for diagnosis; never quote unless the student already wrote it):
-{question_data.get('answer', '')}
+{reference_answer_line}
 
 Reference Solution (private, use only for diagnosis; never output as a full solution):
-{question_data.get('solution', '')}
+{reference_solution_line}
 
 Private Safe Hint Plan:
 {hint_plan}
