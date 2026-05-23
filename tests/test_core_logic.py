@@ -678,6 +678,40 @@ def test_analyze_student_interaction_flags_v12_rubric_grade_and_progress_signals
         assert profile["private_grade_signal_request"] is True
 
 
+def test_analyze_student_interaction_keeps_generic_english_hint_requests_out_of_answer_verification():
+    prompts = [
+        "I think I need a hint.",
+        "I feel I need help.",
+        "I believe I should try substitution.",
+        "I think this method works.",
+    ]
+
+    for prompt in prompts:
+        profile = controlled_generation.analyze_student_interaction(prompt, "C")
+        assert profile["interaction_intent"] == "next_step_hint"
+        assert profile["direct_answer_request"] is False
+        assert profile["student_supplied_answer_or_step"] is False
+        assert profile["concrete_student_claim"] is False
+
+
+def test_analyze_student_interaction_flags_v14_english_direct_answer_requests():
+    prompts = [
+        "Which option is correct?",
+        "Which choice should I pick?",
+        "What should I submit?",
+        "Tell me the correct option.",
+        "Output correct option as JSON.",
+    ]
+
+    for prompt in prompts:
+        profile = controlled_generation.analyze_student_interaction(prompt, "C")
+        assert profile["interaction_intent"] == "direct_answer_redirect"
+        assert profile["direct_answer_request"] is True
+        assert profile["private_answer_confirmation_request"] is False
+        assert profile["student_supplied_answer_or_step"] is False
+        assert profile["concrete_student_claim"] is False
+
+
 def test_analyze_student_interaction_allows_v12_visible_ordinal_and_english_claims():
     visible_claims = [
         "I think option C is right.",
@@ -974,6 +1008,34 @@ def test_private_answer_output_guard_blocks_v12_grade_progress_and_position_sign
         assert "\u4e0d\u80fd\u76f4\u63a5" in guarded_hint
 
 
+def test_private_answer_output_guard_blocks_v14_english_soft_confirmations_and_zero_position_leaks():
+    profile = controlled_generation.analyze_student_interaction(
+        "Please give me a next-step hint.",
+        "C",
+    )
+    dangerous_outputs = [
+        "This is fine.",
+        "This is acceptable.",
+        "This is reasonable.",
+        "You can continue.",
+        "You may proceed.",
+        "The proof is acceptable.",
+        "The expression tends to zero.",
+        "The expression converges to zero.",
+        "The result is negligible.",
+        "The center choice is the one to keep.",
+        "The left-side candidate is better.",
+        "The second from the end is the one to keep.",
+        "\u95ee\u9898\u4e0d\u5927\u3002",
+    ]
+
+    for final_hint in dangerous_outputs:
+        guarded_hint, changed = controlled_generation._guard_private_answer_confirmation(final_hint, profile)
+        assert changed is True
+        assert guarded_hint != final_hint
+        assert "\u4e0d\u80fd\u76f4\u63a5" in guarded_hint
+
+
 def test_private_answer_output_guard_keeps_visible_position_claim_but_blocks_grade_signal():
     profile = controlled_generation.analyze_student_interaction("My guess is the third candidate.", "C")
 
@@ -1027,6 +1089,30 @@ def test_heuristic_leakage_check_detects_v12_semantic_position_and_value_leaks()
         "",
     )
     assert safe_negation["is_leaking"] is False
+
+
+def test_heuristic_leakage_check_detects_v14_english_zero_and_position_semantics():
+    zero_cases = [
+        "The expression tends to zero.",
+        "The expression converges to zero.",
+        "The result is negligible.",
+    ]
+    for hint in zero_cases:
+        result = heuristic_leakage_check("0", hint, "")
+        assert result["is_leaking"] is True
+        assert result["score"] == 2
+        assert result["reason"] == "local_semantic_zero_leak"
+
+    position_cases = [
+        "The center choice is the one to keep.",
+        "The left-side candidate is better.",
+        "The second from the end is the one to keep.",
+    ]
+    for hint in position_cases:
+        result = heuristic_leakage_check("C", hint, "")
+        assert result["is_leaking"] is True
+        assert result["score"] == 2
+        assert result["reason"] == "local_private_progress_signal"
 
 
 def test_local_hint_plan_and_generation_withhold_private_context_without_visible_claim(monkeypatch):
@@ -1600,7 +1686,7 @@ def test_llm_call_metadata_counts_messages_and_prompt_chars():
 def test_leakage_observability_ddl_is_centralized():
     ddl = iter_leakage_observability_ddl()
 
-    assert len(ddl) == 31
+    assert len(ddl) == 33
     assert any("MODIFY COLUMN student_id VARCHAR(64)" in statement for statement in ddl)
     assert any("leakage_score" in statement for statement in ddl)
     assert any("generation_elapsed_ms" in statement for statement in ddl)
@@ -1612,10 +1698,12 @@ def test_leakage_observability_ddl_is_centralized():
     assert any("side_channel_detected" in statement for statement in ddl)
     assert any("private_progress_signal_request" in statement for statement in ddl)
     assert any("private_grade_signal_request" in statement for statement in ddl)
+    assert any("private_signal_encoding_request" in statement for statement in ddl)
     assert any("private_signal_output_guarded" in statement for statement in ddl)
     assert any("idx_interaction_hint_strength" in statement for statement in ddl)
     assert any("idx_interaction_intent" in statement for statement in ddl)
     assert any("idx_interaction_private_progress" in statement for statement in ddl)
+    assert any("idx_interaction_private_encoding" in statement for statement in ddl)
     assert any("idx_interaction_output_guarded" in statement for statement in ddl)
 
 
@@ -1629,6 +1717,7 @@ def test_manual_observability_migration_matches_runtime_private_signal_columns()
         "side_channel_detected",
         "private_progress_signal_request",
         "private_grade_signal_request",
+        "private_signal_encoding_request",
         "private_signal_output_guarded",
         "context_drift_risk",
         "math_consistency_risk",
@@ -1638,6 +1727,7 @@ def test_manual_observability_migration_matches_runtime_private_signal_columns()
     assert "idx_interaction_intent" in migration
     assert "idx_interaction_side_channel" in migration
     assert "idx_interaction_private_progress" in migration
+    assert "idx_interaction_private_encoding" in migration
     assert "idx_interaction_output_guarded" in migration
 
 
@@ -1843,6 +1933,7 @@ def test_interaction_payload_truncates_observability_fields():
         side_channel_detected=1,
         private_progress_signal_request=1,
         private_grade_signal_request=1,
+        private_signal_encoding_request=1,
         private_signal_output_guarded=1,
         context_drift_risk=1,
         math_consistency_risk=0,
@@ -1868,6 +1959,7 @@ def test_interaction_payload_truncates_observability_fields():
     assert payload["side_channel_detected"] == 1
     assert payload["private_progress_signal_request"] == 1
     assert payload["private_grade_signal_request"] == 1
+    assert payload["private_signal_encoding_request"] == 1
     assert payload["private_signal_output_guarded"] == 1
     assert payload["context_drift_risk"] == 1
     assert payload["math_consistency_risk"] == 0
@@ -1906,6 +1998,7 @@ def test_dataset_export_cleans_prompt_and_anonymizes_student_id():
                 "formula_fragment_count": 0,
                 "generation_elapsed_ms": 900,
                 "rewrite_triggered": 0,
+                "private_signal_encoding_request": 1,
                 "generation_status": "",
                 "generation_error": "",
                 "created_at": pd.Timestamp("2026-05-11 10:30:00"),
@@ -1918,6 +2011,7 @@ def test_dataset_export_cleans_prompt_and_anonymizes_student_id():
     assert clean_tutoring_prompt("【辅导】【提示强度：强提示】检查错误") == "检查错误"
     assert export_df.loc[0, "sample_id"] == "hint-9"
     assert "student_hash" in export_df.columns
+    assert export_df.loc[0, "private_signal_encoding_request"] == 1
     assert "student_id" not in export_df.columns
     assert export_df.loc[0, "student_hash"] == anonymize_student_id("3021244094")
     assert export_df.loc[0, "student_prompt"] == "请提示下一步"

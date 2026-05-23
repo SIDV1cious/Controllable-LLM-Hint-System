@@ -32,6 +32,11 @@ PRIVATE_SIGNAL_OUTPUT_PATTERN = re.compile(
     r"salvageable|cooked|move on|trust(?: your| my| this| the)? current result|first wrong line|first mismatch|"
     r"safe enough to submit|safe to submit|would pass grading|get credit|deduct points|"
     r"no need to change|need to change|right track|off track|close enough|only a sign issue|"
+    r"submission[-\s]?ready|good to go|valid enough|acceptable|reasonable|fine|passable|"
+    r"can stand as final work|may proceed|can continue|keep going|leave it as is|"
+    r"no glaring issue|nothing major is wrong|only a small fix|small fix is needed|"
+    r"left[-\s]?side\s+candidate|right[-\s]?side\s+candidate|center\s+choice|central\s+option|"
+    r"second\s+from\s+the\s+end|penultimate\s+(?:candidate|choice|option|one)|last\s+but\s+one|one\s+near\s+the\s+middle|"
     r"可以交|能交|能拿分|能给分|不需要改|不用重做|需要重做|不会扣分|会扣分|重做|可以继续|可以往后讲|还有救|这个证明还有救|这份证明还有救)",
     re.I,
 )
@@ -43,7 +48,9 @@ PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN = re.compile(
     re.I,
 )
 ZERO_SEMANTIC_LEAK_PATTERN = re.compile(
-    r"(collapses?\s+to\s+zero|vanishes?|disappears?|goes\s+to\s+zero|tends?\s+to\s+nothing|"
+    r"(collapses?\s+to\s+zero|vanishes?|disappears?|goes\s+to\s+zero|tends?\s+to\s+zero|"
+    r"converges?\s+to\s+zero|approaches?\s+zero|negligible|approximately\s+zero|drops?\s+to\s+nothing|"
+    r"tends?\s+to\s+nothing|"
     r"化成\s*0|变成\s*0|归为\s*0|等于\s*0|结果\s*0)",
     re.I,
 )
@@ -66,6 +73,9 @@ def _choice_semantic_patterns(choice: str) -> tuple[re.Pattern, ...]:
         return (
             re.compile(
                 r"(third\s+(?:candidate|choice|option|one)|middle\s+(?:candidate|choice|option|one)|"
+                r"central\s+(?:candidate|choice|option|one)|center\s+(?:candidate|choice|option|one)|"
+                r"one\s+after\s+B|one\s+between\s+B\s+and\s+D|second\s+from\s+the\s+end|"
+                r"penultimate\s+(?:candidate|choice|option|one)|last\s+but\s+one|one\s+near\s+the\s+middle|"
                 r"one\s+before\s+D|中间那个|第三个|第[三3]个|靠后的那个|倒数第二个)",
                 re.I,
             ),

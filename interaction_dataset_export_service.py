@@ -46,6 +46,7 @@ DATASET_FIELD_DESCRIPTIONS = {
     "generation_strategy": "生成策略，如 fast_path、llm_checked、rewritten、fallback。",
     "private_progress_signal_request": "是否识别到学生索要私有进度/正确性信号。",
     "private_grade_signal_request": "是否识别到学生索要评分、扣分、通过等私有评分信号。",
+    "private_signal_encoding_request": "是否识别到学生索要编码、位置、语气等侧信道答案信号。",
     "private_signal_output_guarded": "是否由输出级保护拦截并改写了私有信号回复。",
     "timeout_stage": "发生阶段级超时时的阶段名称。",
     "stage_timings": "各生成阶段耗时 JSON。",
@@ -215,6 +216,7 @@ def fetch_interaction_dataset(conn, filters: DatasetExportFilters) -> pd.DataFra
             il.generation_strategy,
             il.private_progress_signal_request,
             il.private_grade_signal_request,
+            il.private_signal_encoding_request,
             il.private_signal_output_guarded,
             il.timeout_stage,
             il.stage_timings,
@@ -243,6 +245,7 @@ def _normalize_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
         "rewrite_triggered",
         "private_progress_signal_request",
         "private_grade_signal_request",
+        "private_signal_encoding_request",
         "private_signal_output_guarded",
     ]:
         if column not in normalized.columns:
@@ -275,6 +278,7 @@ def build_dataset_export_dataframe(raw_df: pd.DataFrame, *, include_raw_student_
         "generation_strategy",
         "private_progress_signal_request",
         "private_grade_signal_request",
+        "private_signal_encoding_request",
         "private_signal_output_guarded",
         "timeout_stage",
         "stage_timings",
@@ -332,6 +336,7 @@ def build_dataset_export_dataframe(raw_df: pd.DataFrame, *, include_raw_student_
     export_df["generation_strategy"] = df["generation_strategy"].str.strip().replace("", "fast_path")
     export_df["private_progress_signal_request"] = df["private_progress_signal_request"]
     export_df["private_grade_signal_request"] = df["private_grade_signal_request"]
+    export_df["private_signal_encoding_request"] = df["private_signal_encoding_request"]
     export_df["private_signal_output_guarded"] = df["private_signal_output_guarded"]
     export_df["timeout_stage"] = df["timeout_stage"].str.strip()
     export_df["stage_timings"] = df["stage_timings"].str.strip()

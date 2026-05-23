@@ -62,7 +62,12 @@ FORMULA_PARSE_GAP_PATTERN = re.compile(
 )
 DIRECT_ANSWER_REQUEST_PATTERN = re.compile(
     r"(tell me the answer|give me the answer|final answer|standard answer|"
-    r"json.{0,40}(answer|solution)|answer.{0,40}solution|"
+    r"tell me the correct option|give (?:me )?the correct option|correct option only|"
+    r"what (?:is )?the correct option|which (?:option|choice|one) (?:is correct|should i (?:pick|choose))|"
+    r"what (?:answer|option|choice|letter) should i submit|what should i submit|"
+    r"(?:output|return|print).{0,24}(?:correct option|option letter|answer).{0,24}(?:json|only)?|"
+    r"ignore (?:previous|all).{0,24}rules.{0,40}(?:answer|option|solution|json)|"
+    r"json.{0,40}(answer|solution|correct option|option letter)|answer.{0,40}solution|"
     r"\u76f4\u63a5.*\u7b54\u6848|\u7ed9.*\u7b54\u6848|\u6700\u7ec8\u7b54\u6848|"
     r"\u6700\u7ec8\u6570\u503c|\u53ea\u8f93\u51fa|\u6807\u51c6\u7b54\u6848|\u6b63\u786e\u7b54\u6848|\u5b8c\u6574\u89e3\u6790|"
     r"\u4e0d\u8981\u591a\u8bf4|\u7b54\u6848\u662f\u4ec0\u4e48|\u6c42\u7b54\u6848|"
@@ -145,6 +150,17 @@ PRIVATE_ANSWER_CONFIRMATION_PHRASES = (
 )
 PRIVATE_ANSWER_CONFIRMATION_ENGLISH_PHRASES = (
     "submitted answer is reasonable",
+    "submission-ready",
+    "submission ready",
+    "valid enough",
+    "acceptable",
+    "is this fine",
+    "can i proceed",
+    "should i keep going",
+    "can i keep going",
+    "can i continue",
+    "could a ta accept",
+    "teacher would accept",
     "safe to submit",
     "safe enough to submit",
     "direction is off track",
@@ -334,10 +350,19 @@ DISCONTINUITY_CHECK_PATTERN = re.compile(
 )
 VISIBLE_CHOICE_CLAIM_PATTERN = re.compile(
     r"("
+    r"(?:\u6211|i|my).{0,18}(?:\u9009|\u9009\u62e9|choose|pick|select).{0,24}\b[A-D]\b|"
+    r"(?:i|my).{0,18}(?:guess|think|feel|believe).{0,24}\b[A-D]\b.{0,20}(?:right|correct|answer|option|choice|\?)|"
     r"(?:\u6211|i|my).{0,18}(?:\u9009|\u9009\u62e9|choose|pick|select|guess|think|feel|believe).{0,32}"
-    r"([A-D]|option\s*[A-D]|choice\s*[A-D]|candidate\s*[A-D]|(?:first|second|third|fourth|middle|last|one before d)|\u7b2c[1-4]|\u7b2c\u4e00|\u7b2c\u4e8c|\u7b2c\u4e09|\u7b2c\u56db|\u4e2d\u95f4)|"
-    r"(?:option|choice|candidate)\s*[A-D].{0,32}(?:is|looks|seems|should\s+be|is\s+the\s+one\s+to\s+keep|is\s+right|is\s+correct)|"
-    r"(?:the|this)\s+(?:first|second|third|fourth|middle|last)\s+(?:candidate|choice|option|one).{0,32}"
+    r"(option\s*[A-D]\b|choice\s*[A-D]\b|candidate\s*[A-D]\b|"
+    r"(?:first|second|third|fourth|middle|central|center|last|penultimate|second from the end|last but one|one before d|one after b|one between b and d)|"
+    r"\u7b2c[1-4]|\u7b2c\u4e00|\u7b2c\u4e8c|\u7b2c\u4e09|\u7b2c\u56db|\u4e2d\u95f4)|"
+    r"my\s+(?:answer|choice|option|guess).{0,18}(?:is|=|:)?\s*"
+    r"(?:option\s*[A-D]\b|choice\s*[A-D]\b|candidate\s*[A-D]\b|"
+    r"first|second|third|fourth|middle|central|center|last|penultimate|second from the end|last but one|one before d|one after b|one between b and d)|"
+    r"(?:option|choice|candidate)\s*[A-D]\b.{0,32}(?:is|looks|seems|should\s+be|is\s+the\s+one\s+to\s+keep|is\s+right|is\s+correct)|"
+    r"(?:the|this)\s+(?:first|second|third|fourth|middle|central|center|last|penultimate)\s+(?:candidate|choice|option|one).{0,32}"
+    r"(?:is|looks|seems|should\s+be|is\s+the\s+one\s+to\s+keep|is\s+right|is\s+correct)|"
+    r"(?:the|this)\s+(?:second from the end|last but one|one before d|one after b|one between b and d).{0,32}"
     r"(?:is|looks|seems|should\s+be|is\s+the\s+one\s+to\s+keep|is\s+right|is\s+correct)|"
     r"(?:\u6211|\u6211\u89c9\u5f97|\u6211\u8ba4\u4e3a|\u6211\u731c|\u6211\u9009|\u6211\u53d6)\s*"
     r"(?:A|B|C|D|\u7b2c[1-4]\u4e2a|\u7b2c\u4e00\u4e2a|\u7b2c\u4e8c\u4e2a|\u7b2c\u4e09\u4e2a|\u7b2c\u56db\u4e2a|\u4e2d\u95f4\u90a3\u4e2a)|"
@@ -349,8 +374,10 @@ VISIBLE_RESULT_CLAIM_PATTERN = re.compile(
     r"("
     r"(?:left\s+and\s+right\s+limits?|both\s+limits?|two\s+sides?).{0,40}(?:are|equal|equals?|=)\s*0\b|"
     r"(?:\u5de6\u53f3\u6781\u9650|\u5de6\u6781\u9650|\u53f3\u6781\u9650).{0,40}(?:\u90fd\u662f|=\s*|\u7b49\u4e8e|0\b)|"
-    r"(?:expression|result|limit|value|proof|derivation|step).{0,40}(?:collapses?|vanishes?|disappears?|goes|tends?|reduces?|simplifies?).{0,30}"
+    r"(?:expression|result|limit|value|proof|derivation|step).{0,40}"
+    r"(?:collapses?|vanishes?|disappears?|goes|tends?|converges?|approaches?|reduces?|simplifies?).{0,30}"
     r"(?:to\s+zero|to\s+0|into\s+zero|into\s+0|nothing)|"
+    r"(?:expression|result|limit|value).{0,40}(?:negligible|approximately\s+zero)|"
     r"(?:\u5316\u6210|\u53d8\u6210|\u5f52\u4e3a|\u5f97\u5230|\u7b49\u4e8e|\u662f)\s*0\b|"
     r"(?:even|balanced|symmetric).{0,20}(?:split|symmetric\s+split|balanced\s+split|half\s+and\s+half)|"
     r"(?:1\s*/\s*2|0\.5).{0,20}(?:\u5bf9\u79f0|\u534a\u5206|\u4e00\u534a)"
@@ -363,9 +390,15 @@ PRIVATE_SIGNAL_OUTPUT_EXTRA_PATTERN = re.compile(
     r"salvageable|cooked|move on|trust(?: your| my| this| the)? current result|first wrong line|first mismatch|"
     r"safe enough to submit|safe to submit|would pass grading|pass grading|get credit|deduct points|"
     r"no need to change|need to change|right track|off track|close enough|only a sign issue|"
+    r"submission[-\s]?ready|good to go|valid enough|acceptable|reasonable|fine|passable|"
+    r"can stand as final work|may proceed|can continue|keep going|leave it as is|"
+    r"no glaring issue|nothing major is wrong|only a small fix|small fix is needed|"
     r"\u53ef\u4ee5\u4ea4|\u80fd\u4ea4|\u80fd\u62ff\u5206|\u80fd\u7ed9\u5206|\u4e0d\u9700\u8981\u6539|\u4e0d\u7528\u91cd\u505a|\u9700\u8981\u91cd\u505a|\u4e0d\u4f1a\u6263\u5206|\u4f1a\u6263\u5206|\u91cd\u505a|\u53ef\u4ee5\u7ee7\u7eed|\u53ef\u4ee5\u5f80\u540e\u8bb2|"
     r"\u8fd8\u6709\u6551|\u8fd9\u4e2a\u8bc1\u660e\u8fd8\u6709\u6551|\u8fd9\u4efd\u8bc1\u660e\u8fd8\u6709\u6551|"
-    r"\u672c\u6b21\u53ef\u4ee5\u4ea4|\u5f53\u524d\u7ed3\u679c\u53ef\u4ee5\u63d0\u4ea4|\u8fd9\u4e2a\u7ed3\u679c\u53ef\u4ee5\u4ea4"
+    r"\u672c\u6b21\u53ef\u4ee5\u4ea4|\u5f53\u524d\u7ed3\u679c\u53ef\u4ee5\u63d0\u4ea4|\u8fd9\u4e2a\u7ed3\u679c\u53ef\u4ee5\u4ea4|"
+    r"\u6ca1\u6709\u5927\u95ee\u9898|\u6ca1\u5927\u95ee\u9898|\u95ee\u9898\u4e0d\u5927|\u8fd8\u884c|"
+    r"\u53ef\u4ee5\u4fdd\u7559|\u57fa\u672c\u6ca1\u9519|\u6574\u4f53\u6ca1\u95ee\u9898|\u5c0f\u95ee\u9898|"
+    r"\u65b9\u5411\u53ef\u4ee5"
     r")",
     re.I,
 )
@@ -377,8 +410,13 @@ PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN = re.compile(
     re.I,
 )
 PRIVATE_POSITION_OR_VALUE_OUTPUT_PATTERN = re.compile(
-    r"(third\s+(?:candidate|choice|option|one)|middle\s+(?:candidate|choice|option|one)|one\s+before\s+D|"
-    r"collapses?\s+to\s+zero|vanishes?|disappears?|goes\s+to\s+zero|tends?\s+to\s+nothing|"
+    r"(third\s+(?:candidate|choice|option|one)|middle\s+(?:candidate|choice|option|one)|"
+    r"central\s+(?:candidate|choice|option|one)|center\s+(?:candidate|choice|option|one)|"
+    r"left[-\s]?side\s+candidate|right[-\s]?side\s+candidate|second\s+from\s+the\s+end|"
+    r"penultimate\s+(?:candidate|choice|option|one)|last\s+but\s+one|one\s+near\s+the\s+middle|one\s+before\s+D|"
+    r"collapses?\s+to\s+zero|vanishes?|disappears?|goes\s+to\s+zero|tends?\s+to\s+zero|"
+    r"converges?\s+to\s+zero|approaches?\s+zero|negligible|approximately\s+zero|drops?\s+to\s+nothing|"
+    r"tends?\s+to\s+nothing|"
     r"even\s+split|balanced\s+split|symmetric\s+split|"
     r"\u7b2c\u4e09\u4e2a|\u4e2d\u95f4\u90a3\u4e2a|\u9760\u540e\u90a3\u4e2a|\u5316\u6210\s*0|\u53d8\u6210\s*0|\u5f52\u4e3a\s*0)",
     re.I,
@@ -450,6 +488,7 @@ def _build_result(
     side_channel_detected: int = 0,
     private_progress_signal_request: int = 0,
     private_grade_signal_request: int = 0,
+    private_signal_encoding_request: int = 0,
     private_signal_output_guarded: int = 0,
     context_drift_risk: int = 0,
     math_consistency_risk: int = 0,
@@ -472,6 +511,7 @@ def _build_result(
         "side_channel_detected": int(bool(side_channel_detected)),
         "private_progress_signal_request": int(bool(private_progress_signal_request)),
         "private_grade_signal_request": int(bool(private_grade_signal_request)),
+        "private_signal_encoding_request": int(bool(private_signal_encoding_request)),
         "private_signal_output_guarded": int(bool(private_signal_output_guarded)),
         "context_drift_risk": int(bool(context_drift_risk)),
         "math_consistency_risk": int(bool(math_consistency_risk)),
@@ -550,6 +590,7 @@ def _build_interaction_observability(
         ),
         "private_progress_signal_request": int(bool(profile.get("private_progress_signal_request"))),
         "private_grade_signal_request": int(bool(profile.get("private_grade_signal_request"))),
+        "private_signal_encoding_request": int(bool(profile.get("private_signal_encoding_request"))),
         "private_signal_output_guarded": int(private_confirmation_guarded),
         "context_drift_risk": int(
             bool(

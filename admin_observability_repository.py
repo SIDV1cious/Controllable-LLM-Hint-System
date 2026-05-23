@@ -101,7 +101,8 @@ def fetch_hint_leakage_records(conn) -> pd.DataFrame:
             "COALESCE(NULLIF(generation_status, ''), 'success') AS generation_status, "
             "COALESCE(NULLIF(generation_strategy, ''), 'fast_path') AS generation_strategy, "
             "COALESCE(timeout_stage, '') AS timeout_stage, "
-            "private_progress_signal_request, private_grade_signal_request, private_signal_output_guarded "
+            "private_progress_signal_request, private_grade_signal_request, private_signal_encoding_request, "
+            "private_signal_output_guarded "
             "FROM interaction_logs WHERE user_query LIKE :pattern"
         ),
         conn,
@@ -209,6 +210,7 @@ def fetch_recent_interaction_logs(conn, limit: int = 50) -> pd.DataFrame:
                 "generation_strategy AS '生成策略', timeout_stage AS '超时阶段', "
                 "private_progress_signal_request AS '私有进度信号请求', "
                 "private_grade_signal_request AS '私有评分信号请求', "
+                "private_signal_encoding_request AS '私有编码信号请求', "
                 "private_signal_output_guarded AS '输出保护触发', "
                 "generation_error AS '生成异常', leakage_reason AS '检测原因', "
                 "created_at AS '交互时间' FROM interaction_logs ORDER BY created_at DESC LIMIT :limit"
