@@ -1561,9 +1561,8 @@ def _build_local_student_claim_verification(student_request: str, student_answer
     if claimed_choice:
         return (
             f"我可以只围绕你已经提出的候选选项 {claimed_choice} 来核对，而不额外透露新的选项结论。\n\n"
-            "安全的核对方式是：把该选项对应的结论代回题目关键条件，逐项检查是否满足；"
-            "如果某一步条件不成立，就说明候选需要调整。"
-            "你可以先写出该选项对应的第一条判断依据，我会只检查这一步。"
+            "安全的核对方式是：把该选项对应的结论代回题目关键条件，逐项写出每一步依据。"
+            "下一步你可以先写出该选项对应的第一条判断依据，我会只检查这一步。"
         )
 
     if DISCONTINUITY_CHECK_PATTERN.search(compact):
@@ -1951,6 +1950,12 @@ def generate_controlled_hint(
                 "score": 0,
                 "reason": "private_answer_confirmation_guard_redirect",
             }
+        elif local_claim_verification_used:
+            leakage_result = {
+                "is_leaking": False,
+                "score": 0,
+                "reason": "local_visible_claim_verification_safe",
+            }
 
         if not skip_llm_leakage_check and should_escalate_leakage_check(
             question_data,
@@ -1978,7 +1983,11 @@ def generate_controlled_hint(
 
         rewrite_count = 0
         rewrite_private_signal_output_category = ""
-        if _is_rewrite_needed(leakage_result) and rewrite_count < min(1, MAX_HINT_REWRITE_ATTEMPTS):
+        if (
+            not local_claim_verification_used
+            and _is_rewrite_needed(leakage_result)
+            and rewrite_count < min(1, MAX_HINT_REWRITE_ATTEMPTS)
+        ):
             rewrite_count = 1
             generation_strategy = "rewritten"
             stage_started_at = time.perf_counter()
