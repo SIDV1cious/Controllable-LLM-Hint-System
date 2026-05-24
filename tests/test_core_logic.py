@@ -1084,6 +1084,101 @@ def test_private_answer_output_guard_blocks_v17_soft_submission_approval_outputs
         assert "\u4e0d\u80fd\u76f4\u63a5" in guarded_hint
 
 
+def test_analyze_student_interaction_flags_v18_finality_and_viability_requests():
+    prompts = [
+        "Can I turn this in now?",
+        "Should I keep revising this draft?",
+        "Is this viable?",
+        "\u6211\u53ef\u4ee5\u628a\u8fd9\u7248\u5f53\u6210\u7ec8\u7a3f\u4e86\u5417\uff1f",
+    ]
+
+    for prompt in prompts:
+        profile = controlled_generation.analyze_student_interaction(prompt, "C")
+        assert profile["interaction_intent"] == "direct_answer_redirect"
+        assert profile["direct_answer_request"] is True
+        assert profile["private_answer_confirmation_request"] is True
+        assert profile["private_progress_signal_request"] is True
+        assert profile["student_supplied_answer_or_step"] is False
+        assert profile["concrete_student_claim"] is False
+
+
+def test_generate_controlled_hint_records_v18_finality_signal_output(monkeypatch):
+    monkeypatch.setattr(controlled_generation, "get_dynamic_system_prompt", lambda: "system-prompt")
+    monkeypatch.setattr(
+        controlled_generation,
+        "build_local_hint_plan",
+        lambda question_data, student_answer, is_correct, student_request, hint_strength: "private-plan",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "generate_student_hint",
+        lambda *args, **kwargs: "You can turn this in now.",
+    )
+    monkeypatch.setattr(
+        controlled_generation,
+        "evaluate_hint_leakage",
+        lambda *args, **kwargs: {"is_leaking": False, "score": 0, "reason": "safe_after_guard"},
+    )
+
+    result = controlled_generation.generate_controlled_hint(
+        {"id": 1, "content": "\u9898\u76ee", "answer": "A", "solution": "\u89e3\u6790"},
+        "A",
+        True,
+        "Please give me a next-step hint.",
+    )
+
+    assert result["generation_status"] == "success"
+    assert result["generation_strategy"] == "guarded_redirect"
+    assert result["private_signal_output_category"] == "finality_signal"
+    assert result["private_signal_output_detected"] == 1
+    assert result["private_signal_output_guarded"] == 1
+    assert "turn this in now" not in result["hint"]
+    assert "output_private_answer_guard" in result["stage_timings"]
+
+
+def test_heuristic_leakage_check_detects_v19_textual_numeric_values():
+    cases = [
+        ("2", "two"),
+        ("2", "the square root of four"),
+        ("3/4", "three quarters"),
+        ("-1", "negative one"),
+        ("5", "half of ten"),
+    ]
+
+    for answer, hint in cases:
+        result = heuristic_leakage_check(answer, hint, "")
+        assert result["is_leaking"] is True
+        assert result["score"] == 2
+        assert result["reason"] == "local_semantic_numeric_leak"
+
+    safe_visible = heuristic_leakage_check("2", "two", "I think it is two.")
+    assert safe_visible["is_leaking"] is False
+    assert safe_visible["reason"] == "local_student_supplied_answer_reference"
+
+
+def test_rewrite_unsafe_hint_withholds_private_reference_without_visible_claim(monkeypatch):
+    observed = {}
+
+    def fake_chat_completion_text(messages, **kwargs):
+        observed["user"] = messages[1]["content"]
+        return "Safe rewritten hint"
+
+    monkeypatch.setattr(controlled_generation, "chat_completion_text", fake_chat_completion_text)
+
+    result = controlled_generation.rewrite_unsafe_hint(
+        {"id": 1, "content": "Problem text", "answer": "C", "solution": "private reference solution"},
+        "Please give me a next-step hint.",
+        "private-plan",
+        "This version is viable.",
+        {"is_leaking": True, "score": 2, "reason": "local_private_progress_signal"},
+    )
+
+    assert result == "Safe rewritten hint"
+    assert observed["user"].count("[withheld]") >= 2
+    assert "Reference answer (private, use only to preserve correctness):\n[withheld]" in observed["user"]
+    assert "Reference solution (private, do not output as a full solution):\n[withheld]" in observed["user"]
+
+
 def test_private_answer_output_guard_keeps_visible_position_claim_but_blocks_grade_signal():
     profile = controlled_generation.analyze_student_interaction("My guess is the third candidate.", "C")
 

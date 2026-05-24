@@ -1,6 +1,7 @@
 import logging
 import re
 from difflib import SequenceMatcher
+from fractions import Fraction
 from typing import Any
 
 from domain_models import LeakageEvaluation, QuestionData
@@ -11,7 +12,7 @@ from prompts import LEAKAGE_CHECK_PROMPT_SYSTEM
 CHOICE_ANSWER_PATTERN = re.compile(r"^[A-D]$", re.I)
 NUMBER_PATTERN = re.compile(r"(?<![A-Za-z])[-+]?\d+(?:\.\d+)?(?:/\d+)?(?![A-Za-z])")
 HIGH_RISK_REQUEST_PATTERN = re.compile(
-    r"(answer|solution|final|correct|option|choose|direct|complete|grade|grader|rubric|credit|marks|"
+    r"(answer|solution|correct|option|choose|direct|grade|grader|rubric|credit|marks|"
     r"partial\s+credit|minor\s+marks|salvageable|cooked|move\s+on|trust(?:\s+my|\s+your|\s+the|\s+this)?\s+current\s+result|"
     r"gradeable|first\s+wrong\s+line|first\s+mismatch|okay\s+to\s+submit|looks?\s+okay|looks?\s+good|good\s+enough|"
     r"acceptable|reasonable|sound|sufficient|submit\s+as\s+is|can\s+submit|ready\s+to\s+submit|safe\s+to\s+submit|"
@@ -20,7 +21,7 @@ HIGH_RISK_REQUEST_PATTERN = re.compile(
     re.I,
 )
 ANSWER_CONTEXT_PATTERN = re.compile(
-    r"(answer|solution|final|correct|option|choose|grade|grader|rubric|credit|marks|"
+    r"(answer|solution|correct|option|choose|grade|grader|rubric|credit|marks|"
     r"partial\s+credit|minor\s+marks|salvageable|cooked|move\s+on|trust(?:\s+my|\s+your|\s+the|\s+this)?\s+current\s+result|gradeable|"
     r"答案|选项|选择|正确|结论|结果|okay\s+to\s+submit|looks?\s+okay|looks?\s+good|good\s+enough|acceptable|reasonable|sound|"
     r"sufficient|submit\s+as\s+is|can\s+submit|ready\s+to\s+submit|safe\s+to\s+submit|should\s+be\s+accepted|would\s+be\s+accepted|"
@@ -87,6 +88,39 @@ HALF_SEMANTIC_LEAK_PATTERN = re.compile(
 )
 
 
+FINALITY_REQUEST_PATTERN = re.compile(
+    r"(turn\s+in|hand\s+in|turn\s+this\s+in|hand\s+this\s+in|"
+    r"final(?:\s+version|\s+draft|\s+answer|\s+result)?|finalize|revise|"
+    r"keep\s+(?:this\s+)?(?:version|draft)|leave\s+it\s+as\s+is|keep\s+revising|keep\s+editing|"
+    r"is\s+this\s+(?:viable|workable|adequate|usable|serviceable|passable)|"
+    r"basically\s+(?:complete|done)|almost\s+(?:there|done)|"
+    r"can\s+i\s+call\s+this\s+final|ready\s+to\s+finalize|"
+    r"should\s+i\s+keep\s+(?:this|it)\s+(?:version|draft|as\s+is)|"
+    r"can\s+i\s+keep\s+(?:this|it)\s+(?:version|draft|as\s+is)|"
+    r"can\s+i\s+consider\s+this\s+(?:done|complete|final)|"
+    r"should\s+i\s+consider\s+this\s+(?:done|complete|final)|"
+    r"可以交|可以定稿|终稿|最终版|可交|可行|可用|还要继续修改|还要不要修改|先这样交|留着这版)",
+    re.I,
+)
+
+PRIVATE_SIGNAL_OUTPUT_FINALITY_PATTERN = re.compile(
+    r"(turn\s+this\s+in|hand\s+this\s+in|turn\s+in\s+now|hand\s+in\s+now|"
+    r"final(?:\s+version|\s+draft|\s+answer|\s+result)?|finalize|revise(?:\s+this)?|"
+    r"keep\s+(?:this\s+)?(?:version|draft)|leave\s+it\s+as\s+is|keep\s+revising|keep\s+editing|"
+    r"viable|workable|adequate|usable|serviceable|passable|"
+    r"basically\s+(?:complete|done)|almost\s+(?:there|done)|"
+    r"you\s+can\s+turn\s+this\s+in\s+now|you\s+can\s+hand\s+this\s+in\s+now|"
+    r"you\s+still\s+need\s+to\s+revise\s+this|this\s+version\s+is\s+viable|this\s+is\s+viable|"
+    r"this\s+is\s+workable|this\s+is\s+adequate|this\s+is\s+usable|this\s+is\s+serviceable|"
+    r"this\s+should\s+be\s+the\s+final\s+version|this\s+is\s+basically\s+complete|"
+    r"this\s+is\s+basically\s+done|you\s+can\s+consider\s+this\s+done|"
+    r"you\s+can\s+consider\s+this\s+complete|you\s+can\s+consider\s+this\s+final|"
+    r"这版可用|这版能交|这版算终稿|这份可以定稿了|这版算可交状态|这版可以直接当最终版|"
+    r"可以当成终稿|还要继续修改|还要不要修改|先这样交|留着这版|终稿|最终版|可交|可行|可用)",
+    re.I,
+)
+
+
 def _choice_semantic_patterns(choice: str) -> tuple[re.Pattern, ...]:
     choice = str(choice or "").upper()
     if choice == "A":
@@ -129,6 +163,8 @@ def _has_private_signal_output(candidate_hint: str) -> bool:
     raw_hint = str(candidate_hint or "")
     if PRIVATE_SIGNAL_OUTPUT_EXTRA_CHINESE_PATTERN.search(raw_hint):
         return True
+    if PRIVATE_SIGNAL_OUTPUT_FINALITY_PATTERN.search(raw_hint):
+        return True
     hint = PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN.sub("", raw_hint)
     return bool(PRIVATE_SIGNAL_OUTPUT_PATTERN.search(hint))
 
@@ -156,6 +192,130 @@ def _parse_bool(value: Any) -> bool:
 
 def _numbers_from_text(value: str | None) -> set[str]:
     return {match.group(0) for match in NUMBER_PATTERN.finditer(str(value or ""))}
+
+
+TEXTUAL_NUMBER_WORD_VALUES = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+    "a": 1,
+    "an": 1,
+}
+
+TEXTUAL_FRACTION_DENOMINATORS = {
+    "half": 2,
+    "halves": 2,
+    "quarter": 4,
+    "quarters": 4,
+    "fourth": 4,
+    "fourths": 4,
+    "third": 3,
+    "thirds": 3,
+    "fifth": 5,
+    "fifths": 5,
+}
+
+
+def _parse_numeric_atom(token: str) -> Fraction | None:
+    cleaned = re.sub(r"[^a-z0-9./-]+", "", str(token or "").lower())
+    if not cleaned:
+        return None
+    if cleaned in TEXTUAL_NUMBER_WORD_VALUES:
+        return Fraction(TEXTUAL_NUMBER_WORD_VALUES[cleaned], 1)
+    try:
+        return Fraction(cleaned)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _extract_numeric_semantic_values(text: str | None) -> set[Fraction]:
+    normalized = re.sub(r"[\u2010-\u2015]", "-", str(text or "").lower())
+    values: set[Fraction] = set()
+
+    for match in NUMBER_PATTERN.finditer(normalized):
+        try:
+            values.add(Fraction(match.group(0)))
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+
+    for match in re.finditer(
+        r"\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|"
+        r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|a|an)\b",
+        normalized,
+    ):
+        atom = _parse_numeric_atom(match.group(1))
+        if atom is not None:
+            values.add(atom)
+
+    for match in re.finditer(
+        r"\b(?:negative|minus)\s+([a-z]+|\d+(?:\.\d+)?(?:/\d+)?)\b",
+        normalized,
+    ):
+        atom = _parse_numeric_atom(match.group(1))
+        if atom is not None:
+            values.add(-atom)
+
+    for match in re.finditer(
+        r"\bhalf\s+of\s+([a-z]+|\d+(?:\.\d+)?(?:/\d+)?)\b",
+        normalized,
+    ):
+        atom = _parse_numeric_atom(match.group(1))
+        if atom is not None:
+            values.add(atom / 2)
+
+    for match in re.finditer(
+        r"\bsquare\s+root\s+of\s+([a-z]+|\d+(?:\.\d+)?(?:/\d+)?)\b",
+        normalized,
+    ):
+        atom = _parse_numeric_atom(match.group(1))
+        if atom is None:
+            continue
+        try:
+            integer_atom = int(atom)
+        except (TypeError, ValueError):
+            continue
+        if atom == integer_atom and integer_atom >= 0:
+            root = int(integer_atom**0.5)
+            if root * root == integer_atom:
+                values.add(Fraction(root, 1))
+
+    for match in re.finditer(
+        r"\b(?:the\s+)?(?:sum\s+of\s+)?([a-z]+|\d+(?:\.\d+)?(?:/\d+)?)\s+(?:plus|and)\s+([a-z]+|\d+(?:\.\d+)?(?:/\d+)?)\b",
+        normalized,
+    ):
+        left = _parse_numeric_atom(match.group(1))
+        right = _parse_numeric_atom(match.group(2))
+        if left is not None and right is not None:
+            values.add(left + right)
+
+    for match in re.finditer(
+        r"\b([a-z]+|\d+(?:\.\d+)?(?:/\d+)?)\s+(quarters?|fourths?|thirds?|fifths?|halves?)\b",
+        normalized,
+    ):
+        atom = _parse_numeric_atom(match.group(1))
+        denominator = TEXTUAL_FRACTION_DENOMINATORS.get(match.group(2), 0)
+        if atom is not None and denominator:
+            values.add(atom / denominator)
+
+    return values
 
 
 def _choice_already_in_student_context(choice: str, student_context: str | None) -> bool:
@@ -188,7 +348,12 @@ def _answer_already_in_student_context(reference_answer: str, student_context: s
     if len(normalized_answer) >= 2 and normalized_answer in _normalize_text(context):
         return True
     answer_numbers = _numbers_from_text(answer)
-    return bool(answer_numbers) and answer_numbers.issubset(_numbers_from_text(context))
+    if bool(answer_numbers) and answer_numbers.issubset(_numbers_from_text(context)):
+        return True
+    answer_semantic_values = _extract_numeric_semantic_values(answer)
+    if answer_semantic_values and answer_semantic_values.issubset(_extract_numeric_semantic_values(context)):
+        return True
+    return False
 
 
 def _solution_overlap_score(solution: str, candidate_hint: str) -> float:
@@ -255,6 +420,15 @@ def heuristic_leakage_check(
             return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_numeric_reference"}
         return {"is_leaking": True, "score": 2, "reason": "local_semantic_half_leak"}
 
+    answer_semantic_values = _extract_numeric_semantic_values(answer)
+    hint_semantic_values = _extract_numeric_semantic_values(hint)
+    if answer_semantic_values and hint_semantic_values and answer_semantic_values & hint_semantic_values:
+        if _answer_already_in_student_context(answer, student_context):
+            return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_answer_reference"}
+        if answer_semantic_values & _extract_numeric_semantic_values(student_context):
+            return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_numeric_reference"}
+        return {"is_leaking": True, "score": 2, "reason": "local_semantic_numeric_leak"}
+
     if len(normalized_answer) >= 2 and normalized_answer in normalized_hint:
         if _answer_already_in_student_context(answer, student_context):
             return {"is_leaking": False, "score": 0, "reason": "local_student_supplied_answer_reference"}
@@ -310,6 +484,8 @@ def should_escalate_leakage_check(
         return False
     if HIGH_RISK_REQUEST_PATTERN.search(student_request or ""):
         return True
+    if FINALITY_REQUEST_PATTERN.search(student_request or ""):
+        return True
     if re.search(
         r"(okay\s+to\s+submit|looks?\s+okay|looks?\s+good|good\s+enough|acceptable|reasonable|sound|sufficient|"
         r"submit\s+as\s+is|can\s+submit|ready\s+to\s+submit|safe\s+to\s+submit|would\s+this\s+be\s+okay\s+to\s+submit|"
@@ -322,6 +498,7 @@ def should_escalate_leakage_check(
     if (
         ANSWER_CONTEXT_PATTERN.search(candidate_hint or "")
         or PRIVATE_SIGNAL_OUTPUT_PATTERN.search(candidate_hint or "")
+        or PRIVATE_SIGNAL_OUTPUT_FINALITY_PATTERN.search(candidate_hint or "")
     ) and (question_data.get("answer") or question_data.get("solution")):
         return True
     return False
@@ -390,14 +567,18 @@ def evaluate_hint_leakage(
     if not (std_ans or std_sol):
         return local_result
 
+    allow_private_claim_review = bool(_answer_already_in_student_context(std_ans, student_context))
+    reference_answer_line = std_ans if allow_private_claim_review else "[withheld]"
+    reference_solution_line = std_sol if allow_private_claim_review else "[withheld]"
+
     prompt = f"""Problem:
 {question_data.get('content', '')}
 
 Reference answer:
-{std_ans}
+{reference_answer_line}
 
 Reference solution:
-{std_sol}
+{reference_solution_line}
 
 Student request and visible student attempt:
 {student_context}

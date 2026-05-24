@@ -373,6 +373,8 @@ def _classify_private_signal_output(final_hint: str) -> str:
         return "soft_approval"
     if _contains_any_phrase(raw_hint, PRIVATE_OUTPUT_GRADE_PHRASES):
         return "grade_signal"
+    if _contains_any_phrase(raw_hint, PRIVATE_FINALITY_SIGNAL_PHRASES):
+        return "finality_signal"
     if _contains_any_phrase(raw_hint, PRIVATE_OUTPUT_PROGRESS_PHRASES):
         return "progress_signal"
 
@@ -779,6 +781,88 @@ PRIVATE_POSITION_OR_VALUE_OUTPUT_PATTERN = re.compile(
 )
 
 
+PRIVATE_FINALITY_SIGNAL_PHRASES = (
+    "turn in now",
+    "turn this in",
+    "hand in now",
+    "hand this in",
+    "keep this version",
+    "keep this draft",
+    "keep revising",
+    "keep editing",
+    "leave it as is",
+    "keep it as is",
+    "should i keep revising",
+    "do i still need to revise",
+    "should i keep this version",
+    "can i keep this version",
+    "can i call this final",
+    "ready to finalize",
+    "final version",
+    "finalize this",
+    "finalize it",
+    "is this viable",
+    "is this workable",
+    "is this adequate",
+    "is this usable",
+    "is this serviceable",
+    "is this passable",
+    "basically complete",
+    "basically done",
+    "almost there",
+    "almost done",
+    "consider this done",
+    "consider this complete",
+    "consider this final",
+    "this version is viable",
+    "this is viable",
+    "this is workable",
+    "this is adequate",
+    "this is usable",
+    "this is serviceable",
+    "this is passable",
+    "you can turn this in now",
+    "you can hand this in now",
+    "you still need to revise this",
+    "you should keep revising",
+    "you can keep this version",
+    "you should keep this version",
+    "you can leave it as is",
+    "this should be the final version",
+    "you can consider this done",
+    "you can consider this complete",
+    "you can consider this final",
+    "this is basically complete",
+    "this is basically done",
+    "可以交了",
+    "可以交",
+    "可以定稿",
+    "终稿",
+    "最终版",
+    "这版可用",
+    "这版能交",
+    "这版算终稿",
+    "这份可以定稿了",
+    "这版算可交状态",
+    "这版可以直接当最终版",
+    "可以当成终稿",
+    "还要继续修改",
+    "还要不要修改",
+    "先这样交",
+    "留着这版",
+    "可行",
+    "可用",
+    "可交",
+    "这版可以当成终稿了吗",
+    "这版能当终稿吗",
+    "这版可交吗",
+    "这份能叫作最终版吗",
+    "这版可用吗",
+    "这版算可交状态吗",
+    "我可以把这版当成终稿了吗",
+)
+
+
 def _contains_any_pattern(text: str, patterns: tuple[re.Pattern, ...]) -> bool:
     return any(pattern.search(text or "") for pattern in patterns)
 
@@ -811,6 +895,13 @@ def _has_explicit_visible_choice_claim(student_request: str) -> bool:
     request = str(student_request or "")
     lowered = request.lower()
     explicit_markers = (
+        "我选",
+        "我选择",
+        "我猜",
+        "我觉得",
+        "我认为",
+        "我答",
+        "我会选",
         "我选",
         "我选择",
         "我猜",
@@ -1033,7 +1124,11 @@ def _build_interaction_observability(
 def _guard_private_answer_confirmation(final_hint: str, profile: dict) -> tuple[str, bool]:
     if _allows_explicit_claim_verification(profile):
         hint = PRIVATE_SIGNAL_SAFE_NEGATION_PATTERN.sub("", str(final_hint or ""))
-        if PRIVATE_SIGNAL_OUTPUT_EXTRA_PATTERN.search(hint):
+        if _classify_private_signal_output(hint) in {
+            "grade_signal",
+            "progress_signal",
+            "finality_signal",
+        } or PRIVATE_SIGNAL_OUTPUT_EXTRA_PATTERN.search(hint):
             return _build_direct_answer_redirect_hint(), True
         return final_hint, False
     if _has_private_signal_output(final_hint):
@@ -1059,6 +1154,29 @@ def _has_private_grade_signal_phrase(student_request: str) -> bool:
     )
 
 
+def _has_private_finality_signal_phrase(student_request: str) -> bool:
+    request = str(student_request or "")
+    lowered = request.lower()
+    if _contains_any_phrase(request, PRIVATE_FINALITY_SIGNAL_PHRASES):
+        return True
+    return bool(
+        re.search(
+            r"(turn\s+in|hand\s+in|final(?:\s+version|\s+draft|\s+answer|\s+result)?|finalize|revise|"
+            r"keep\s+(?:this\s+)?(?:version|draft)|leave\s+it\s+as\s+is|keep\s+revising|keep\s+editing|"
+            r"is\s+this\s+(?:viable|workable|adequate|usable|serviceable|passable)|"
+            r"basically\s+(?:complete|done)|almost\s+(?:there|done)|"
+            r"can\s+i\s+call\s+this\s+final|ready\s+to\s+finalize|"
+            r"should\s+i\s+keep\s+(?:this|it)\s+(?:version|draft|as\s+is)|"
+            r"can\s+i\s+keep\s+(?:this|it)\s+(?:version|draft|as\s+is)|"
+            r"can\s+i\s+consider\s+this\s+(?:done|complete|final)|"
+            r"should\s+i\s+consider\s+this\s+(?:done|complete|final)|"
+            r"turn\s+this\s+in|hand\s+this\s+in)",
+            lowered,
+            flags=re.I,
+        )
+    )
+
+
 def _has_private_progress_signal_phrase(student_request: str) -> bool:
     request = str(student_request or "")
     lowered = request.lower()
@@ -1067,6 +1185,8 @@ def _has_private_progress_signal_phrase(student_request: str) -> bool:
     if any(term in request for term in PRIVATE_PROGRESS_SIGNAL_TERMS):
         return True
     if any(phrase in lowered for phrase in PRIVATE_PROGRESS_SIGNAL_ENGLISH_PHRASES):
+        return True
+    if _has_private_finality_signal_phrase(request):
         return True
     return bool(
         re.search(
@@ -1103,6 +1223,8 @@ def _has_private_answer_confirmation_phrase(student_request: str) -> bool:
     if _has_private_progress_signal_phrase(request):
         return True
     if _has_private_grade_signal_phrase(request):
+        return True
+    if _has_private_finality_signal_phrase(request):
         return True
     if _has_private_signal_encoding_phrase(request):
         return True
@@ -1799,14 +1921,17 @@ def rewrite_unsafe_hint(
     hint_strength = normalize_hint_strength(hint_strength)
     strength_policy = get_hint_strength_policy(hint_strength)
     interaction_profile = analyze_student_interaction(student_request)
+    allow_private_claim_review = bool(interaction_profile["student_supplied_answer_or_step"])
+    reference_answer_line = question_data.get("answer", "") if allow_private_claim_review else "[withheld]"
+    reference_solution_line = question_data.get("solution", "") if allow_private_claim_review else "[withheld]"
     prompt = f"""Problem:
 {question_data.get('content', '')}
 
 Reference answer (private, use only to preserve correctness):
-{question_data.get('answer', '')}
+{reference_answer_line}
 
 Reference solution (private, do not output as a full solution):
-{question_data.get('solution', '')}
+{reference_solution_line}
 
 Private safe hint plan:
 {hint_plan}
