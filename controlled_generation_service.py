@@ -1871,6 +1871,13 @@ def generate_controlled_hint(
         local_claim_verification_hint = _build_local_student_claim_verification(student_request, student_answer)
         local_process_hint = _build_local_process_hint(student_request)
         local_claim_verification_used = False
+        explicit_local_claim_request = bool(
+            _has_explicit_visible_choice_claim(student_request)
+            or _has_visible_result_claim(student_request)
+            or PARAMETER_AB_VERIFICATION_PATTERN.search(student_request or "")
+            or NEG_ONE_LIMIT_VERIFICATION_PATTERN.search(student_request or "")
+            or DISCONTINUITY_CHECK_PATTERN.search(student_request or "")
+        )
         if interaction_profile["formula_parse_problem"]:
             stage_started_at = time.perf_counter()
             final_hint = _build_formula_parse_repair_hint(student_request)
@@ -1881,7 +1888,10 @@ def generate_controlled_hint(
             final_hint = _build_foundational_formula_hint(foundational_formula_bank)
             _record_stage_timing(stage_timings, "generate_local_formula_hint", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_local_formula_hint")
-        elif interaction_profile["student_supplied_answer_or_step"] and local_claim_verification_hint:
+        elif (
+            (interaction_profile["student_supplied_answer_or_step"] or explicit_local_claim_request)
+            and local_claim_verification_hint
+        ):
             stage_started_at = time.perf_counter()
             final_hint = local_claim_verification_hint
             _record_stage_timing(stage_timings, "generate_local_claim_verification", stage_started_at)
