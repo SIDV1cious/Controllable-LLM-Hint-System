@@ -675,6 +675,15 @@ CHOICE_CLAIM_PATTERN = re.compile(
     r"([A-D])(?!\s*[、,/]\s*[A-D])\s*(?:\u5bf9\u5417|\u5bf9\u4e0d\u5bf9|\u6b63\u786e\u5417|\u884c\u5417))",
     re.I,
 )
+CHOICE_LETTER_TOKEN = r"(?<![A-Za-z])[A-D](?![A-Za-z])"
+EXPLICIT_VISIBLE_CHOICE_CLAIM_PATTERN = re.compile(
+    rf"(?:"
+    rf"(?:\u6211|i|my).{{0,10}}(?:\u9009|\u9009\u62e9|choose|pick|select|guess|think|feel|believe)\s*[:：=]?\s*({CHOICE_LETTER_TOKEN})"
+    rf"(?:\s*(?:\u5bf9\u5417|\u6b63\u786e\u5417|\u5bf9\u4e0d\u5bf9|right|correct))?"
+    rf"|({CHOICE_LETTER_TOKEN})\s*(?:\u5bf9\u5417|\u6b63\u786e\u5417|\u5bf9\u4e0d\u5bf9|right|correct)"
+    rf")",
+    re.I,
+)
 CONCRETE_STUDENT_CLAIM_PATTERN = re.compile(
     r"(\u6211(?:\u7b97\u51fa|\u7b97\u5230|\u5f97\u5230|\u5199\u51fa|\u731c|\u89c9\u5f97|\u611f\u89c9|\u8ba4\u4e3a|\u9009).{0,80}"
     r"(=|\u4e3a|\u662f|\u9009|\u6781\u9650|\u5bfc\u6570|\u95f4\u65ad|\u8fde\u7eed|[A-D])|"
@@ -776,7 +785,7 @@ def _contains_any_pattern(text: str, patterns: tuple[re.Pattern, ...]) -> bool:
 
 def _has_visible_choice_claim(student_request: str) -> bool:
     request = str(student_request or "")
-    return bool(VISIBLE_CHOICE_CLAIM_PATTERN.search(request))
+    return bool(VISIBLE_CHOICE_CLAIM_PATTERN.search(request) or EXPLICIT_VISIBLE_CHOICE_CLAIM_PATTERN.search(request))
 
 
 def _has_visible_result_claim(student_request: str) -> bool:
@@ -1377,7 +1386,9 @@ def _build_local_process_hint(student_request: str) -> str:
 def _extract_student_choice_claim(text: str) -> str:
     match = CHOICE_CLAIM_PATTERN.search(str(text or ""))
     if not match:
-        return ""
+        match = EXPLICIT_VISIBLE_CHOICE_CLAIM_PATTERN.search(str(text or ""))
+        if not match:
+            return ""
     for group in match.groups()[1:]:
         if group:
             return group.upper()
