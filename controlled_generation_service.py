@@ -1889,9 +1889,8 @@ def generate_controlled_hint(
             _record_stage_timing(stage_timings, "generate_local_formula_hint", stage_started_at)
             _ensure_generation_budget(total_started_at, "generate_local_formula_hint")
         elif (
-            (interaction_profile["student_supplied_answer_or_step"] or explicit_local_claim_request)
-            and local_claim_verification_hint
-        ):
+            interaction_profile["student_supplied_answer_or_step"] or explicit_local_claim_request
+        ) and local_claim_verification_hint:
             stage_started_at = time.perf_counter()
             final_hint = local_claim_verification_hint
             _record_stage_timing(stage_timings, "generate_local_claim_verification", stage_started_at)
