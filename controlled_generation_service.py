@@ -785,7 +785,59 @@ def _contains_any_pattern(text: str, patterns: tuple[re.Pattern, ...]) -> bool:
 
 def _has_visible_choice_claim(student_request: str) -> bool:
     request = str(student_request or "")
-    return bool(VISIBLE_CHOICE_CLAIM_PATTERN.search(request) or EXPLICIT_VISIBLE_CHOICE_CLAIM_PATTERN.search(request))
+    return bool(
+        VISIBLE_CHOICE_CLAIM_PATTERN.search(request)
+        or EXPLICIT_VISIBLE_CHOICE_CLAIM_PATTERN.search(request)
+        or _has_explicit_visible_choice_claim(request)
+    )
+
+
+def _find_standalone_choice_letter(text: str) -> str:
+    for index, char in enumerate(str(text or "")):
+        upper = char.upper()
+        if upper not in {"A", "B", "C", "D"}:
+            continue
+        prev_char = text[index - 1] if index > 0 else ""
+        next_char = text[index + 1] if index + 1 < len(text) else ""
+        if prev_char.isascii() and prev_char.isalpha():
+            continue
+        if next_char.isascii() and next_char.isalpha():
+            continue
+        return upper
+    return ""
+
+
+def _has_explicit_visible_choice_claim(student_request: str) -> bool:
+    request = str(student_request or "")
+    lowered = request.lower()
+    explicit_markers = (
+        "我选",
+        "我选择",
+        "我猜",
+        "我觉得",
+        "我认为",
+        "我答",
+        "我会选",
+        "i choose",
+        "i pick",
+        "i select",
+        "my guess is",
+        "my choice is",
+        "my answer is",
+        "my pick is",
+    )
+    explicit_choice = _find_standalone_choice_letter(request)
+    if any(marker in request or marker in lowered for marker in explicit_markers):
+        return bool(explicit_choice)
+    if any(token in request or token in lowered for token in ("对吗", "正确吗", "对不对", "right", "correct")):
+        return bool(
+            re.search(
+                r"(?<![A-Za-z])[A-D](?![A-Za-z])\s*(?:\u5bf9\u5417|\u6b63\u786e\u5417|\u5bf9\u4e0d\u5bf9|right|correct)",
+                request,
+                flags=re.I,
+            )
+        )
+    return False
 
 
 def _has_visible_result_claim(student_request: str) -> bool:
@@ -1388,6 +1440,37 @@ def _extract_student_choice_claim(text: str) -> str:
     if not match:
         match = EXPLICIT_VISIBLE_CHOICE_CLAIM_PATTERN.search(str(text or ""))
         if not match:
+            request = str(text or "")
+            lowered = request.lower()
+            explicit_markers = (
+                "我选",
+                "我选择",
+                "我猜",
+                "我觉得",
+                "我认为",
+                "我答",
+                "我会选",
+                "i choose",
+                "i pick",
+                "i select",
+                "my guess is",
+                "my choice is",
+                "my answer is",
+                "my pick is",
+            )
+            explicit_choice = _find_standalone_choice_letter(request)
+            if any(marker in request or marker in lowered for marker in explicit_markers) and explicit_choice:
+                return explicit_choice
+            if any(token in request or token in lowered for token in ("对吗", "正确吗", "对不对", "right", "correct")):
+                fallback_match = re.search(
+                    r"(?<![A-Za-z])[A-D](?![A-Za-z])\s*(?:\u5bf9\u5417|\u6b63\u786e\u5417|\u5bf9\u4e0d\u5bf9|right|correct)",
+                    request,
+                    flags=re.I,
+                )
+                if fallback_match:
+                    return fallback_match.group(0)[0].upper()
+            if explicit_choice and any(marker in request or marker in lowered for marker in explicit_markers):
+                return explicit_choice
             return ""
     for group in match.groups()[1:]:
         if group:
