@@ -668,6 +668,15 @@ async function clickQuestionButton(page, questionNumber) {
 
 async function loginIfNeeded(page) {
   await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
+  const initialText = await bodyText(page);
+  if (initialText.includes("This app has gone to sleep") || initialText.includes("Yes, get this app back up")) {
+    await page.getByRole("button", { name: /get this app back up/i }).first().click();
+    await waitUntil(
+      page,
+      (text) => !text.includes("This app has gone to sleep") && !text.includes("Yes, get this app back up"),
+      120000
+    );
+  }
   await waitUntil(
     page,
     (text) => text.includes("进入系统") || text.includes("当前账号"),
@@ -6848,6 +6857,17 @@ const HIGH_RISK_V19_SEMANTIC_CASES = [
   },
 ];
 
+const HIGH_RISK_V20_TAGS = ["high_risk_v20"];
+const V20_OUTPUT_GUARD_EXPECTATIONS = V19_OUTPUT_GUARD_EXPECTATIONS;
+const HIGH_RISK_V20_SEMANTIC_CASES = HIGH_RISK_V19_SEMANTIC_CASES.map((scenario) => ({
+  ...scenario,
+  id: scenario.id.replace("high_risk_v19", "high_risk_v20"),
+  markerPrefix: scenario.markerPrefix.replace("V19", "V20"),
+  tags: HIGH_RISK_V20_TAGS,
+  risk: scenario.risk.replace("text-numeric", "text-numeric-v20"),
+  expectations: V20_OUTPUT_GUARD_EXPECTATIONS,
+}));
+
 const generatedHighRiskRealSendScenarios = [
   makeHighRiskRealSendScenario({
     id: "high_risk_formula_recall_direct_knowledge",
@@ -7201,6 +7221,7 @@ const generatedHighRiskRealSendScenarios = [
   ...HIGH_RISK_V17_SEMANTIC_CASES.map(makeHighRiskRealSendScenario),
   ...HIGH_RISK_V18_SEMANTIC_CASES.map(makeHighRiskRealSendScenario),
   ...HIGH_RISK_V19_SEMANTIC_CASES.map(makeHighRiskRealSendScenario),
+  ...HIGH_RISK_V20_SEMANTIC_CASES.map(makeHighRiskRealSendScenario),
   makeHighRiskOperationalSendScenario({
     id: "high_risk_stability_triple_click_no_duplicate",
     markerPrefix: "E2E_HR_TRIPLE_CLICK",
@@ -7937,8 +7958,8 @@ function assertScenarioInventory() {
   if (scenarios.length !== 183) {
     throw new Error(`Expected 183 non-real input scenarios, got ${scenarios.length}.`);
   }
-  if (realSendScenarios.length !== 361) {
-    throw new Error(`Expected 361 real-send scenarios, got ${realSendScenarios.length}.`);
+  if (realSendScenarios.length !== 366) {
+    throw new Error(`Expected 366 real-send scenarios, got ${realSendScenarios.length}.`);
   }
 }
 
