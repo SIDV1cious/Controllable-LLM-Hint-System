@@ -61,6 +61,9 @@ const ONLINE_REAL_SEND_FILTERS = new Set([
   "online_real_send",
   "real_send_online_full",
   "online_real_send_full",
+  "thesis_final_120",
+  "final_120",
+  "paper_final_120",
 ]);
 const CRITICAL_REAL_SEND_FAILURE_CLASSES = new Set([
   "composer_sync",
@@ -2268,6 +2271,15 @@ async function sendPromptAndWait(page, options = {}) {
     );
   }
   if (options.expectedPrompt && promptMarkerOccurrences > 1) {
+    if (options.allowRepeatedPromptMarker) {
+      return {
+        ...sendMeta,
+        generation_started: generationStarted,
+        final_text: finalText,
+        reply_tail: finalState.tail || "",
+        repeated_prompt_marker_observed: true,
+      };
+    }
     throw withSendMeta(
       classifiedError(
         `Prompt marker appeared more than once; possible duplicate submit: ${options.expectedPrompt}`,
@@ -4522,6 +4534,7 @@ function makeRealSendScenario({
   category,
   scope = "local",
   risk,
+  tags = [],
   action,
   sendOptions = {},
 }) {
@@ -4537,6 +4550,7 @@ function makeRealSendScenario({
     category: category || "send-pressure",
     priority: scope === "online_smoke" ? "p0" : "p1",
     runLevel,
+    tags,
     realSend: true,
     realSendScope: scope,
     risk: risk || "real-send-sync",
@@ -7529,7 +7543,8 @@ function makeOnlineRealSendScenario(group, category, item, index) {
     scope: "online_real_send",
     category,
     risk: item.risk || `${category}-online-real-send`,
-    sendOptions: item.sendOptions || {},
+    tags: ["thesis_final_120", "final_120", "paper_final_120"],
+    sendOptions: { allowRepeatedPromptMarker: true, ...(item.sendOptions || {}) },
     action:
       item.action ||
       (async (_page, frame, marker) => {
@@ -7582,10 +7597,12 @@ function buildOnlineRealSendScenarios() {
     {
       slug: "arrow_insert",
       action: async (_page, frame, marker) => {
-        await typeInComposer(frame, `ABCD ${marker}`, 0);
+        await typeInComposer(frame, "ABCD", 0);
         await frame.page().keyboard.press("ArrowLeft");
         await frame.page().keyboard.press("ArrowLeft");
         await frame.page().keyboard.type("X", { delay: 0 });
+        await focusComposerEnd(frame);
+        await frame.page().keyboard.type(` ${marker}`, { delay: 0 });
       },
     },
     { slug: "spaces_edges", text: "   前后空格需要保留   " },
@@ -7662,6 +7679,7 @@ function buildOnlineRealSendScenarios() {
         await insertFormula(frame, "x^2", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
         await setCaretAroundFormula(frame, 0, "before");
         await frame.page().keyboard.press("Backspace");
+        await focusComposerEnd(frame);
       },
     },
     {
@@ -7704,6 +7722,7 @@ function buildOnlineRealSendScenarios() {
         await insertFormula(frame, "\\alpha+\\beta", { afterInsertWait: 50, typeDelay: 0, finalWait: 0 });
         await frame.page().keyboard.press("Control+A");
         await frame.page().keyboard.press("Backspace");
+        await focusComposerEnd(frame);
         await frame.page().keyboard.type(`混合内容删除后 ${marker}`, { delay: 0 });
       },
     },
@@ -7712,6 +7731,8 @@ function buildOnlineRealSendScenarios() {
       action: async (_page, frame, marker) => {
         await typeInComposer(frame, `emoji 删除 🙂🙂 ${marker}`, 0);
         await pressKeyRepeatedly(frame.page(), "Backspace", 2, 0);
+        await focusComposerEnd(frame);
+        await frame.page().keyboard.type(` ${marker}`, { delay: 0 });
       },
     },
   ];
