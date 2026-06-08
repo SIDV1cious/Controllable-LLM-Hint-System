@@ -15,6 +15,13 @@ from ui_feedback import render_admin_panel_title, render_empty_state
 PLOTLY_CHART_CONFIG = {"displayModeBar": False}
 
 
+def _format_elapsed_metric(value) -> str:
+    try:
+        return f"{float(value):.1f}"
+    except (TypeError, ValueError):
+        return "0.0"
+
+
 def _apply_plotly_panel_theme(fig):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
@@ -124,10 +131,16 @@ def render_learning_overview_dashboard():
                 c_leak2.metric("最终泄露率", f"{leakage_summary['leak_rate']} %")
                 c_leak3.metric("自动重写次数", leakage_summary["rewrite_total"])
                 c_perf1, c_perf2, c_perf3, c_perf4, c_perf5 = st.columns(5)
-                c_perf1.metric("平均生成耗时", f"{leakage_summary['avg_generation_elapsed_ms']} ms")
-                c_perf2.metric("P95 耗时", f"{leakage_summary['p95_generation_elapsed_ms']} ms")
+                c_perf1.metric(
+                    "平均生成耗时(ms)",
+                    _format_elapsed_metric(leakage_summary["avg_generation_elapsed_ms"]),
+                )
+                c_perf2.metric(
+                    "P95耗时(ms)",
+                    _format_elapsed_metric(leakage_summary["p95_generation_elapsed_ms"]),
+                )
                 c_perf3.metric("超时率", f"{leakage_summary['timeout_rate']} %")
-                c_perf4.metric("快路径占比", f"{leakage_summary['fast_path_rate']} %")
+                c_perf4.metric("低风险直接返回占比", f"{leakage_summary['fast_path_rate']} %")
                 c_perf5.metric("重写占比", f"{leakage_summary['rewrite_rate']} %")
                 score_df = build_leakage_score_distribution(df_leak)
                 fig_leak = px.bar(
