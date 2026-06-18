@@ -11,14 +11,16 @@
 
 ## 界面预览
 
-> 截图占位：正式截图可放入 `docs/assets/`，文件名建议保持语义化，便于 README 或作品集页面引用。
+以下截图来自线上演示环境，均使用 `demo_student` 演示账号，不包含真实学生数据、账号密码、API Key 或数据库凭据。
 
-| 场景 | 建议截图文件 | 展示重点 |
-| --- | --- | --- |
-| 学生端测验流程 | `docs/assets/student-quiz-flow.png` | 答题、自动判题与错题回顾 |
-| 智能辅导面板 | `docs/assets/controlled-hint-panel.png` | 受控提示、公式输入与防答案泄露 |
-| 管理端统计看板 | `docs/assets/admin-dashboard.png` | 学情统计、泄露指标与交互抽查 |
-| E2E 验证结果 | `docs/assets/e2e-terminal-evidence.png` | 自动化回归和真实发送验证证据 |
+| 课程学习大厅 | 随堂测验作答 |
+| --- | --- |
+| ![课程学习大厅](docs/assets/student-course-hall.png) | ![随堂测验作答](docs/assets/student-quiz-flow.png) |
+
+| 受控智能辅导面板 |
+| --- |
+| ![受控智能辅导面板](docs/assets/controlled-hint-panel.png) |
+
 ## 可控提示生成链路
 
 当前系统将智能辅导从“直接生成回复”升级为四阶段链路：
