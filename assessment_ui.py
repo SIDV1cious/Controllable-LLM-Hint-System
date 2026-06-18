@@ -256,15 +256,12 @@ def _render_result_summary_cards(total_count: int, correct_count: int, wrong_cou
         ("待复盘错题", wrong_count),
         ("正确率", f"{accuracy}%"),
     ]
-    card_html = "".join(
-        f"""
+    card_html = "".join(f"""
 <div class="result-summary-card">
     <div class="result-summary-label">{escape(str(label))}</div>
     <div class="result-summary-value">{escape(str(value))}</div>
 </div>
-        """
-        for label, value in cards
-    )
+        """ for label, value in cards)
     st.markdown(f"<div class='result-summary-grid'>{card_html}</div>", unsafe_allow_html=True)
 
 
@@ -279,8 +276,7 @@ def _render_safety_summary(results: list):
         label = escape(status.get("label", "已检测"))
         detail = escape(status.get("detail", "暂无检测细节"))
         badge_class = "safety-summary-rewrite" if "重写" in label else "safety-summary-safe"
-        cards.append(
-            f"""
+        cards.append(f"""
 <div class="safety-summary-item">
     <div class="safety-summary-head">
         <span>题 {index}</span>
@@ -288,8 +284,7 @@ def _render_safety_summary(results: list):
     </div>
     <div class="safety-summary-detail">{detail}</div>
 </div>
-            """
-        )
+            """)
 
     if not cards:
         return

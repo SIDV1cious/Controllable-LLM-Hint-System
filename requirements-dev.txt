@@ -1,5 +1,5 @@
 -r requirements.txt
 
-pytest==8.4.2
+pytest==9.0.3
 ruff==0.15.18
-black==24.10.0
+black==26.3.1
