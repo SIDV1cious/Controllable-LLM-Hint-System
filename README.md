@@ -9,6 +9,16 @@
 - 可控生成：私有提示计划、受控提示生成、答案泄露检测、自动重写、泄露指标记录与可视化。
 - 数学输入：通过 Streamlit 自定义组件接入 MathLive，支持 LaTeX 公式输入。
 
+## 界面预览
+
+> 截图占位：正式截图可放入 `docs/assets/`，文件名建议保持语义化，便于 README 或作品集页面引用。
+
+| 场景 | 建议截图文件 | 展示重点 |
+| --- | --- | --- |
+| 学生端测验流程 | `docs/assets/student-quiz-flow.png` | 答题、自动判题与错题回顾 |
+| 智能辅导面板 | `docs/assets/controlled-hint-panel.png` | 受控提示、公式输入与防答案泄露 |
+| 管理端统计看板 | `docs/assets/admin-dashboard.png` | 学情统计、泄露指标与交互抽查 |
+| E2E 验证结果 | `docs/assets/e2e-terminal-evidence.png` | 自动化回归和真实发送验证证据 |
 ## 可控提示生成链路
 
 当前系统将智能辅导从“直接生成回复”升级为四阶段链路：
@@ -80,7 +90,8 @@
 │   ├── database_schema.sql         # MySQL建表脚本
 │   ├── migrations/                 # 数据库增量迁移脚本与执行说明
 │   ├── system_design.md            # 系统设计与研究链路说明
-│   └── experiment_plan.md          # 实验设计与答辩指标建议
+│   ├── assets/                     # README与作品集截图素材占位
+│   └── archive/                    # 历史实验报告、回归验证与论文材料归档
 ├── tests/                          # 核心纯逻辑单元测试
 └── streamlit-component-x/          # MathLive 自定义组件
 ```
@@ -164,3 +175,13 @@ $env:E2E_STUDENT_PASSWORD="your_password"
 - `E2E_REPORT_PATH` / `E2E_SCREENSHOT_PATH`：指定 JSON 报告和截图输出位置。
 
 GitHub Actions 中的 `Tutoring Composer E2E` 工作流为手动触发，默认 `E2E_RUN_REAL_SEND=0`，只做线上输入框防回归 smoke，不触发真实 LLM 生成。运行前需要在仓库 Secrets 中配置 `E2E_STUDENT_USERNAME` 和 `E2E_STUDENT_PASSWORD`。
+## 文档说明
+
+- `docs/system_design.md`：说明系统架构、受控生成链路和核心研究设计。
+- `docs/database_schema.sql` 与 `docs/migrations/`：保留数据库初始化和增量迁移脚本。
+- `docs/assets/`：预留 README 与作品集截图素材位置。
+- `docs/archive/`：归档历史实验报告、回归验证记录和论文阶段材料，默认不作为快速上手入口。
+
+## 授权说明
+
+本仓库公开用于个人作品集展示与学术原型说明。除非另有书面许可，代码、文档、测试材料和截图素材均保留所有权利；第三方依赖仍遵循其各自许可证。
