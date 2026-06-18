@@ -3,21 +3,69 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
       time: "09:00"
       timezone: "Asia/Shanghai"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      python-dev-tools:
+        patterns:
+          - "pytest"
+          - "ruff"
+          - "black"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
     commit-message:
       prefix: "deps"
 
   - package-ecosystem: "npm"
     directory: "/streamlit-component-x/streamlit_component_x/frontend"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
       time: "09:30"
       timezone: "Asia/Shanghai"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      frontend-dev-tools:
+        patterns:
+          - "@types/*"
+          - "@vitejs/*"
+          - "prettier"
+          - "typescript"
+          - "vite"
+        update-types:
+          - "minor"
+          - "patch"
+      frontend-runtime-patches:
+        patterns:
+          - "mathlive"
+          - "react"
+          - "react-dom"
+          - "streamlit-component-lib"
+        update-types:
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "mathlive"
+        update-types:
+          - "version-update:semver-minor"
+      - dependency-name: "react"
+        update-types:
+          - "version-update:semver-minor"
+      - dependency-name: "react-dom"
+        update-types:
+          - "version-update:semver-minor"
+      - dependency-name: "streamlit-component-lib"
+        update-types:
+          - "version-update:semver-minor"
     commit-message:
       prefix: "deps"
