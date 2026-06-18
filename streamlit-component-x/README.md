@@ -1,12 +1,10 @@
-# streamlit-component-x
+# MathLive Streamlit Component
 
-Streamlit component that allows you to do X
+Custom Streamlit component that embeds a MathLive-powered formula input for the controllable LLM hint system.
 
 ## Installation instructions
 
-```sh
-pip install streamlit-component-x
-```
+This component is maintained inside this repository and is not published as a standalone package.
 
 ## Usage instructions
 
@@ -22,7 +20,7 @@ st.write(value)
 
 ## Local development
 
-1. Start Streamlit from the project root:
+1. Start Streamlit from this component directory:
 
    ```sh
    streamlit run streamlit_component_x/example.py
