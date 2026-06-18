@@ -54,8 +54,7 @@ def _derive_safety_status(row) -> str:
 
 def fetch_hint_experiment_logs(conn) -> pd.DataFrame:
     ensure_leakage_observability_columns()
-    query = text(
-        """
+    query = text("""
         SELECT
             il.id,
             il.student_id,
@@ -79,8 +78,7 @@ def fetch_hint_experiment_logs(conn) -> pd.DataFrame:
         LEFT JOIN custom_questions cq ON il.question_id = cq.id + 1000
         WHERE il.user_query LIKE '【辅导】%'
         ORDER BY il.created_at DESC
-        """
-    )
+        """)
     df = pd.read_sql(query, conn)
     if df.empty:
         return df

@@ -122,8 +122,7 @@ def normalize_filter_options(values: list[Any]) -> list[str]:
 
 def fetch_dataset_filter_options(conn) -> dict[str, list[str]]:
     ensure_leakage_observability_columns()
-    query = text(
-        """
+    query = text("""
         SELECT DISTINCT
             COALESCE(cq.category, '未知课程') AS course_name,
             il.hint_strength,
@@ -132,8 +131,7 @@ def fetch_dataset_filter_options(conn) -> dict[str, list[str]]:
         FROM interaction_logs il
         LEFT JOIN custom_questions cq ON il.question_id = cq.id + 1000
         WHERE il.user_query LIKE :tutoring_pattern
-        """
-    )
+        """)
     df = pd.read_sql(query, conn, params={"tutoring_pattern": TUTORING_PATTERN})
     if df.empty:
         return {
@@ -195,8 +193,7 @@ def fetch_interaction_dataset(conn, filters: DatasetExportFilters) -> pd.DataFra
         where_clauses.append("COALESCE(il.rewrite_triggered, 0) = :rewrite_triggered")
         params["rewrite_triggered"] = 1 if filters.rewrite_filter == "是" else 0
 
-    query = text(
-        f"""
+    query = text(f"""
         SELECT
             il.id,
             il.student_id,
@@ -233,8 +230,7 @@ def fetch_interaction_dataset(conn, filters: DatasetExportFilters) -> pd.DataFra
         WHERE {" AND ".join(where_clauses)}
         ORDER BY il.created_at DESC
         LIMIT :limit
-        """
-    )
+        """)
     raw_df = pd.read_sql(query, conn, params=params)
     return build_dataset_export_dataframe(raw_df, include_raw_student_id=filters.include_raw_student_id)
 

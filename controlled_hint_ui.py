@@ -463,8 +463,7 @@ def _render_strength_policy_cards(selected_strength: str) -> None:
     for label, description in HINT_STRENGTH_OPTIONS.items():
         badge, teaching_goal = policy_meta.get(label, ("策略控制", description))
         selected_class = " selected" if label == selected_strength else ""
-        cards.append(
-            f"""
+        cards.append(f"""
 <div class="strength-policy-card{selected_class}">
     <div class="strength-policy-label">
         {escape(label)}
@@ -472,8 +471,7 @@ def _render_strength_policy_cards(selected_strength: str) -> None:
     </div>
     <div class="strength-policy-desc">{escape(teaching_goal)}</div>
 </div>
-            """
-        )
+            """)
 
     st.markdown(f"<div class='strength-policy-grid'>{''.join(cards)}</div>", unsafe_allow_html=True)
 
