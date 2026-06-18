@@ -13,13 +13,17 @@
 
 以下截图来自线上演示环境，均使用 `demo_student` 演示账号，不包含真实学生数据、账号密码、API Key 或数据库凭据。
 
-| 课程学习大厅 | 随堂测验作答 |
-| --- | --- |
-| ![课程学习大厅](docs/assets/student-course-hall.png) | ![随堂测验作答](docs/assets/student-quiz-flow.png) |
+### 课程学习大厅
 
-| 受控智能辅导面板 |
-| --- |
-| ![受控智能辅导面板](docs/assets/controlled-hint-panel.png) |
+![课程学习大厅](docs/assets/student-course-hall.png)
+
+### 随堂测验作答
+
+![随堂测验作答](docs/assets/student-quiz-flow.png)
+
+### 受控智能辅导面板
+
+![受控智能辅导面板](docs/assets/controlled-hint-panel.png)
 
 ## 可控提示生成链路
 
