@@ -142,8 +142,8 @@ streamlit run app.py
 
 ```powershell
 $env:E2E_APP_URL="http://localhost:8517"
-$env:E2E_STUDENT_USERNAME="3021244094"
-$env:E2E_STUDENT_PASSWORD="3021244094"
+$env:E2E_STUDENT_USERNAME="your_username"
+$env:E2E_STUDENT_PASSWORD="your_password"
 $env:E2E_SCENARIO_FILTER="input_stress"
 $env:E2E_RUN_REAL_SEND="0"
 node scripts/e2e_tutoring_composer.js
@@ -152,8 +152,8 @@ node scripts/e2e_tutoring_composer.js
 也可以使用封装好的本地 smoke 脚本：
 
 ```powershell
-$env:E2E_STUDENT_USERNAME="3021244094"
-$env:E2E_STUDENT_PASSWORD="3021244094"
+$env:E2E_STUDENT_USERNAME="your_username"
+$env:E2E_STUDENT_PASSWORD="your_password"
 .\scripts\run_tutoring_composer_smoke.ps1 -AppUrl "http://localhost:8517"
 ```
 
